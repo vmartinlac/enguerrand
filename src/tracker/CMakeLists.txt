@@ -5,12 +5,17 @@ add_library(
     Tracker.cpp
     TrackerImpl.h
     TrackerImpl.cu
+    CircleFitter.h
+    CircleFitter.cpp
+    LineFitter.h
+    LineFitter.cpp
 )
 
 target_link_libraries(
     enguerrand_tracker
     PUBLIC
     opencv_core
+    Eigen3::Eigen
     PRIVATE
     opencv_cudaimgproc
     opencv_imgproc

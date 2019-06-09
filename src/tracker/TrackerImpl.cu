@@ -1,3 +1,4 @@
+#include <iostream>
 #include <queue>
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/imgproc.hpp>
@@ -18,10 +19,15 @@ TrackerImpl::TrackerImpl()
     mNeighbors[5] = cv::Vec2i(1,-1);
     mNeighbors[6] = cv::Vec2i(1,0);
     mNeighbors[7] = cv::Vec2i(1,1);
+
+    mLineFitter.setUseOpenCV(false);
+    mCircleFitter.setUseOpenCV(true);
 }
 
 void TrackerImpl::track(const cv::Mat& input_image, std::vector<TrackedLandmark>& result)
 {
+    mCircleFitter.setMinMaxRadius( 5.0f, float(input_image.cols)*0.5f );
+
     detectEdges(input_image);
     findCircles();
 }
@@ -55,10 +61,7 @@ void TrackerImpl::findCircles()
         pixels_to_process[selected_index] = pixels_to_process.back();
         pixels_to_process.pop_back();
 
-        const int i = seed[0];
-        const int j = seed[1];
-
-        if( (mFlags(i,j) & FLAG_NO_SEED) == 0 )
+        if( (mFlags(seed) & FLAG_NO_SEED) == 0 )
         {
             findCircle(seed);
         }
@@ -68,6 +71,8 @@ void TrackerImpl::findCircles()
 void TrackerImpl::findCircle(const cv::Vec2i& seed)
 {
     std::vector<cv::Vec2i> patch;
+    cv::Vec3f line;
+    cv::Vec3f circle;
     bool ok = true;
 
     auto pred_radius = [this,seed] (const cv::Vec2i& neighbor)
@@ -76,31 +81,160 @@ void TrackerImpl::findCircle(const cv::Vec2i& seed)
             float(seed[0]-neighbor[0]),
             float(seed[1]-neighbor[1]));
 
-        const float radius = 6.0f;
+        const float radius = 5.0f;
 
         return (dist < radius);
     };
 
-    auto pred_line = [this] (const cv::Vec2i& neighbor)
+    auto fit_line = [this] (const std::vector<cv::Vec2i>& patch, cv::Vec3f& line) -> bool
     {
-        return false;
+        std::vector<cv::Vec2f> points(patch.size());
+        std::transform(patch.begin(), patch.end(), points.begin(), [] (const cv::Vec2i& pt) { return static_cast<cv::Vec2f>(pt); } );
+
+        return mLineFitter.fit(points, false, line);
+    };
+
+    auto fit_circle = [this] (const std::vector<cv::Vec2i>& patch, cv::Vec3f& circle) -> bool
+    {
+        std::vector<cv::Vec2f> points(patch.size());
+        std::transform(patch.begin(), patch.end(), points.begin(), [] (const cv::Vec2i& pt) { return static_cast<cv::Vec2f>(pt); } );
+
+        return mCircleFitter.fit(points, false, circle);
+    };
+
+    auto lies_on_line = [] (const cv::Vec3f& line, const cv::Vec2i& pt) -> bool
+    {
+        // asserts that (line[0], line[1]) vector is normalized.
+        const float dist = std::fabs( line[0]*float(pt[0]) + line[1]*float(pt[1]) + line[2] );
+        return (dist < 2.0f);
+    };
+
+    auto lies_on_circle = [] (const cv::Vec3f& circle, const cv::Vec2i& pt) -> bool
+    {
+        const float dist = std::hypot(float(pt[0]) - circle[0], float(pt[1]) - circle[1]);
+        return std::fabs(dist - circle[2]) < 2.0f;
     };
 
     if(ok)
     {
         patch.push_back(seed);
         growPatch(patch, pred_radius);
+    }
+
+    if(ok)
+    {
+        ok = fit_line(patch, line);
+    }
+
+    if(ok)
+    {
+        std::vector<cv::Vec2i>::iterator it = patch.begin();
+        while(it != patch.end())
+        {
+            if( lies_on_line(line, *it) )
+            {
+                it++;
+            }
+            else
+            {
+                it = patch.erase(it);
+            }
+        }
+
         ok = (patch.size() >= 5);
     }
 
     if(ok)
     {
+        ok = growPrimitive(patch, fit_line, lies_on_line, line);
     }
+
+    if(ok)
+    {
+
+        for(const cv::Vec2i& pt : patch)
+        {
+            mFlags(pt) |= FLAG_NO_SEED;
+        }
+    }
+
+    if(ok)
+    {
+        ok = growPrimitive(patch, fit_circle, lies_on_circle, circle);
+    }
+
+    if(ok)
+    {
+        debugShowPatch("result", patch);
+    }
+}
+
+void TrackerImpl::debugShowPatch(const std::string& name, const std::vector<cv::Vec2i>& patch)
+{
+    cv::Mat3b image(mFlags.size());
+
+    for(int i=0; i<image.rows; i++)
+    {
+        for(int j=0; j<image.cols; j++)
+        {
+            if(mFlags(i,j) & FLAG_EDGE)
+            {
+                image(i,j) = cv::Vec3b(128,128,128);
+            }
+            else
+            {
+                image(i,j) = cv::Vec3b(0,0,0);
+            }
+        }
+    }
+
+    for(const cv::Vec2i& pt : patch)
+    {
+        image(pt) = cv::Vec3b(0,0,255);
+    }
+
+    cv::imshow(name, image);
+    cv::waitKey(0);
+}
+
+template<typename PrimitiveType, typename EstimatorType, typename ClassifierType>
+bool TrackerImpl::growPrimitive<PrimitiveType,EstimatorType>(
+    std::vector<cv::Vec2i>& patch,
+    const EstimatorType& estimator,
+    const ClassifierType& classifier,
+    PrimitiveType& result)
+{
+    bool go_on = true;
+    bool ret = true;
+
+    auto growth_pred = [&result, &classifier] (const cv::Vec2i& pt) -> bool
+    {
+        return classifier(result, pt);
+    };
+
+    int num_iterations = 0;
+
+    while(go_on)
+    {
+        go_on = ret = estimator(patch, result);
+
+        if(go_on)
+        {
+            const size_t prev_size = patch.size();
+            growPatch(patch, growth_pred);
+            go_on = (patch.size() > prev_size);
+        }
+
+        num_iterations++;
+    }
+
+    return ret;
 }
 
 template<typename T>
 void TrackerImpl::growPatch<T>(std::vector<cv::Vec2i>& patch, const T& pred)
 {
+    // TODO: set these variable as class members to avoid many memory allocations.
     std::vector<cv::Vec2i> visited;
     std::queue<cv::Vec2i> queue;
 
@@ -124,11 +258,15 @@ void TrackerImpl::growPatch<T>(std::vector<cv::Vec2i>& patch, const T& pred)
             {
                 const uint8_t f = mFlags(neighbor);
 
-                if( (f & FLAG_EDGE) != 0 && (f & FLAG_VISITED) == 0 && pred(neighbor))
+                if( (f & FLAG_EDGE) != 0 && (f & FLAG_VISITED) == 0 )
                 {
-                    mFlags(neighbor) |= FLAG_VISITED;
-                    visited.push_back(neighbor);
-                    patch.push_back(neighbor);
+                    if( pred(neighbor) )
+                    {
+                        mFlags(neighbor) |= FLAG_VISITED;
+                        visited.push_back(neighbor);
+                        queue.push(neighbor);
+                        patch.push_back(neighbor);
+                    }
                 }
             }
         }
