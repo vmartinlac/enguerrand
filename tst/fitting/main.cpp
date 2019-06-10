@@ -59,7 +59,7 @@ private slots:
                 reference_line = -reference_line;
             }
 
-            std::cout << "Trial #" << i+1 << std::endl;
+            std::cout << "Line fitting trial #" << i+1 << std::endl;
             std::cout << "Reference: " << reference_line[0] << ' ' << reference_line[1] << ' ' << reference_line[2] << std::endl;
             std::cout << "Estimated: " << line[0] << ' ' << line[1] << ' ' << line[2] << std::endl;
 
@@ -78,10 +78,10 @@ private slots:
         f.setMinMaxRadius(1.0f, 100.0f);
 
         std::uniform_real_distribution<float> position_distrib(-100.0f, 100.0f);
-        std::uniform_real_distribution<float> radius_distrib(40.0f, 80.0f);
-        std::normal_distribution<float> noise_distrib(0.0f, 3.0f);
+        std::uniform_real_distribution<float> radius_distrib(70.0f, 80.0f);
+        std::normal_distribution<float> noise_distrib(0.0f, 1.0f);
         const int num_trials = 30;
-        const int num_points = 100;
+        const int num_points = 300;
 
         for(int trial=0; trial<num_trials; trial++)
         {
@@ -98,8 +98,18 @@ private slots:
                 points.push_back(pt);
             }
 
-            cv::Vec3f circle;
+            cv::Vec3f circle(0.0f, 0.0f, 1.0f);
             QVERIFY( f.fit(points, false, circle) );
+
+            const double err_center = std::hypot(circle[0]-center[0], circle[1]-center[1]);
+            const double err_radius = circle[2] - radius;
+
+            std::cout << "Circle fitting trial #" << trial+1 << std::endl;
+            std::cout << "Reference: " << center[0] << ' ' << center[1] << ' ' << radius << std::endl;
+            std::cout << "Estimated: " << circle[0] << ' ' << circle[1] << ' ' << circle[2] << std::endl;
+
+            QVERIFY( err_center < 4.0f );
+            QVERIFY( std::fabs(err_radius) < 4.0f );
         }
     }
 

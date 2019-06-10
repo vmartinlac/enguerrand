@@ -129,6 +129,7 @@ void TrackerImpl::findCircle(const cv::Vec2i& seed)
     if(ok)
     {
         std::vector<cv::Vec2i>::iterator it = patch.begin();
+
         while(it != patch.end())
         {
             if( lies_on_line(line, *it) )

@@ -2,17 +2,25 @@
 add_library(
     enguerrand_video
     SHARED
-    VideoInput.h
-    VideoInput.cpp
+    GenICamInterface.cpp
+    GenICamInterface.h
+    GenICamVideoSource.cpp
+    GenICamVideoSource.h
+    OpenCVVideoSource.cpp
+    OpenCVVideoSource.h
+    RealsenseVideoSource.cpp
+    RealsenseVideoSource.h
+    VideoFrame.cpp
+    VideoFrame.h
+    VideoSource.cpp
+    VideoSource.h
 )
 
 target_link_libraries(
     enguerrand_video
     PUBLIC
     opencv_core
-    Sophus::Sophus
-    Eigen3::Eigen
-    PRIVATE
+    opencv_videoio
     realsense2::realsense2
 )
 

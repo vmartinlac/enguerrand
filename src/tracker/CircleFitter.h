@@ -14,6 +14,8 @@ public:
 
     void setMinMaxRadius(float min_radius, float max_radius);
 
+    void setMaxIterations(int max);
+
     bool fit(
         const std::vector<cv::Vec2f>& points, 
         bool use_initial_solution,
@@ -36,5 +38,6 @@ protected:
     bool mUseOpenCV;
     float mMinRadius;
     float mMaxRadius;
+    int mMaxIterations;
 };
 

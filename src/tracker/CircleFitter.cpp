@@ -7,6 +7,7 @@ CircleFitter::CircleFitter()
     mUseOpenCV = false;
     mMaxRadius = 100.0f;
     mMinRadius = 1.0f;
+    mMaxIterations = 1000;
 }
 
 bool CircleFitter::fit(
@@ -46,8 +47,9 @@ bool CircleFitter::fit(
 
         bool go_on = true;
         bool first = true;
-        double lambda = 1.0;
+        int num_iterations = 0;
 
+        double lambda = 1.0;
         const double factor = 2.0;
 
         double best_error = 0.0;
@@ -98,19 +100,21 @@ bool CircleFitter::fit(
         best_error = computeError(points, best_solution);
         computeError(points, best_solution, best_F, best_J);
 
-        std::cout << std::endl;
         while(go_on)
         {
             const Eigen::Vector3d B = - (best_J.transpose() * best_F);
 
             const Eigen::Matrix3d JtJ = best_J.transpose() * best_J;
+
             if( first )
             {
                 lambda = 0.1*JtJ.trace()/3.0;
                 first = false;
             }
+
             const Eigen::Matrix3d A = JtJ + lambda * Eigen::Matrix3d::Identity();
             solver.compute(A);
+
             const Eigen::Vector3d delta = solver.solve(B);
 
             const Eigen::Vector3d candidate_solution = best_solution + delta;
@@ -131,9 +135,11 @@ bool CircleFitter::fit(
                 lambda *= factor;
             }
 
-            std::cout << best_error << " " << candidate_error << std::endl;
+            //std::cout << "[" << num_iterations << "] " << best_error << std::endl;
 
-            go_on = (best_error > 1.0e-5) && (lambda < 1.0e5);
+            num_iterations++;
+
+            go_on = (best_error > 1.0e-5) && (lambda < 1.0e5) && (num_iterations < mMaxIterations) && (B.norm() > 1.0e-5);
         }
 
         circle[0] = static_cast<float>( best_solution.x() );
@@ -214,5 +220,10 @@ void CircleFitter::computeError(
             J(i,2) = 0.0;
         }
     }
+}
+
+void CircleFitter::setMaxIterations(int max)
+{
+    mMaxIterations = max;
 }
 
