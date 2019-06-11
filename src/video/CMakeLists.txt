@@ -6,8 +6,8 @@ add_library(
     GenICamInterface.h
     GenICamVideoSource.cpp
     GenICamVideoSource.h
-    OpenCVVideoSource.cpp
-    OpenCVVideoSource.h
+    FileVideoSource.cpp
+    FileVideoSource.h
     RealsenseVideoSource.cpp
     RealsenseVideoSource.h
     VideoFrame.cpp
@@ -22,6 +22,7 @@ target_link_libraries(
     opencv_core
     opencv_videoio
     realsense2::realsense2
+    libusb
 )
 
 target_include_directories(enguerrand_video INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

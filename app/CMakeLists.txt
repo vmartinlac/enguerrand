@@ -9,6 +9,7 @@ target_link_libraries(
     PUBLIC
     opencv_core
     enguerrand_tracker
+    enguerrand_video
 )
 
 

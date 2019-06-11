@@ -1,11 +1,63 @@
 #include <iostream>
 #include <queue>
 #include <opencv2/core/cuda.hpp>
+#include <opencv2/core/cuda_stream_accessor.hpp>
+#include <opencv2/cudafilters.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include "TrackerImpl.h"
 
-__global__ void mykernel(cv::cuda::PtrStep<float> tmp)
+__global__ void computeSobelNorm(
+    cv::cuda::PtrStepSz<float3> sobel_x,
+    cv::cuda::PtrStepSz<float3> sobel_y,
+    cv::cuda::PtrStepSz<float3> sobel_norm,
+    cv::cuda::PtrStepSz<float> max_sobel_norm,
+    cv::cuda::PtrStepSz<uint8_t> channel)
+{
+    const int x = blockIdx.x*blockDim.x + threadIdx.x;
+    const int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( x < sobel_x.cols && y < sobel_x.rows )
+    {
+        const float blue_x = sobel_x.ptr(y)[x].x;
+        const float green_x = sobel_x.ptr(y)[x].y;
+        const float red_x = sobel_x.ptr(y)[x].z;
+
+        const float blue_y = sobel_y.ptr(y)[x].x;
+        const float green_y = sobel_y.ptr(y)[x].y;
+        const float red_y = sobel_y.ptr(y)[x].z;
+
+        const float blue_norm = hypot(blue_x, blue_y);
+        const float green_norm = hypot(green_x, green_y);
+        const float red_norm = hypot(red_x, red_y);
+
+        sobel_norm.ptr(y)[x].x = blue_norm;
+        sobel_norm.ptr(y)[x].y = green_norm;
+        sobel_norm.ptr(y)[x].z = red_norm;
+        if( x == 1 && y == 1 ) printf("%d\n", sizeof(sobel_norm.ptr(y)[x]));
+
+
+        uint8_t c = 0;
+        float max = blue_norm;
+
+        if(green_norm > max)
+        {
+            max = green_norm;
+            c = 1;
+        }
+
+        if(red_norm > max)
+        {
+            max = red_norm;
+            c = 2;
+        }
+
+        channel.ptr(y)[x] = c;
+        max_sobel_norm.ptr(y)[x] = max;
+    }
+}
+
+__global__ void nonMaximaSuppression()
 {
 }
 
@@ -21,14 +73,16 @@ TrackerImpl::TrackerImpl()
     mNeighbors[7] = cv::Vec2i(1,1);
 
     mLineFitter.setUseOpenCV(false);
-    mCircleFitter.setUseOpenCV(true);
+    mCircleFitter.setUseOpenCV(false);
 }
 
 void TrackerImpl::track(const cv::Mat& input_image, std::vector<TrackedLandmark>& result)
 {
     mCircleFitter.setMinMaxRadius( 5.0f, float(input_image.cols)*0.5f );
 
+    std::cout << "Detecting edges..." << std::endl;
     detectEdges(input_image);
+    std::cout << "Working on edges..." << std::endl;
     findCircles();
 }
 
@@ -106,13 +160,13 @@ void TrackerImpl::findCircle(const cv::Vec2i& seed)
     {
         // asserts that (line[0], line[1]) vector is normalized.
         const float dist = std::fabs( line[0]*float(pt[0]) + line[1]*float(pt[1]) + line[2] );
-        return (dist < 2.0f);
+        return (dist < 5.0f);
     };
 
     auto lies_on_circle = [] (const cv::Vec3f& circle, const cv::Vec2i& pt) -> bool
     {
         const float dist = std::hypot(float(pt[0]) - circle[0], float(pt[1]) - circle[1]);
-        return std::fabs(dist - circle[2]) < 2.0f;
+        return std::fabs(dist - circle[2]) < 5.0f;
     };
 
     if(ok)
@@ -128,21 +182,10 @@ void TrackerImpl::findCircle(const cv::Vec2i& seed)
 
     if(ok)
     {
-        std::vector<cv::Vec2i>::iterator it = patch.begin();
-
-        while(it != patch.end())
+        for(const cv::Vec2i& pt : patch)
         {
-            if( lies_on_line(line, *it) )
-            {
-                it++;
-            }
-            else
-            {
-                it = patch.erase(it);
-            }
+            ok = ok && lies_on_line(line, pt);
         }
-
-        ok = (patch.size() >= 5);
     }
 
     if(ok)
@@ -152,13 +195,13 @@ void TrackerImpl::findCircle(const cv::Vec2i& seed)
 
     if(ok)
     {
-
         for(const cv::Vec2i& pt : patch)
         {
             mFlags(pt) |= FLAG_NO_SEED;
         }
     }
 
+    /*
     if(ok)
     {
         ok = growPrimitive(patch, fit_circle, lies_on_circle, circle);
@@ -168,6 +211,7 @@ void TrackerImpl::findCircle(const cv::Vec2i& seed)
     {
         debugShowPatch("result", patch);
     }
+    */
 }
 
 void TrackerImpl::debugShowPatch(const std::string& name, const std::vector<cv::Vec2i>& patch)
@@ -285,59 +329,73 @@ void TrackerImpl::detectEdges(const cv::Mat& input_image)
 
     const cv::Size image_size = input_image.size();
 
+    cv::cuda::GpuMat d_input;
+    cv::cuda::GpuMat d_sobel_x;
+    cv::cuda::GpuMat d_sobel_y;
+    cv::cuda::GpuMat d_sobel_norm(image_size, CV_32FC3);
+    cv::cuda::GpuMat d_max_sobel_norm(image_size, CV_32FC1);
+    cv::cuda::GpuMat d_channel( image_size, CV_8UC1 );
+    cv::cuda::GpuMat d_flags( image_size, CV_8UC1 );
+
+
     cv::Mat3f sobel_x;
     cv::Mat3f sobel_y;
     cv::Mat3f sobel_norm(image_size);
     cv::Mat1f max_sobel_norm(image_size);
-    cv::Mat1b channel( image_size );
+    cv::Mat1b channel(image_size);
+    mFlags.create(image_size);
 
-    mFlags.create( image_size );
+    //mFlags.create( image_size );
 
     // compute sobel x-derivative and y-derivative.
 
+    static cv::Ptr<cv::cuda::Filter> filterx;
+    static cv::Ptr<cv::cuda::Filter> filtery;
+    if( filterx.get() == nullptr ) filterx = cv::cuda::createSobelFilter(CV_8UC3, CV_32FC3, 1, 0, 5);
+    if( filtery.get() == nullptr ) filtery = cv::cuda::createSobelFilter(CV_8UC3, CV_32FC3, 0, 1, 5);
+
+    cv::cuda::Event e1;
+    cv::cuda::Stream s1;
+    d_input.upload(input_image, s1);
+    e1.record(s1);
+
+    cv::cuda::Stream s2x;
+    cv::cuda::Stream s2y;
+    cv::cuda::Event e2x;
+    cv::cuda::Event e2y;
+
+    s2x.waitEvent(e1);
+    s2y.waitEvent(e1);
+
+    filterx->apply(d_input, d_sobel_x, s2x);
+    filtery->apply(d_input, d_sobel_y, s2y);
+
+    d_sobel_x.download(sobel_x, s2x);
+    d_sobel_y.download(sobel_y, s2y);
+
+    e2x.record(s2x);
+    e2y.record(s2y);
+
+    cv::cuda::Stream s3;
+
+    s3.waitEvent(e2x);
+    s3.waitEvent(e2y);
+
+    dim3 blocks( (image_size.width+15)/16, (image_size.height+15)/16 );
+    dim3 threads( 16, 16 );
+
+    computeSobelNorm<<< blocks, threads, 0, cv::cuda::StreamAccessor::getStream(s3)  >>>(d_sobel_x, d_sobel_y, d_sobel_norm, d_max_sobel_norm, d_channel);
+
+    d_sobel_norm.download(sobel_norm, s3);
+    d_max_sobel_norm.download(max_sobel_norm, s3);
+    d_channel.download(channel, s3);
+
+    s3.waitForCompletion();
+
+    /*
     cv::Sobel(input_image, sobel_x, CV_32F, 1, 0, 5);
     cv::Sobel(input_image, sobel_y, CV_32F, 0, 1, 5);
-
-    // compute norm of gradient.
-
-
-    for(int i=0; i<image_size.height; i++)
-    {
-        for(int j=0; j<image_size.width; j++)
-        {
-            sobel_norm(i,j)[0] = std::hypot(sobel_x(i,j)[0], sobel_y(i,j)[0]);
-            sobel_norm(i,j)[1] = std::hypot(sobel_x(i,j)[1], sobel_y(i,j)[1]);
-            sobel_norm(i,j)[2] = std::hypot(sobel_x(i,j)[2], sobel_y(i,j)[2]);
-            max_sobel_norm(i,j) = std::max(sobel_norm(i,j)[0], std::max( sobel_norm(i,j)[1], sobel_norm(i,j)[2] ));
-        }
-    }
-
-    // for each pixel, compute the channel on which its gradient has the largest margnitude.
-
-    for(int i=0; i<image_size.height; i++)
-    {
-        for(int j=0; j<image_size.width; j++)
-        {
-            const cv::Vec3f col = sobel_norm(i,j);
-
-            int c = 0;
-            float value = col[0];
-
-            if( col[1] > value )
-            {
-                c = 1;
-                value = col[1];
-            }
-
-            if( col[2] > value )
-            {
-                c = 2;
-                value = col[2];
-            }
-
-            channel(i,j) = c;
-        }
-    }
+    */
 
     // non-maximum suppression.
 
@@ -452,6 +510,6 @@ void TrackerImpl::detectEdges(const cv::Mat& input_image)
     }
 
     //cv::imshow("rien", mFlags*255);
-    //cv::waitKey(0);
+    //cv::waitKey(1);
 }
 
