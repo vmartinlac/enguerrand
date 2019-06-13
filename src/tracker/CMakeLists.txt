@@ -3,8 +3,10 @@ add_library(
     SHARED
     Tracker.h
     Tracker.cpp
-    TrackerImpl.h
-    TrackerImpl.cu
+    TrackerGPUImpl.h
+    TrackerGPUImpl.cu
+    TrackerCPUImpl.h
+    TrackerCPUImpl.cpp
     CircleFitter.h
     CircleFitter.cpp
     LineFitter.h

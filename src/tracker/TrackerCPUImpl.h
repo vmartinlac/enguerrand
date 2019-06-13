@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <random>
@@ -5,11 +6,11 @@
 #include "CircleFitter.h"
 #include "Tracker.h"
 
-class TrackerImpl : public Tracker
+class TrackerCPUImpl : public Tracker
 {
 public:
 
-    TrackerImpl();
+    TrackerCPUImpl();
 
     void track(const cv::Mat& image, std::vector<TrackedLandmark>& result) override;
 
@@ -17,10 +18,12 @@ protected:
 
     enum PointFlag
     {
-        FLAG_EDGE=1,
-        FLAG_VISITED=2,
-        FLAG_NO_SEED=4,
-        FLAG_CIRCLE=8
+        FLAG_NONZERO_GRADIENT=1,
+        FLAG_MAXIMUM_ALONG_GRADIENT=2,
+        FLAG_EDGE=4,
+        FLAG_VISITED=8,
+        FLAG_NO_SEED=16,
+        FLAG_CIRCLE=32
     };
 
 protected:
@@ -49,5 +52,6 @@ protected:
     LineFitter mLineFitter;
     CircleFitter mCircleFitter;
     cv::Mat1b mFlags;
+    cv::Mat2f mNormals;
 };
 
