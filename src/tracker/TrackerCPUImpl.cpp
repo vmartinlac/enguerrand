@@ -39,7 +39,7 @@ void TrackerCPUImpl::track(const cv::Mat& input_image, std::vector<TrackedLandma
         cv::circle(tmp, cv::Point2f(c[0], c[1]), c[2], cv::Scalar(255, 255, 255));
     }
     cv::imshow("rien", tmp);
-    cv::waitKey(0);
+    cv::waitKey(1);
 }
 
 void TrackerCPUImpl::detectEdges(const cv::Mat& input_image)
@@ -185,7 +185,7 @@ void TrackerCPUImpl::detectEdges(const cv::Mat& input_image)
         }
     }
 
-#if 1
+#if 0
     {
         cv::Mat3b tmp = input_image.clone();
         for(int i=0; i<image_size.height; i++)
@@ -210,6 +210,373 @@ void TrackerCPUImpl::detectEdges(const cv::Mat& input_image)
 #endif
 }
 
+void TrackerCPUImpl::detectCirclesWithRANSAC(std::vector<cv::Vec3f>& circles)
+{
+    const cv::Size image_size = mFlags.size();
+
+    std::vector<cv::Point2i> pixels_to_process;
+    
+    pixels_to_process.reserve(image_size.width*image_size.height);
+
+    for(int i=0; i<image_size.height; i++)
+    {
+        for(int j=0; j<image_size.width; j++)
+        {
+            if(mFlags(i,j) & FLAG_EDGE)
+            {
+                pixels_to_process.push_back(cv::Point2i(j,i));
+            }
+        }
+    }
+
+    circles.clear();
+
+    while(pixels_to_process.empty() == false)
+    {
+        std::uniform_int_distribution<int> distrib(0, pixels_to_process.size()-1);
+
+        const int selected_index = distrib(mEngine);
+
+        const cv::Point2i seed = pixels_to_process[selected_index];
+        pixels_to_process[selected_index] = pixels_to_process.back();
+        pixels_to_process.pop_back();
+
+        if( (mFlags(seed) & FLAG_NO_SEED) == 0 )
+        {
+            cv::Vec3f circle;
+
+            if( findCircle(seed, circle) )
+            {
+                circles.push_back(circle);
+            }
+        }
+    }
+}
+
+bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
+{
+    const cv::Point2f from(
+        seed.x + 0.5f - 2.0f*mNormals(seed)[0]*mMinRadius,
+        seed.y + 0.5f - 2.0f*mNormals(seed)[1]*mMinRadius );
+
+    const cv::Point2f to(
+        seed.x + 0.5f - 2.0f*mNormals(seed)[0]*mMaxRadius,
+        seed.y + 0.5f - 2.0f*mNormals(seed)[1]*mMaxRadius );
+
+    const cv::Point2i from_int = static_cast<cv::Point2i>(from);
+
+    const cv::Point2i to_int = static_cast<cv::Point2i>(to);
+
+    cv::LineIterator line(mFlags, from_int, to_int);
+
+    bool has_hit = false;
+    cv::Point2i opposite;
+    bool ret = false;
+
+    for(int k=0; has_hit == false && k<line.count; k++)
+    {
+        has_hit = findEdgeInNeighborhood(line.pos(), 1, opposite);
+        line++;
+    }
+
+    if( has_hit )
+    {
+        constexpr int N_points = 4;
+        std::array<cv::Point2i,N_points> found_points;
+        std::vector<cv::Point2i> patch;
+
+        ret = true;
+
+        if(ret)
+        {
+            const float dot_product = mNormals(seed).dot(mNormals(opposite));
+            constexpr float threshold = -cos(10.0*M_PI/180.0);
+
+            ret = (dot_product < threshold);
+        }
+
+        if(ret)
+        {
+            const float radius = 0.5f * std::hypot( opposite.x - seed.x, opposite.y - seed.y );
+
+            circle[0] = seed.x + 0.5f - radius*mNormals(seed)[0];
+            circle[1] = seed.y + 0.5f - radius*mNormals(seed)[1];
+            circle[2] = radius;
+        }
+
+        if(ret)
+        {
+            std::uniform_real_distribution<float> angular_offset_distribution(0.0, 2.0*M_PI);
+
+            const float alpha = angular_offset_distribution(mEngine);
+            const float cos_alpha = std::cos(alpha);
+            const float sin_alpha = std::sin(alpha);
+
+            for(int i=0; ret && i<N_points; i++)
+            {
+                const float beta = alpha + 2.0*M_PI*float(i)/float(N_points);
+                const float cos_beta = std::cos(beta);
+                const float sin_beta = std::sin(beta);
+
+                cv::Vec2f target;
+                target[0] = circle[0] + cos_beta * circle[2];
+                target[1] = circle[1] + sin_beta * circle[2];
+
+                cv::Point2i target_point;
+                target_point.x = static_cast<int>(target[0]);
+                target_point.y = static_cast<int>(target[1]);
+
+                ret = findEdgeInNeighborhood(target_point, 3, found_points[i]);
+
+                if(ret)
+                {
+                    const cv::Vec2f normal = mNormals(found_points[i]);
+                    const float scalar_product = normal[0]*cos_beta + normal[1]*sin_beta;
+                    constexpr float threshold = std::cos(30.0*M_PI/180.0);
+                    ret = scalar_product > threshold;
+                }
+            }
+        }
+
+        if(ret)
+        {
+            // re-estimate the circle from found_points.
+
+            cv::Vec2f center(0,0);
+            for(cv::Point2i pt : found_points)
+            {
+                center[0] += pt.x + 0.5f;
+                center[1] += pt.y + 0.5f;
+            }
+            center[0] /= float(N_points);
+            center[1] /= float(N_points);
+
+            float radius = 0.0f;
+            for(cv::Point2i pt : found_points)
+            {
+                radius += std::hypot( pt.x - center[0], pt.y - center[1] );
+            }
+            radius /= float(N_points);
+
+            circle[0] = center[0];
+            circle[1] = center[1];
+            circle[2] = radius;
+        }
+
+        // optionnally perform mean square minimization.
+
+        if(true)
+        {
+            if(ret)
+            {
+                patch.resize(N_points);
+                std::copy(found_points.begin(), found_points.end(), patch.begin());
+
+                auto pred = [this,&circle] (const cv::Point2i& pt) -> bool
+                {
+                    bool ret = false;
+
+                    const float x = pt.x + 0.5f;
+                    const float y = pt.y + 0.5f;
+                    const cv::Vec2f normal = mNormals(pt);
+                    const float dx = x - circle[0];
+                    const float dy = y - circle[1];
+                    const float dist = std::hypot(dx,dy);
+
+                    if(dist > 1.0e-5)
+                    {
+                        const float cos_angle = dx*normal[0]/dist + dy*normal[1]/dist;
+
+                        ret =
+                            std::fabs(dist-circle[2]) < 3.0f &&
+                            cos_angle >= std::cos(30.0*M_PI/180.0);
+                    }
+
+                    return ret;
+                };
+
+                growPatch(patch, pred);
+
+                ret = (patch.size() >= 20);
+
+                /*
+                cv::Mat1b rien(mFlags.size());
+                std::fill(rien.begin(), rien.end(), 0);
+                for(cv::Point2i pt : patch)
+                    rien(pt) = 255;
+                cv::imshow("rien",rien);
+                cv::waitKey(0);
+                */
+            }
+
+            if(ret)
+            {
+                std::vector<cv::Vec2f> data(patch.size());
+
+                auto pred = [] (const cv::Point2i& pt) -> cv::Vec2f
+                {
+                    return cv::Vec2f( pt.x + 0.5f, pt.y + 0.5f );
+                };
+
+                std::transform(patch.begin(), patch.end(), data.begin(), pred);
+
+                CircleFitter f;
+                f.setMinMaxRadius(mMinRadius, mMaxRadius);
+
+                ret = f.fit(data, true, circle);
+            }
+        }
+
+        if(ret)
+        {
+            const float clear_radius = circle[2] + 5.0f;
+            const int N = static_cast<int>(std::ceil(clear_radius));
+
+            cv::Point2i the_center;
+            the_center.x = static_cast<int>(circle[0]);
+            the_center.y = static_cast<int>(circle[1]);
+
+            for(int di=-N; di<=N; di++)
+            {
+                for(int dj=-N; dj<=N; dj++)
+                {
+                    cv::Point2i pt;
+                    pt.x = the_center.x + dj;
+                    pt.y = the_center.y + di;
+
+                    const float dx = pt.x + 0.5f - circle[0];
+                    const float dy = pt.y + 0.5f - circle[1];
+                    const float dist = std::hypot(dx,dy);
+
+                    if( 0 <= pt.x && pt.x < mFlags.cols && 0 <= pt.y && pt.y < mFlags.rows && dist < clear_radius )
+                    {
+                        mFlags(pt) |= FLAG_NO_SEED;
+                    }
+                }
+            }
+        }
+    }
+
+    return ret;
+}
+
+bool TrackerCPUImpl::findEdgeInNeighborhood(const cv::Point& center, int half_size, cv::Point& edge)
+{
+    bool ret = false;
+    double best_dist = 0.0f;
+
+    for(int di=-half_size; di<=half_size; di++)
+    {
+        for(int dj=-half_size; dj<=half_size; dj++)
+        {
+            const cv::Point2i other(center.x+dj, center.y+di);
+
+            if( 0 <= other.x && other.x < mFlags.cols && 0 <= other.y && other.y < mFlags.rows )
+            {
+                if( mFlags(other) & FLAG_EDGE )
+                {
+                    const double dist = std::hypot( other.x - center.x, other.y - center.y );
+
+                    if(ret == false || dist < best_dist)
+                    {
+                        best_dist = dist;
+                        edge = other;
+                        ret = true;
+                    }
+                }
+            }
+        }
+    }
+
+    return ret;
+}
+
+/*
+template<typename PrimitiveType, typename EstimatorType, typename ClassifierType>
+bool TrackerCPUImpl::growPrimitive(
+    std::vector<cv::Point2i>& patch,
+    const EstimatorType& estimator,
+    const ClassifierType& classifier,
+    PrimitiveType& result)
+{
+    bool go_on = true;
+    bool ret = true;
+
+    auto growth_pred = [&result, &classifier] (const cv::Vec2i& pt) -> bool
+    {
+        return classifier(result, pt);
+    };
+
+    int num_iterations = 0;
+
+    while(go_on)
+    {
+        go_on = ret = estimator(patch, result);
+
+        if(go_on)
+        {
+            const size_t prev_size = patch.size();
+            growPatch(patch, growth_pred);
+            go_on = (patch.size() > prev_size);
+        }
+
+        num_iterations++;
+    }
+
+    return ret;
+}
+*/
+
+template<typename T>
+void TrackerCPUImpl::growPatch(std::vector<cv::Point2i>& patch, const T& pred)
+{
+    // TODO: set these variable as class members to avoid many memory allocations.
+    std::vector<cv::Point2i> visited;
+    std::queue<cv::Point2i> queue;
+
+    for(cv::Point2i& pt : patch)
+    {
+        mFlags(pt) |= FLAG_VISITED;
+        visited.push_back(pt);
+        queue.push(pt);
+    }
+
+    while( queue.empty() == false )
+    {
+        const cv::Point2i point = queue.front();
+        queue.pop();
+
+        for(int k=0; k<mNeighbors.size(); k++)
+        {
+            cv::Point2i neighbor = point;
+            neighbor.x += mNeighbors[k][1];
+            neighbor.y += mNeighbors[k][0];
+
+            if( 0 <= neighbor.x && neighbor.x < mFlags.cols && 0 <= neighbor.y && neighbor.y < mFlags.rows )
+            {
+                const uint8_t f = mFlags(neighbor);
+
+                if( (f & FLAG_EDGE) != 0 && (f & FLAG_VISITED) == 0 )
+                {
+                    if( pred(neighbor) )
+                    {
+                        mFlags(neighbor) |= FLAG_VISITED;
+                        visited.push_back(neighbor);
+                        queue.push(neighbor);
+                        patch.push_back(neighbor);
+                    }
+                }
+            }
+        }
+    }
+
+    for( const cv::Point2i& pt : visited )
+    {
+        mFlags(pt) &= ~FLAG_VISITED;
+    }
+}
+
+/*
 void TrackerCPUImpl::detectCirclesCentersWithHough(std::vector<cv::Vec2f>& centers)
 {
     const float histogram_to_image = 4.0f;
@@ -334,331 +701,5 @@ void TrackerCPUImpl::detectCirclesCentersWithHough(std::vector<cv::Vec2f>& cente
     }
     std::cout << centers.size() << std::endl;
 }
-
-void TrackerCPUImpl::detectCirclesWithRANSAC(std::vector<cv::Vec3f>& circles)
-{
-    const cv::Size image_size = mFlags.size();
-
-    std::vector<cv::Vec2i> pixels_to_process;
-    
-    pixels_to_process.reserve(image_size.width*image_size.height);
-
-    for(int i=0; i<image_size.height; i++)
-    {
-        for(int j=0; j<image_size.width; j++)
-        {
-            if(mFlags(i,j) & FLAG_EDGE)
-            {
-                pixels_to_process.push_back(cv::Vec2i(i,j));
-            }
-        }
-    }
-
-    circles.clear();
-
-    while(pixels_to_process.empty() == false)
-    {
-        std::uniform_int_distribution<int> distrib(0, pixels_to_process.size()-1);
-
-        const int selected_index = distrib(mEngine);
-
-        const cv::Vec2i seed = pixels_to_process[selected_index];
-        pixels_to_process[selected_index] = pixels_to_process.back();
-        pixels_to_process.pop_back();
-
-        if( (mFlags(seed) & FLAG_NO_SEED) == 0 )
-        {
-            cv::Vec3f circle;
-
-            if( findCircle(seed, circle) )
-            {
-                circles.push_back(circle);
-            }
-        }
-    }
-}
-
-bool TrackerCPUImpl::findCircle(const cv::Vec2i& seed, cv::Vec3f& circle)
-{
-    const cv::Vec2f from(
-        seed[1] + 0.5f - 2.0f*mNormals(seed)[0]*mMinRadius,
-        seed[0] + 0.5f - 2.0f*mNormals(seed)[1]*mMinRadius );
-
-    const cv::Vec2f to(
-        seed[1] + 0.5f - 2.0f*mNormals(seed)[0]*mMaxRadius,
-        seed[0] + 0.5f - 2.0f*mNormals(seed)[1]*mMaxRadius );
-
-    const cv::Point2i from_int(
-        static_cast<int>(from[0]),
-        static_cast<int>(from[1]) );
-
-    const cv::Point2i to_int(
-        static_cast<int>(to[0]),
-        static_cast<int>(to[1]) );
-
-    cv::LineIterator line(mFlags, from_int, to_int);
-
-    bool has_hit = false;
-    cv::Point2i opposite;
-    bool ret = false;
-
-    for(int k=0; has_hit == false && k<line.count; k++)
-    {
-        has_hit = findEdgeInNeighborhood(line.pos(), 1, opposite);
-        line++;
-    }
-
-    if( has_hit )
-    {
-
-        ret = true;
-
-        if(ret)
-        {
-            const float dot_product = mNormals(seed).dot(mNormals(opposite));
-            constexpr float threshold = -cos(10.0*M_PI/180.0);
-
-            ret = (dot_product < threshold);
-        }
-
-        if(ret)
-        {
-            const float radius = 0.5f * std::hypot( opposite.x - seed[1], opposite.y - seed[0] );
-
-            circle[0] = seed[1] + 0.5f - radius*mNormals(seed)[0];
-            circle[1] = seed[0] + 0.5f - radius*mNormals(seed)[1];
-            circle[2] = radius;
-        }
-
-        if(ret)
-        {
-            // TODO: check circle.
-        }
-    }
-
-    return ret;
-}
-
-bool TrackerCPUImpl::findEdgeInNeighborhood(const cv::Point& center, int half_size, cv::Point& edge)
-{
-    bool ret = false;
-    double best_dist = 0.0f;
-
-    for(int di=-half_size; di<=half_size; di++)
-    {
-        for(int dj=-half_size; dj<=half_size; dj++)
-        {
-            const cv::Point2i other(center.x+dj, center.y+di);
-
-            if( 0 <= other.x && other.x < mFlags.cols && 0 <= other.y && other.y < mFlags.rows )
-            {
-                if( mFlags(other) & FLAG_EDGE )
-                {
-                    const double dist = std::hypot( other.x - center.x, other.y - center.y );
-
-                    if(ret == false || dist < best_dist)
-                    {
-                        best_dist = dist;
-                        edge = other;
-                        ret = true;
-                    }
-                }
-            }
-        }
-    }
-
-    return ret;
-}
-
-void TrackerCPUImpl::findCircleGrowingRegion(const cv::Vec2i& seed)
-{
-    std::vector<cv::Vec2i> patch;
-    bool ok = true;
-
-    auto pred_neighborood = [this,seed] (const cv::Vec2i& neighbor) -> bool
-    {
-        const float dist = std::hypot(
-            float(seed[0]-neighbor[0]),
-            float(seed[1]-neighbor[1]));
-
-        const float radius = 15.0f;
-
-        return (dist < radius);
-    };
-
-    auto pred_circle = [this,seed] (const cv::Vec2i& neighbor) -> bool
-    {
-        cv::Vec2f xs;
-        xs[0] = static_cast<float>(seed[1]) + 0.5f;
-        xs[1] = static_cast<float>(seed[0]) + 0.5f;
-
-        cv::Vec2f xo;
-        xo[0] = static_cast<float>(neighbor[1]) + 0.5f;
-        xo[1] = static_cast<float>(neighbor[0]) + 0.5f;
-
-        const cv::Vec2f ns = mNormals(seed);
-
-        const cv::Vec2f no = mNormals(neighbor);
-
-        const float ns_dot_no = ns.dot(no);
-
-        static constexpr float threshold = cos(2.0*M_PI/180.0);
-
-        bool ret = false;
-
-        if( ns_dot_no > threshold )
-        {
-            const float vertical = ns.dot(xo-xs);
-            const float horizontal = -ns[1]*(xo[0]-xs[0]) + ns[0]*(xo[1]-xs[1]);
-            ret =
-                -5.0f < vertical && vertical < 2.0f &&
-                -4.0f < horizontal && horizontal < 4.0f;
-        }
-        else if( ns_dot_no < -threshold )
-        {
-        }
-        else
-        {
-            Eigen::Matrix2d A;
-            A << no[0], -ns[0], no[1], -ns[1];
-
-            Eigen::Vector2d Y;
-            Y << xs[0] - xo[0], xs[1] - xo[1];
-
-            if( std::fabs(A.determinant()) > 1.0e-6 )
-            {
-                const Eigen::Vector2d X = A.inverse() * Y;
-
-                const float ro = -X[0];
-                const float rs = -X[1];
-                std::cout << ro << " " << rs << std::endl;
-
-                mMinRadius = 2.0f;
-                mMaxRadius = 800.0f;
-                if( mMinRadius < ro && ro < mMaxRadius && mMinRadius < rs && rs < mMaxRadius && std::fabs(ro-rs) < 5.0f )
-                {
-                    ret = true;
-                }
-            }
-            std::cout << ret << std::endl;
-        }
-
-        return ret;
-    };
-
-    patch.push_back(seed);
-    growPatch(patch, pred_circle);
-
-    if( patch.size() >= 20 )
-        debugShowPatch("result", patch);
-}
-
-void TrackerCPUImpl::debugShowPatch(const std::string& name, const std::vector<cv::Vec2i>& patch)
-{
-    cv::Mat3b image(mFlags.size());
-
-    for(int i=0; i<image.rows; i++)
-    {
-        for(int j=0; j<image.cols; j++)
-        {
-            if(mFlags(i,j) & FLAG_EDGE)
-            {
-                image(i,j) = cv::Vec3b(128,128,128);
-            }
-            else
-            {
-                image(i,j) = cv::Vec3b(0,0,0);
-            }
-        }
-    }
-
-    for(const cv::Vec2i& pt : patch)
-    {
-        image(pt) = cv::Vec3b(0,0,255);
-    }
-
-    cv::imshow(name, image);
-    cv::waitKey(0);
-}
-
-template<typename PrimitiveType, typename EstimatorType, typename ClassifierType>
-bool TrackerCPUImpl::growPrimitive(
-    std::vector<cv::Vec2i>& patch,
-    const EstimatorType& estimator,
-    const ClassifierType& classifier,
-    PrimitiveType& result)
-{
-    bool go_on = true;
-    bool ret = true;
-
-    auto growth_pred = [&result, &classifier] (const cv::Vec2i& pt) -> bool
-    {
-        return classifier(result, pt);
-    };
-
-    int num_iterations = 0;
-
-    while(go_on)
-    {
-        go_on = ret = estimator(patch, result);
-
-        if(go_on)
-        {
-            const size_t prev_size = patch.size();
-            growPatch(patch, growth_pred);
-            go_on = (patch.size() > prev_size);
-        }
-
-        num_iterations++;
-    }
-
-    return ret;
-}
-
-template<typename T>
-void TrackerCPUImpl::growPatch(std::vector<cv::Vec2i>& patch, const T& pred)
-{
-    // TODO: set these variable as class members to avoid many memory allocations.
-    std::vector<cv::Vec2i> visited;
-    std::queue<cv::Vec2i> queue;
-
-    for(cv::Vec2i& pt : patch)
-    {
-        mFlags(pt) |= FLAG_VISITED;
-        visited.push_back(pt);
-        queue.push(pt);
-    }
-
-    while( queue.empty() == false )
-    {
-        const cv::Vec2i point = queue.front();
-        queue.pop();
-
-        for(int k=0; k<mNeighbors.size(); k++)
-        {
-            const cv::Vec2i neighbor = point + mNeighbors[k];
-
-            if( 0 <= neighbor[0] && neighbor[0] < mFlags.rows && 0 <= neighbor[1] && neighbor[1] < mFlags.cols )
-            {
-                const uint8_t f = mFlags(neighbor);
-
-                if( (f & FLAG_EDGE) != 0 && (f & FLAG_VISITED) == 0 )
-                {
-                    if( pred(neighbor) )
-                    {
-                        mFlags(neighbor) |= FLAG_VISITED;
-                        visited.push_back(neighbor);
-                        queue.push(neighbor);
-                        patch.push_back(neighbor);
-                    }
-                }
-            }
-        }
-    }
-
-    for( const cv::Vec2i& pt : visited )
-    {
-        mFlags(pt) &= ~FLAG_VISITED;
-    }
-}
+*/
 

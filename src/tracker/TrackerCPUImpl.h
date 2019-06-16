@@ -27,24 +27,21 @@ protected:
 protected:
 
     void detectEdges(const cv::Mat& image);
-    void detectCirclesCentersWithHough(std::vector<cv::Vec2f>& centers);
 
     void detectCirclesWithRANSAC(std::vector<cv::Vec3f>& circles);
 
-    bool findEdgeInNeighborhood(const cv::Point& center, int half_size, cv::Point& edge);
+    bool findCircle(const cv::Point2i& seed, cv::Vec3f& circle);
 
-    void findCircleGrowingRegion(const cv::Vec2i& seed);
-    bool findCircle(const cv::Vec2i& seed, cv::Vec3f& circle);
-    void debugShowPatch(const std::string& name, const std::vector<cv::Vec2i>& patch);
+    bool findEdgeInNeighborhood(const cv::Point2i& center, int half_size, cv::Point2i& edge);
 
     template<typename T>
     void growPatch(
-        std::vector<cv::Vec2i>& patch,
+        std::vector<cv::Point2i>& patch,
         const T& pred);
 
     template<typename PrimitiveType, typename EstimatorType, typename ClassifierType>
     bool growPrimitive(
-        std::vector<cv::Vec2i>& patch,
+        std::vector<cv::Point2i>& patch,
         const EstimatorType& estimator,
         const ClassifierType& classifier,
         PrimitiveType& result);

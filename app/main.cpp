@@ -1,4 +1,5 @@
 #include <iostream>
+#include <chrono>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include "Tracker.h"
@@ -29,6 +30,9 @@ int main(int num_args, char** args)
         video->trigger();
     }
 
+    int count = 0;
+    auto t0 = std::chrono::steady_clock::now();
+
     while(go_on)
     {
         VideoFrame frame;
@@ -40,6 +44,8 @@ int main(int num_args, char** args)
         {
             video->trigger();
 
+            count++;
+
             cv::Mat image = frame.getView();
             std::cout << "Frame " << frame.getId() << std::endl;
 
@@ -50,6 +56,10 @@ int main(int num_args, char** args)
             tracker->track(image, tracked);
         }
     }
+
+    auto t1 = std::chrono::steady_clock::now();
+    const float fps = 1.0e3 * float(count) / float(std::chrono::duration_cast<std::chrono::milliseconds>(t1-t0).count());
+    std::cout << "FPS = " << fps << std::endl;
 
     return 0;
 }
