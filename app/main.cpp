@@ -3,6 +3,7 @@
 #include <opencv2/imgproc.hpp>
 #include "Tracker.h"
 #include "FileVideoSource.h"
+#include "ImageVideoSource.h"
 
 int main(int num_args, char** args)
 {
@@ -13,9 +14,13 @@ int main(int num_args, char** args)
 
     TrackerPtr tracker = Tracker::createDefaultTracker();
 
+#if 1
     FileVideoSourcePtr video(new FileVideoSource());
-
-    video->setFileName("/home/victor/developpement/enguerrand/data/VID_20190608_120231.mp4");
+    video->setFileName("/home/victor/developpement/enguerrand/data/video3.mp4");
+#else
+    ImageVideoSourcePtr video(new ImageVideoSource());
+    video->load("/home/victor/developpement/enguerrand/data/c.png");
+#endif
 
     go_on = video->open();
 

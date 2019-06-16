@@ -2,8 +2,6 @@
 #pragma once
 
 #include <random>
-#include "LineFitter.h"
-#include "CircleFitter.h"
 #include "Tracker.h"
 
 class TrackerCPUImpl : public Tracker
@@ -29,8 +27,14 @@ protected:
 protected:
 
     void detectEdges(const cv::Mat& image);
-    void findCircles();
-    void findCircle(const cv::Vec2i& seed);
+    void detectCirclesCentersWithHough(std::vector<cv::Vec2f>& centers);
+
+    void detectCirclesWithRANSAC(std::vector<cv::Vec3f>& circles);
+
+    bool findEdgeInNeighborhood(const cv::Point& center, int half_size, cv::Point& edge);
+
+    void findCircleGrowingRegion(const cv::Vec2i& seed);
+    bool findCircle(const cv::Vec2i& seed, cv::Vec3f& circle);
     void debugShowPatch(const std::string& name, const std::vector<cv::Vec2i>& patch);
 
     template<typename T>
@@ -47,10 +51,10 @@ protected:
 
 protected:
 
+    float mMinRadius;
+    float mMaxRadius;
     std::array<cv::Vec2i,8> mNeighbors;
     std::default_random_engine mEngine;
-    LineFitter mLineFitter;
-    CircleFitter mCircleFitter;
     cv::Mat1b mFlags;
     cv::Mat2f mNormals;
 };

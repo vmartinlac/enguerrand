@@ -14,6 +14,8 @@ add_library(
     VideoFrame.h
     VideoSource.cpp
     VideoSource.h
+    ImageVideoSource.cpp
+    ImageVideoSource.h
 )
 
 target_link_libraries(
