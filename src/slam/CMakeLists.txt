@@ -4,6 +4,14 @@ add_library(
     SHARED
     SLAMEngine.h
     SLAMEngine.cpp
+    SLAMFrame.h
+    SLAMFrame.cpp
+    Semaphore.h
+    Semaphore.cpp
+    SLAMModule.h
+    SLAMModule.cpp
+    SLAMThread.h
+    SLAMThread.cpp
 )
 
 target_link_libraries(
