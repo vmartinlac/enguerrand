@@ -39,6 +39,5 @@ public:
     edge_detection
     circle_detection;
     */
-    // TODO
 };
 

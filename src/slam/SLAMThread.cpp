@@ -2,25 +2,25 @@
 
 SLAMThread::SLAMThread()
 {
-    mWorkLoad = nullptr;
+    mInterruptionRequested = false;
+    mModuleList = nullptr;
 }
 
-void SLAMThread::init()
+void SLAMThread::startup(SLAMModuleWrapper* list)
 {
+    mModuleList = list;
     mInterruptionRequested = false;
     mThread = std::thread( [this] () { this->threadProcedure(); } );
 }
 
-void SLAMThread::feed(SLAMWorkLoad* load)
+void SLAMThread::trigger()
 {
-    mWorkLoad = load;
     mSemaphoreStart.up();
 }
 
 void SLAMThread::wait()
 {
     mSemaphoreFinished.down();
-    mWorkLoad = nullptr;
 }
 
 void SLAMThread::threadProcedure()
@@ -35,16 +35,16 @@ void SLAMThread::threadProcedure()
         {
             go_on = false;
         }
-        else if(mWorkLoad)
+        else if(mModuleList)
         {
-            mWorkLoad->execute();
+            mModuleList->executeSequence();
         }
 
         mSemaphoreFinished.up();
     }
 }
 
-void SLAMThread::halt()
+void SLAMThread::shutdown()
 {
     mInterruptionRequested = true;
     mSemaphoreStart.up();

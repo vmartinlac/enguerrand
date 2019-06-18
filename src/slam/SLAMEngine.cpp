@@ -5,29 +5,91 @@ SLAMEngine::SLAMEngine()
 {
     mFrameOffset = 0;
     mPipelineLength = 0;
+    mNextFrameId = 0;
 }
 
-void SLAMEngine::start(SLAMPipelinePtr pipeline)
+void SLAMEngine::startup(SLAMPipeline& pipeline)
 {
-    mPipeline = std::move(pipeline);
+    // check input.
 
-    mPipelineLength = pipeline->computeLength();
-
-    mNextFrameId = 0;
-
-    mFrameOffset = 0;
-
-    mFrames.resize(mPipelineLength);
-
-    for(SLAMFrame& f : mFrames)
+    if( pipeline.modules.size() != pipeline.lags.size() )
     {
-        f.header.ready = false;
+        throw std::runtime_error("internal error");
+    }
+
+    if( std::accumulate(pipeline.thread_partition.begin(), pipeline.thread_partition.end(), 0) != pipeline.modules.size() )
+    {
+        throw std::runtime_error("internal error");
+    }
+
+    if( std::find(pipeline.thread_partition.begin(), pipeline.thread_partition.end(), 0) != pipeline.thread_partition.end() )
+    {
+        throw std::runtime_error("internal error");
+    }
+
+    // allocate frames.
+
+    {
+        mPipelineLength = 1;
+
+        for(size_t lag : pipeline.lags)
+        {
+            mPipelineLength = std::max(mPipelineLength, lag+1);
+        }
+
+        mNextFrameId = 0;
+        mFrameOffset = 0;
+        mFrames.resize(mPipelineLength);
+
+        for(SLAMFrame& f : mFrames)
+        {
+            f.header.ready = false;
+        }
+    }
+
+    // allocate modules.
+
+    {
+        mModules.resize(pipeline.modules.size());
+
+        for(size_t i=0; i<mModules.size(); i++)
+        {
+            mModules[i].module = pipeline.modules[i];
+            mModules[i].lag = pipeline.lags[i];
+            mModules[i].current_frame = nullptr;
+        }
+    }
+
+    // allocate threads.
+
+    mThreads.resize(pipeline.thread_partition.size());
+
+    {
+        size_t k = 0;
+
+        for(size_t i=0; i<mThreads.size(); i++)
+        {
+            SLAMModuleWrapper* first_module = &mModules[k];
+
+            for(size_t j=0; j+1<pipeline.thread_partition[i]; j++)
+            {
+                mModules[k].next_in_thread = &mModules[k+1];
+                k++;
+            }
+
+            mModules[k].next_in_thread = nullptr;
+            k++;
+
+            mThreads[i] = std::make_shared<SLAMThread>();
+            mThreads[i]->startup(first_module);
+        }
     }
 }
 
-
 void SLAMEngine::feed(SLAMEngineInput& input, SLAMEngineOutput& output)
 {
+    // push new frame and set expected frame to each module according to lag.
+
     mFrameOffset = (mFrameOffset + mPipelineLength - 1) % mPipelineLength;
 
     SLAMFrame& curr_frame = mFrames[mFrameOffset];
@@ -39,37 +101,39 @@ void SLAMEngine::feed(SLAMEngineInput& input, SLAMEngineOutput& output)
     curr_frame.header.slam_frame_id = mNextFrameId++;
     curr_frame.header.video_timestamp = input.timestamp;
 
-    for(int i=0; i<mPipeline->num_threads; i++)
+    for(SLAMModuleWrapper& m : mModules)
     {
-        ;
+        const size_t index = (mFrameOffset + m.lag) % mPipelineLength;
+        m.current_frame = &mFrames[index];
     }
 
-    for(int i=1; i<mPipeline->num_threads; i++)
+    // compute.
+
+    for(SLAMThreadPtr& t : mThreads)
     {
-        mThreads[i-1].feed(&mWorkLoads[i]);
+        t->trigger();
     }
 
-    mWorkLoads.front().execute();
-
-    for(int i=1; i<mPipeline->num_threads; i++)
+    for(SLAMThreadPtr& t : mThreads)
     {
-        mThreads[i-1].wait();
+        t->wait();
     }
+
+    // TODO: retrieve results.
 }
 
-void SLAMEngine::stop()
+void SLAMEngine::shutdown()
 {
-    for(SLAMThread& t : mThreads)
+    for(SLAMThreadPtr& t : mThreads)
     {
-        t.halt();
+        t->shutdown();
     }
 
-    mPipeline.reset();
     mPipelineLength = 0;
     mFrameOffset = 0;
     mNextFrameId = 0;
-    mWorkLoads.clear();
-    mThreads.clear();
     mFrames.clear();
+    mModules.clear();
+    mThreads.clear();
 }
 

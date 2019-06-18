@@ -1,9 +1,9 @@
 #pragma once
 
 #include <thread>
+#include <memory>
 #include "Semaphore.h"
-#include "SLAMModule.h"
-#include "SLAMWorkLoad.h"
+#include "SLAMModuleWrapper.h"
 
 class SLAMThread
 {
@@ -11,13 +11,13 @@ public:
 
     SLAMThread();
 
-    void init();
+    void startup(SLAMModuleWrapper* module_list);
 
-    void feed(SLAMWorkLoad* load);
+    void trigger();
 
     void wait();
 
-    void halt();
+    void shutdown();
 
 protected:
 
@@ -27,11 +27,13 @@ protected:
 
     std::thread mThread;
 
-    bool mInterruptionRequested;
-
-    SLAMWorkLoad* mWorkLoad;
-
     Semaphore mSemaphoreStart;
     Semaphore mSemaphoreFinished;
+
+    bool mInterruptionRequested;
+
+    SLAMModuleWrapper* mModuleList;
 };
+
+using SLAMThreadPtr = std::shared_ptr<SLAMThread>;
 

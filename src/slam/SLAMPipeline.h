@@ -4,25 +4,14 @@
 #include <vector>
 #include "SLAMModule.h"
 
-struct SLAMPipelineModule
-{
-    SLAMModulePtr module;
-    size_t lag;
-    size_t thread;
-};
-
 class SLAMPipeline
 {
 public:
 
-    size_t computeLength();
+    std::vector<SLAMModulePtr> modules;
+    std::vector<size_t> lags;
+    std::vector<size_t> thread_partition;
 
-public:
-
-    std::string name;
-    size_t num_threads;
-    std::vector<SLAMPipelineModule> modules;
+    // virtual SLAMFramePtr createFrame() = 0;
 };
-
-typedef std::shared_ptr<SLAMPipeline> SLAMPipelinePtr;
 

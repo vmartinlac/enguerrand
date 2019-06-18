@@ -12,8 +12,8 @@ add_library(
     SLAMModule.cpp
     SLAMThread.h
     SLAMThread.cpp
-    SLAMWorkLoad.h
-    SLAMWorkLoad.cpp
+    SLAMModuleWrapper.h
+    SLAMModuleWrapper.cpp
 )
 
 target_link_libraries(
