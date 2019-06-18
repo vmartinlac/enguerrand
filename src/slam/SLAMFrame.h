@@ -7,9 +7,19 @@
 
 struct SLAMFrameHeader
 {
+    SLAMFrameHeader()
+    {
+        ready = false;
+        slam_frame_id = 0;
+        video_frame_id = 0;
+        video_timestamp = 0.0;
+        num_views = 0;
+    }
+
     bool ready;
-    size_t id;
-    double timestamp;
+    size_t slam_frame_id;
+    size_t video_frame_id;
+    double video_timestamp;
     size_t num_views;
     std::array<cv::Mat3b,SLAM_FRAME_MAX_VIEWS> views;
 };
@@ -25,7 +35,7 @@ public:
     SLAMFrameHeader header;
 
     /*
-    std::shared_ptr<RectificationOutput> rectification;
+    rectification
     edge_detection
     circle_detection;
     */

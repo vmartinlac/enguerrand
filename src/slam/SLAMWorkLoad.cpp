@@ -4,17 +4,26 @@ void SLAMWorkLoad::execute()
 {
     for(SLAMWorkItem& item : work_items)
     {
-        item.module->pushGPU(item.frame);
+        if(item.frame && item.frame->header.ready)
+        {
+            item.module->pushGPU(item.frame);
+        }
     }
 
     for(SLAMWorkItem& item : work_items)
     {
-        item.module->computeCPU(item.frame);
+        if(item.frame && item.frame->header.ready)
+        {
+            item.module->computeCPU(item.frame);
+        }
     }
 
     for(SLAMWorkItem& item : work_items)
     {
-        item.module->pullGPU(item.frame);
+        if(item.frame && item.frame->header.ready)
+        {
+            item.module->pullGPU(item.frame);
+        }
     }
 }
 

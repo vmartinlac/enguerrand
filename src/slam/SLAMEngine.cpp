@@ -7,11 +7,13 @@ SLAMEngine::SLAMEngine()
     mPipelineLength = 0;
 }
 
-void SLAMEngine::init(SLAMPipelinePtr pipeline)
+void SLAMEngine::start(SLAMPipelinePtr pipeline)
 {
     mPipeline = std::move(pipeline);
 
     mPipelineLength = pipeline->computeLength();
+
+    mNextFrameId = 0;
 
     mFrameOffset = 0;
 
@@ -29,27 +31,33 @@ void SLAMEngine::feed(SLAMEngineInput& input, SLAMEngineOutput& output)
     mFrameOffset = (mFrameOffset + mPipelineLength - 1) % mPipelineLength;
 
     SLAMFrame& curr_frame = mFrames[mFrameOffset];
-    curr_frame.header.ready = true;
 
-    for(int i=0; i<mPipeline->num_cpu_threads; i++)
+    curr_frame.header.ready = true;
+    curr_frame.header.num_views = 1;
+    curr_frame.header.views[0] = input.image;
+    curr_frame.header.video_frame_id = input.id;
+    curr_frame.header.slam_frame_id = mNextFrameId++;
+    curr_frame.header.video_timestamp = input.timestamp;
+
+    for(int i=0; i<mPipeline->num_threads; i++)
     {
         ;
     }
 
-    for(int i=1; i<mPipeline->num_cpu_threads; i++)
+    for(int i=1; i<mPipeline->num_threads; i++)
     {
         mThreads[i-1].feed(&mWorkLoads[i]);
     }
 
     mWorkLoads.front().execute();
 
-    for(int i=1; i<mPipeline->num_cpu_threads; i++)
+    for(int i=1; i<mPipeline->num_threads; i++)
     {
         mThreads[i-1].wait();
     }
 }
 
-void SLAMEngine::halt()
+void SLAMEngine::stop()
 {
     for(SLAMThread& t : mThreads)
     {
@@ -59,6 +67,7 @@ void SLAMEngine::halt()
     mPipeline.reset();
     mPipelineLength = 0;
     mFrameOffset = 0;
+    mNextFrameId = 0;
     mWorkLoads.clear();
     mThreads.clear();
     mFrames.clear();

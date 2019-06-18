@@ -8,7 +8,7 @@ struct SLAMPipelineModule
 {
     SLAMModulePtr module;
     size_t lag;
-    size_t cpu_thread;
+    size_t thread;
 };
 
 class SLAMPipeline
@@ -20,8 +20,9 @@ public:
 public:
 
     std::string name;
-    size_t num_cpu_threads;
+    size_t num_threads;
     std::vector<SLAMPipelineModule> modules;
 };
 
 typedef std::shared_ptr<SLAMPipeline> SLAMPipelinePtr;
+

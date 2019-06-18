@@ -28,11 +28,11 @@ public:
 
     SLAMEngine();
 
-    void init(SLAMPipelinePtr pipeline);
+    void start(SLAMPipelinePtr pipeline);
 
     void feed(SLAMEngineInput& input, SLAMEngineOutput& output);
 
-    void halt();
+    void stop();
 
 protected:
 
@@ -42,5 +42,6 @@ protected:
     std::vector<SLAMWorkLoad> mWorkLoads;
     std::vector<SLAMThread> mThreads;
     std::vector<SLAMFrame> mFrames;
+    size_t mNextFrameId;
 };
 
