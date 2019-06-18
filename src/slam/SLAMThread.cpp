@@ -2,6 +2,7 @@
 
 SLAMThread::SLAMThread()
 {
+    mWorkLoad = nullptr;
 }
 
 void SLAMThread::init()
@@ -10,16 +11,16 @@ void SLAMThread::init()
     mThread = std::thread( [this] () { this->threadProcedure(); } );
 }
 
-void SLAMThread::feed(SLAMWorkPtr work)
+void SLAMThread::feed(SLAMWorkLoad* load)
 {
-    mCurrentWork = std::move(work);
+    mWorkLoad = load;
     mSemaphoreStart.up();
 }
 
 void SLAMThread::wait()
 {
     mSemaphoreFinished.down();
-    mCurrentWork.reset();
+    mWorkLoad = nullptr;
 }
 
 void SLAMThread::threadProcedure()
@@ -34,15 +35,9 @@ void SLAMThread::threadProcedure()
         {
             go_on = false;
         }
-        else if(mCurrentWork)
+        else if(mWorkLoad)
         {
-            for(SLAMWorkItem& item : mCurrentWork->items)
-            {
-                if( item.module->getType() == SLAM_MODULE_CPU )
-                {
-                    item.module->computeCPU( item.frame );
-                }
-            }
+            mWorkLoad->execute();
         }
 
         mSemaphoreFinished.up();

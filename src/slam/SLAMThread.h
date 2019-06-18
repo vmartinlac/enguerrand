@@ -3,17 +3,7 @@
 #include <thread>
 #include "Semaphore.h"
 #include "SLAMModule.h"
-
-struct SLAMWorkItem
-{
-    SLAMModulePtr module;
-    SLAMFrame* frame;
-};
-
-struct SLAMWork
-{
-    std::vector<SLAMWorkItem> items;
-};
+#include "SLAMWorkLoad.h"
 
 class SLAMThread
 {
@@ -23,7 +13,7 @@ public:
 
     void init();
 
-    void feed(SLAMWorkPtr work);
+    void feed(SLAMWorkLoad* load);
 
     void wait();
 
@@ -38,7 +28,8 @@ protected:
     std::thread mThread;
 
     bool mInterruptionRequested;
-    SLAMWorkPtr mCurrentWork;
+
+    SLAMWorkLoad* mWorkLoad;
 
     Semaphore mSemaphoreStart;
     Semaphore mSemaphoreFinished;

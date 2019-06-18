@@ -1,7 +1,18 @@
 #pragma once
 
-#include <memory>
 #include <opencv2/core.hpp>
+#include <sophus/se3.hpp>
+
+#define SLAM_FRAME_MAX_VIEWS 2
+
+struct SLAMFrameHeader
+{
+    bool ready;
+    size_t id;
+    double timestamp;
+    size_t num_views;
+    std::array<cv::Mat3b,SLAM_FRAME_MAX_VIEWS> views;
+};
 
 class SLAMFrame
 {
@@ -11,9 +22,7 @@ public:
 
 public:
 
-    size_t id;
-    double timestamp;
-    cv::Mat3b image;
+    SLAMFrameHeader header;
 
     /*
     std::shared_ptr<RectificationOutput> rectification;
@@ -22,6 +31,4 @@ public:
     */
     // TODO
 };
-
-typedef std::shared_ptr<SLAMFrame> SLAMFramePtr;
 

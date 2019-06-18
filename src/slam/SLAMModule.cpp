@@ -1,19 +1,18 @@
 #include "SLAMModule.h"
 
-SLAMModule::SLAMModule(SLAMModuleType type)
-{
-    mType = type;
-}
-
-void SLAMModule::pushGPU(SLAMFramePtr frame)
+SLAMModule::SLAMModule()
 {
 }
 
-void SLAMModule::pullGPU(SLAMFramePtr frame)
+void SLAMModule::pushGPU(SLAMFrame* frame)
 {
 }
 
-void SLAMModule::computeCPU(SLAMFramePtr frame)
+void SLAMModule::pullGPU(SLAMFrame* frame)
+{
+}
+
+void SLAMModule::computeCPU(SLAMFrame* frame)
 {
 }
 

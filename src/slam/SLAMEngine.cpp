@@ -11,37 +11,56 @@ void SLAMEngine::init(SLAMPipelinePtr pipeline)
 {
     mPipeline = std::move(pipeline);
 
-    mPipelineLength = computePipelineLength(pipeline);
+    mPipelineLength = pipeline->computeLength();
 
     mFrameOffset = 0;
+
     mFrames.resize(mPipelineLength);
 
-    mThreads.resize(mPipeline->cpu_modules.size());
-
-    for(SLAMThreadPtr& t : mThreads)
+    for(SLAMFrame& f : mFrames)
     {
-        t.reset(new SLAMThread());
-        t->init();
+        f.header.ready = false;
     }
 }
 
 
-void SLAMEngine::feed(SLAMFramePtr frame, SLAMResult& result)
+void SLAMEngine::feed(SLAMEngineInput& input, SLAMEngineOutput& output)
 {
     mFrameOffset = (mFrameOffset + mPipelineLength - 1) % mPipelineLength;
-    mFrames[mFrameOffset] = frame;
+
+    SLAMFrame& curr_frame = mFrames[mFrameOffset];
+    curr_frame.header.ready = true;
+
+    for(int i=0; i<mPipeline->num_cpu_threads; i++)
+    {
+        ;
+    }
+
+    for(int i=1; i<mPipeline->num_cpu_threads; i++)
+    {
+        mThreads[i-1].feed(&mWorkLoads[i]);
+    }
+
+    mWorkLoads.front().execute();
+
+    for(int i=1; i<mPipeline->num_cpu_threads; i++)
+    {
+        mThreads[i-1].wait();
+    }
 }
 
 void SLAMEngine::halt()
 {
-    for(SLAMThreadPtr t : mThreads)
+    for(SLAMThread& t : mThreads)
     {
-        t->halt();
+        t.halt();
     }
 
-    mThreads.clear();
-    mFrames.clear();
     mPipeline.reset();
     mPipelineLength = 0;
+    mFrameOffset = 0;
+    mWorkLoads.clear();
+    mThreads.clear();
+    mFrames.clear();
 }
 

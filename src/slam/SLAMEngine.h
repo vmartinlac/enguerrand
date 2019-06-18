@@ -1,8 +1,9 @@
 #pragma once
 
+#include <sophus/se3.hpp>
 #include "SLAMModule.h"
 #include "SLAMThread.h"
-
+#include "SLAMPipeline.h"
 
 struct SLAMEngineInput
 {
@@ -29,18 +30,17 @@ public:
 
     void init(SLAMPipelinePtr pipeline);
 
-    void feed(SLAMEngineInput& frame, SLAMEngineOutput& result);
+    void feed(SLAMEngineInput& input, SLAMEngineOutput& output);
 
     void halt();
-
-protected:
 
 protected:
 
     SLAMPipelinePtr mPipeline;
     size_t mPipelineLength;
     size_t mFrameOffset;
-    std::vector< std::tuple<bool,SLAMFrame> > mFrames;
+    std::vector<SLAMWorkLoad> mWorkLoads;
     std::vector<SLAMThread> mThreads;
+    std::vector<SLAMFrame> mFrames;
 };
 

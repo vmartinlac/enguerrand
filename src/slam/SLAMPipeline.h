@@ -6,33 +6,22 @@
 
 struct SLAMPipelineModule
 {
-    SLAMModuleSPtr module;
+    SLAMModulePtr module;
     size_t lag;
+    size_t cpu_thread;
 };
 
 class SLAMPipeline
 {
 public:
 
-    SLAMPipeline();
-
-    std::string getName();
-
-    size_t getNumModules();
-
-    size_t getNumGpuModules();
-
-    SLAMModulePtr getGpuModules(size_t i);
-
-    size_t getGpuModuleLag(size_t i);
-
     size_t computeLength();
 
-protected:
+public:
 
     std::string name;
-    std::vector<SLAMPipelineModule> gpu_modules;
-    std::vector< std::vector<SLAMPipelineModule> > cpu_modules;
+    size_t num_cpu_threads;
+    std::vector<SLAMPipelineModule> modules;
 };
 
-typedef std::shared_ptr<SLAMPipeline> SLAMPipelineSPtr;
+typedef std::shared_ptr<SLAMPipeline> SLAMPipelinePtr;

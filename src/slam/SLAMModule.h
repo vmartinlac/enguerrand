@@ -1,37 +1,21 @@
 #pragma once
 
+#include <memory>
 #include "SLAMFrame.h"
-
-enum SLAMModuleType
-{
-    SLAM_MODULE_CPU,
-    SLAM_MODULE_GPU
-};
 
 class SLAMModule
 {
 public:
 
-        SLAMModule(SLAMModuleType type);
+        SLAMModule();
 
         //virtual void init() = 0; // TODO
 
-        SLAMModuleType getType();
+        virtual void pushGPU(SLAMFrame* frame);
+        virtual void pullGPU(SLAMFrame* frame);
 
-        virtual void pushGPU(SLAMFramePtr frame);
-        virtual void pullGPU(SLAMFramePtr frame);
-
-        virtual void computeCPU(SLAMFramePtr frame);
-
-private:
-
-    SLAMModuleType mType;
+        virtual void computeCPU(SLAMFrame* frame);
 };
 
 typedef std::shared_ptr<SLAMModule> SLAMModulePtr;
-
-inline SLAMModuleType SLAMModule::getType()
-{
-    return mType;
-}
 
