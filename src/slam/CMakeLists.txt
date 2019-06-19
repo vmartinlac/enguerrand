@@ -2,18 +2,21 @@
 add_library(
     enguerrand_slam
     SHARED
-    SLAMEngine.h
-    SLAMEngine.cpp
-    SLAMFrame.h
-    SLAMFrame.cpp
-    Semaphore.h
     Semaphore.cpp
-    SLAMModule.h
+    Semaphore.h
+    SLAMEngine.cpp
+    SLAMEngine.h
     SLAMModule.cpp
-    SLAMThread.h
-    SLAMThread.cpp
-    SLAMModuleWrapper.h
+    SLAMModule.h
+    SLAMModuleIds.h
     SLAMModuleWrapper.cpp
+    SLAMModuleWrapper.h
+    SLAMPipeline.cpp
+    SLAMPipeline.h
+    SLAMPort.h
+    SLAMPortTypes.h
+    SLAMThread.cpp
+    SLAMThread.h
 )
 
 target_link_libraries(

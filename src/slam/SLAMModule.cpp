@@ -4,15 +4,23 @@ SLAMModule::SLAMModule()
 {
 }
 
-void SLAMModule::pushGPU(SLAMFrame* frame)
+void SLAMModule::initialize()
 {
 }
 
-void SLAMModule::pullGPU(SLAMFrame* frame)
+void SLAMModule::finalize()
 {
 }
 
-void SLAMModule::computeCPU(SLAMFrame* frame)
+void SLAMModule::pushGPU(SLAMPort** ports)
+{
+}
+
+void SLAMModule::pullGPU(SLAMPort** ports)
+{
+}
+
+void SLAMModule::compute(SLAMPort** ports)
 {
 }
 

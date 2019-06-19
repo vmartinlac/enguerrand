@@ -3,31 +3,42 @@
 
 SLAMEngine::SLAMEngine()
 {
-    mFrameOffset = 0;
+    mCycleOffset = 0;
     mPipelineLength = 0;
-    mNextFrameId = 0;
 }
 
-void SLAMEngine::startup(SLAMPipeline& pipeline)
+void SLAMEngine::exec(SLAMPipeline& pipeline)
 {
     // check input.
 
-    if( pipeline.modules.size() != pipeline.lags.size() )
     {
-        throw std::runtime_error("internal error");
+        if( pipeline.modules.size() != pipeline.lags.size() )
+        {
+            throw std::runtime_error("internal error");
+        }
+
+        if( std::accumulate(pipeline.thread_partition.begin(), pipeline.thread_partition.end(), 0) != pipeline.modules.size() )
+        {
+            throw std::runtime_error("internal error");
+        }
+
+        if( std::find(pipeline.thread_partition.begin(), pipeline.thread_partition.end(), 0) != pipeline.thread_partition.end() )
+        {
+            throw std::runtime_error("internal error");
+        }
+
+        auto pred = [] (size_t i, const std::unique_ptr<SLAMModule>& module) -> size_t
+        {
+            return i + module->getNumPorts();
+        };
+
+        if( pipeline.connections.size() != std::accumulate(pipeline.modules.begin(), pipeline.modules.end(), 0, pred) )
+        {
+            throw std::runtime_error("internal error");
+        }
     }
 
-    if( std::accumulate(pipeline.thread_partition.begin(), pipeline.thread_partition.end(), 0) != pipeline.modules.size() )
-    {
-        throw std::runtime_error("internal error");
-    }
-
-    if( std::find(pipeline.thread_partition.begin(), pipeline.thread_partition.end(), 0) != pipeline.thread_partition.end() )
-    {
-        throw std::runtime_error("internal error");
-    }
-
-    // allocate frames.
+    // allocate ports.
 
     {
         mPipelineLength = 1;
@@ -37,13 +48,14 @@ void SLAMEngine::startup(SLAMPipeline& pipeline)
             mPipelineLength = std::max(mPipelineLength, lag+1);
         }
 
-        mNextFrameId = 0;
-        mFrameOffset = 0;
-        mFrames.resize(mPipelineLength);
+        mCycleOffset = 0;
 
-        for(SLAMFrame& f : mFrames)
+        for(auto& functor : pipeline.meta_ports)
         {
-            f.header.ready = false;
+            for(size_t i=0; i<mPipelineLength; i++)
+            {
+                mPorts.emplace_back(functor());
+            }
         }
     }
 
@@ -54,17 +66,32 @@ void SLAMEngine::startup(SLAMPipeline& pipeline)
 
         for(size_t i=0; i<mModules.size(); i++)
         {
-            mModules[i].module = pipeline.modules[i];
+            mModules[i].module = pipeline.modules[i].get();
             mModules[i].lag = pipeline.lags[i];
-            mModules[i].current_frame = nullptr;
+            mModules[i].ports = nullptr;
+            mModules[i].next_in_thread = nullptr;
+        }
+    }
+
+    // allocate port table.
+
+    {
+        mPortTable.assign(pipeline.connections.size(), nullptr);
+
+        size_t s = 0;
+
+        for(SLAMModuleWrapper& m : mModules)
+        {
+            m.ports = &mPortTable[s];
+            s += m.module->getNumPorts();
         }
     }
 
     // allocate threads.
 
-    mThreads.resize(pipeline.thread_partition.size());
-
     {
+        mThreads.resize(pipeline.thread_partition.size());
+
         size_t k = 0;
 
         for(size_t i=0; i<mThreads.size(); i++)
@@ -80,60 +107,88 @@ void SLAMEngine::startup(SLAMPipeline& pipeline)
             mModules[k].next_in_thread = nullptr;
             k++;
 
-            mThreads[i] = std::make_shared<SLAMThread>();
+            mThreads[i].reset(new SLAMThread());
             mThreads[i]->startup(first_module);
         }
     }
-}
 
-void SLAMEngine::feed(SLAMEngineInput& input, SLAMEngineOutput& output)
-{
-    // push new frame and set expected frame to each module according to lag.
+    // initialize modules.
 
-    mFrameOffset = (mFrameOffset + mPipelineLength - 1) % mPipelineLength;
-
-    SLAMFrame& curr_frame = mFrames[mFrameOffset];
-
-    curr_frame.header.ready = true;
-    curr_frame.header.num_views = 1;
-    curr_frame.header.views[0] = input.image;
-    curr_frame.header.video_frame_id = input.id;
-    curr_frame.header.slam_frame_id = mNextFrameId++;
-    curr_frame.header.video_timestamp = input.timestamp;
-
-    for(SLAMModuleWrapper& m : mModules)
     {
-        const size_t index = (mFrameOffset + m.lag) % mPipelineLength;
-        m.current_frame = &mFrames[index];
+        for(SLAMModuleWrapper& m : mModules)
+        {
+            m.enabled = false;
+            m.module->initialize();
+        }
     }
 
-    // compute.
+    // run pipeline.
 
-    for(SLAMThreadPtr& t : mThreads)
     {
-        t->trigger();
+        bool go_on = true;
+        size_t num_frames_in_pipeline = 0;
+
+        mCycleOffset = 0;
+
+        while(go_on)
+        {
+            // find which modules are ready to compute and update ports.
+
+            mCycleOffset = (mCycleOffset + mPipelineLength - 1) % mPipelineLength;
+
+            size_t s = 0;
+
+            for(SLAMModuleWrapper& m : mModules)
+            {
+                m.enabled = (num_frames_in_pipeline >= m.lag);
+
+                for(size_t i=0; i<m.module->getNumPorts(); i++)
+                {
+                    const size_t delta = (mCycleOffset + m.lag) % mPipelineLength;
+                    mPortTable[s] = mPorts[mPipelineLength * pipeline.connections[s] + delta].get();
+                    s++;
+                }
+            }
+
+            num_frames_in_pipeline = std::min<size_t>(num_frames_in_pipeline+1, mPipelineLength);
+
+            // compute.
+
+            for(std::unique_ptr<SLAMThread>& t : mThreads)
+            {
+                t->trigger();
+            }
+
+            for(std::unique_ptr<SLAMThread>& t : mThreads)
+            {
+                t->wait();
+            }
+        }
     }
 
-    for(SLAMThreadPtr& t : mThreads)
+    // finalize modules.
+
     {
-        t->wait();
+        for(SLAMModuleWrapper& m : mModules)
+        {
+            m.module->finalize();
+        }
     }
 
-    // TODO: retrieve results.
-}
+    // clear pipeline.
 
-void SLAMEngine::shutdown()
-{
-    for(SLAMThreadPtr& t : mThreads)
     {
-        t->shutdown();
-    }
+        for(std::unique_ptr<SLAMThread>& t : mThreads)
+        {
+            t->shutdown();
+        }
 
-    mPipelineLength = 0;
-    mFrameOffset = 0;
-    mNextFrameId = 0;
-    mFrames.clear();
-    mModules.clear();
-    mThreads.clear();
+        mPipelineLength = 0;
+        mCycleOffset = 0;
+        mPortTable.clear();
+        mPorts.clear();
+        mModules.clear();
+        mThreads.clear();
+    }
 }
 

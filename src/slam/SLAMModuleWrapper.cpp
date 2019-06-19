@@ -4,25 +4,25 @@ void SLAMModuleWrapper::executeSequence()
 {
     for(SLAMModuleWrapper* curr = this; curr!=nullptr; curr=curr->next_in_thread)
     {
-        if(curr->current_frame && curr->current_frame->header.ready)
+        if(curr->enabled)
         {
-            curr->module->pushGPU(curr->current_frame);
+            curr->module->pushGPU(curr->ports);
         }
     }
 
     for(SLAMModuleWrapper* curr = this; curr!=nullptr; curr=curr->next_in_thread)
     {
-        if(curr->current_frame && curr->current_frame->header.ready)
+        if(curr->enabled)
         {
-            curr->module->computeCPU(curr->current_frame);
+            curr->module->compute(curr->ports);
         }
     }
 
     for(SLAMModuleWrapper* curr = this; curr!=nullptr; curr=curr->next_in_thread)
     {
-        if(curr->current_frame && curr->current_frame->header.ready)
+        if(curr->enabled)
         {
-            curr->module->pullGPU(curr->current_frame);
+            curr->module->pullGPU(curr->ports);
         }
     }
 }

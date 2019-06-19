@@ -1,21 +1,26 @@
 #pragma once
 
-#include <memory>
-#include "SLAMFrame.h"
+#include <algorithm>
+#include "SLAMPort.h"
 
 class SLAMModule
 {
 public:
 
-        SLAMModule();
+    SLAMModule();
 
-        //virtual void init() = 0; // TODO
+    virtual size_t getNumPorts() const = 0;
 
-        virtual void pushGPU(SLAMFrame* frame);
-        virtual void pullGPU(SLAMFrame* frame);
+    virtual size_t getPortType(size_t input) const = 0;
 
-        virtual void computeCPU(SLAMFrame* frame);
+    virtual void initialize();
+
+    virtual void finalize();
+
+    virtual void pushGPU(SLAMPort** ports);
+
+    virtual void pullGPU(SLAMPort** ports);
+
+    virtual void compute(SLAMPort** ports);
 };
-
-typedef std::shared_ptr<SLAMModule> SLAMModulePtr;
 

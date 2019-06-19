@@ -8,18 +8,21 @@ public:
 
     SLAMModuleWrapper()
     {
+        module = nullptr;
         lag = 0;
         next_in_thread = nullptr;
-        current_frame = nullptr;
+        ports = nullptr;
+        enabled = false;
     }
 
     void executeSequence();
 
 public:
 
-    SLAMModulePtr module;
+    SLAMModule* module;
     size_t lag;
     SLAMModuleWrapper* next_in_thread;
-    SLAMFrame* current_frame;
+    SLAMPort** ports;
+    bool enabled;
 };
 

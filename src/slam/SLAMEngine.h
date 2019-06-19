@@ -5,42 +5,21 @@
 #include "SLAMThread.h"
 #include "SLAMPipeline.h"
 
-struct SLAMEngineInput
-{
-    size_t id;
-    double timestamp;
-    cv::Mat3b image;
-};
-
-struct SLAMEngineOutput
-{
-    bool success;
-    size_t id;
-    double timestamp;
-    bool aligned_wrt_previous;
-    Sophus::SE3d camera_to_world;
-    cv::Mat3b debug_image;
-};
-
 class SLAMEngine
 {
 public:
 
     SLAMEngine();
 
-    void startup(SLAMPipeline& pipeline);
-
-    void feed(SLAMEngineInput& input, SLAMEngineOutput& output);
-
-    void shutdown();
+    void exec(SLAMPipeline& pipeline);
 
 protected:
 
     std::vector<SLAMModuleWrapper> mModules;
-    std::vector<SLAMThreadPtr> mThreads;
-    std::vector<SLAMFrame> mFrames;
+    std::vector< std::unique_ptr<SLAMThread> > mThreads;
+    std::vector< std::unique_ptr<SLAMPort> > mPorts;
+    std::vector<SLAMPort*> mPortTable;
     size_t mPipelineLength;
-    size_t mFrameOffset;
-    size_t mNextFrameId;
+    size_t mCycleOffset;
 };
 

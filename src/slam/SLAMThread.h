@@ -1,7 +1,6 @@
 #pragma once
 
 #include <thread>
-#include <memory>
 #include "Semaphore.h"
 #include "SLAMModuleWrapper.h"
 
@@ -34,6 +33,4 @@ protected:
 
     SLAMModuleWrapper* mModuleList;
 };
-
-using SLAMThreadPtr = std::shared_ptr<SLAMThread>;
 
