@@ -2,15 +2,15 @@
 
 #include <thread>
 #include "Semaphore.h"
-#include "SLAMModuleWrapper.h"
+#include "PipelineModuleWrapper.h"
 
-class SLAMThread
+class PipelineThread
 {
 public:
 
-    SLAMThread();
+    PipelineThread();
 
-    void startup(SLAMModuleWrapper* module_list);
+    void startup(PipelineModuleWrapper* module_list);
 
     void trigger();
 
@@ -31,6 +31,6 @@ protected:
 
     bool mInterruptionRequested;
 
-    SLAMModuleWrapper* mModuleList;
+    PipelineModuleWrapper* mModuleList;
 };
 

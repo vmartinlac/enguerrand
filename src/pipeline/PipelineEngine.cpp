@@ -1,14 +1,16 @@
 #include <numeric>
-#include "SLAMEngine.h"
+#include "PipelineEngine.h"
 
-SLAMEngine::SLAMEngine()
+PipelineEngine::PipelineEngine()
 {
     mCycleOffset = 0;
     mPipelineLength = 0;
 }
 
-void SLAMEngine::exec(SLAMPipeline& pipeline)
+void PipelineEngine::exec(PipelineDescription& pipeline)
 {
+    bool ok = true;
+
     // check input.
 
     {
@@ -27,7 +29,7 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
             throw std::runtime_error("internal error");
         }
 
-        auto pred = [] (size_t i, const std::unique_ptr<SLAMModule>& module) -> size_t
+        auto pred = [] (size_t i, const std::unique_ptr<PipelineModule>& module) -> size_t
         {
             return i + module->getNumPorts();
         };
@@ -38,8 +40,23 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
         }
     }
 
+    std::cout << "Initializing pipeline..." << std::endl;
+
+    // initialize modules.
+
+    if(ok)
+    {
+        for(std::unique_ptr<PipelineModule>& m : pipeline.modules)
+        {
+            ok = ok && m->initialize();
+        }
+    }
+
+    std::cout << "Num modules: " << pipeline.modules.size() << std::endl;
+
     // allocate ports.
 
+    if(ok)
     {
         mPipelineLength = 1;
 
@@ -50,22 +67,29 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
 
         mCycleOffset = 0;
 
-        for(auto& functor : pipeline.meta_ports)
+        for( std::unique_ptr<PipelinePortFactory>& factory : pipeline.ports )
         {
             for(size_t i=0; i<mPipelineLength; i++)
             {
-                mPorts.emplace_back(functor());
+                PipelinePort* port = factory->create();
+                ok = ok && bool(port);
+                mPorts.emplace_back(port);
             }
         }
     }
 
+    std::cout << "Pipeline length: " << mPipelineLength << std::endl;
+    std::cout << "Num ports: " << pipeline.ports.size() << " / " << mPorts.size() << std::endl;
+
     // allocate modules.
 
+    if(ok)
     {
         mModules.resize(pipeline.modules.size());
 
         for(size_t i=0; i<mModules.size(); i++)
         {
+            mModules[i].enabled = false;
             mModules[i].module = pipeline.modules[i].get();
             mModules[i].lag = pipeline.lags[i];
             mModules[i].ports = nullptr;
@@ -75,12 +99,13 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
 
     // allocate port table.
 
+    if(ok)
     {
         mPortTable.assign(pipeline.connections.size(), nullptr);
 
         size_t s = 0;
 
-        for(SLAMModuleWrapper& m : mModules)
+        for(PipelineModuleWrapper& m : mModules)
         {
             m.ports = &mPortTable[s];
             s += m.module->getNumPorts();
@@ -89,6 +114,7 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
 
     // allocate threads.
 
+    if(ok)
     {
         mThreads.resize(pipeline.thread_partition.size());
 
@@ -96,7 +122,7 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
 
         for(size_t i=0; i<mThreads.size(); i++)
         {
-            SLAMModuleWrapper* first_module = &mModules[k];
+            PipelineModuleWrapper* first_module = &mModules[k];
 
             for(size_t j=0; j+1<pipeline.thread_partition[i]; j++)
             {
@@ -107,23 +133,16 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
             mModules[k].next_in_thread = nullptr;
             k++;
 
-            mThreads[i].reset(new SLAMThread());
+            mThreads[i].reset(new PipelineThread());
             mThreads[i]->startup(first_module);
         }
     }
 
-    // initialize modules.
-
-    {
-        for(SLAMModuleWrapper& m : mModules)
-        {
-            m.enabled = false;
-            m.module->initialize();
-        }
-    }
+    std::cout << "Num threads: " << mThreads.size() << std::endl;
 
     // run pipeline.
 
+    if(ok)
     {
         bool go_on = true;
         size_t num_frames_in_pipeline = 0;
@@ -132,13 +151,15 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
 
         while(go_on)
         {
+            std::cout << "New cycle..." << std::endl;
+
             // find which modules are ready to compute and update ports.
 
             mCycleOffset = (mCycleOffset + mPipelineLength - 1) % mPipelineLength;
 
             size_t s = 0;
 
-            for(SLAMModuleWrapper& m : mModules)
+            for(PipelineModuleWrapper& m : mModules)
             {
                 m.enabled = (num_frames_in_pipeline >= m.lag);
 
@@ -152,14 +173,21 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
 
             num_frames_in_pipeline = std::min<size_t>(num_frames_in_pipeline+1, mPipelineLength);
 
+            // reset incoming ports.
+
+            for(size_t i=0; i<pipeline.ports.size(); i++)
+            {
+                mPorts[mPipelineLength*i+mCycleOffset]->reset();
+            }
+
             // compute.
 
-            for(std::unique_ptr<SLAMThread>& t : mThreads)
+            for(std::unique_ptr<PipelineThread>& t : mThreads)
             {
                 t->trigger();
             }
 
-            for(std::unique_ptr<SLAMThread>& t : mThreads)
+            for(std::unique_ptr<PipelineThread>& t : mThreads)
             {
                 t->wait();
             }
@@ -168,8 +196,9 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
 
     // finalize modules.
 
+    if(ok)
     {
-        for(SLAMModuleWrapper& m : mModules)
+        for(PipelineModuleWrapper& m : mModules)
         {
             m.module->finalize();
         }
@@ -177,8 +206,9 @@ void SLAMEngine::exec(SLAMPipeline& pipeline)
 
     // clear pipeline.
 
+    if(ok)
     {
-        for(std::unique_ptr<SLAMThread>& t : mThreads)
+        for(std::unique_ptr<PipelineThread>& t : mThreads)
         {
             t->shutdown();
         }

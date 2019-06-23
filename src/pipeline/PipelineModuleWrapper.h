@@ -1,12 +1,12 @@
 #pragma once
 
-#include "SLAMModule.h"
+#include "PipelineModule.h"
 
-class SLAMModuleWrapper
+class PipelineModuleWrapper
 {
 public:
 
-    SLAMModuleWrapper()
+    PipelineModuleWrapper()
     {
         module = nullptr;
         lag = 0;
@@ -19,10 +19,10 @@ public:
 
 public:
 
-    SLAMModule* module;
+    PipelineModule* module;
     size_t lag;
-    SLAMModuleWrapper* next_in_thread;
-    SLAMPort** ports;
+    PipelineModuleWrapper* next_in_thread;
+    PipelinePort** ports;
     bool enabled;
 };
 

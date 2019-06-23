@@ -1,29 +1,29 @@
-#include "SLAMThread.h"
+#include "PipelineThread.h"
 
-SLAMThread::SLAMThread()
+PipelineThread::PipelineThread()
 {
     mInterruptionRequested = false;
     mModuleList = nullptr;
 }
 
-void SLAMThread::startup(SLAMModuleWrapper* list)
+void PipelineThread::startup(PipelineModuleWrapper* list)
 {
     mModuleList = list;
     mInterruptionRequested = false;
     mThread = std::thread( [this] () { this->threadProcedure(); } );
 }
 
-void SLAMThread::trigger()
+void PipelineThread::trigger()
 {
     mSemaphoreStart.up();
 }
 
-void SLAMThread::wait()
+void PipelineThread::wait()
 {
     mSemaphoreFinished.down();
 }
 
-void SLAMThread::threadProcedure()
+void PipelineThread::threadProcedure()
 {
     bool go_on = true;
 
@@ -44,7 +44,7 @@ void SLAMThread::threadProcedure()
     }
 }
 
-void SLAMThread::shutdown()
+void PipelineThread::shutdown()
 {
     mInterruptionRequested = true;
     mSemaphoreStart.up();

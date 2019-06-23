@@ -1,16 +1,16 @@
 #include <iostream>
 #include <queue>
-#include <opencv2/core/cuda.hpp>
-#include <opencv2/core/cuda_stream_accessor.hpp>
-#include <opencv2/cudafilters.hpp>
-#include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
-#include "LineFitter.h"
-#include "CircleFitter.h"
-#include "TrackerCPUImpl.h"
+#include <opencv2/imgproc.hpp>
+#include "VideoPort.h"
+#include "EdgeCirclesPort.h"
+#include "CirclesDetection.h"
 
-TrackerCPUImpl::TrackerCPUImpl()
+CirclesDetection::CirclesDetection()
 {
+    mMinRadius = 5.0f;
+    mMaxRadius = 600.0f;
+
     mNeighbors[0] = cv::Vec2i(-1,-1);
     mNeighbors[1] = cv::Vec2i(-1,0);
     mNeighbors[2] = cv::Vec2i(-1,1);
@@ -19,255 +19,147 @@ TrackerCPUImpl::TrackerCPUImpl()
     mNeighbors[5] = cv::Vec2i(1,-1);
     mNeighbors[6] = cv::Vec2i(1,0);
     mNeighbors[7] = cv::Vec2i(1,1);
-
-    mMinRadius = 5.0f;
-    mMaxRadius = 600.0f;
 }
 
-void TrackerCPUImpl::track(const cv::Mat& input_image, std::vector<TrackedLandmark>& result)
+void CirclesDetection::setSeed(size_t seed)
 {
-    //std::vector<cv::Vec2f> centers;
+    mEngine.seed(seed);
+}
+
+size_t CirclesDetection::getNumPorts() const
+{
+    return 2;
+}
+
+bool CirclesDetection::initialize()
+{
+    return true;
+}
+
+void CirclesDetection::finalize()
+{
+}
+
+void CirclesDetection::compute(PipelinePort** ports)
+{
+    VideoPort* video = static_cast<VideoPort*>(ports[0]);
+    EdgeCirclesPort* edge = static_cast<EdgeCirclesPort*>(ports[1]);
+
+    bool ok = true;
+
+    cv::Mat input_image;
+    cv::Size image_size;
+    std::vector<cv::Point2i> pixels_to_process;
     std::vector<cv::Vec3f> circles;
 
-    detectEdges(input_image);
-    //detectCirclesCentersWithHough(centers);
-    detectCirclesWithRANSAC(circles);
+    edge->circles.clear();
 
+    /*
+    {
+        auto& flags = edge->flags;
+        cv::Mat1b tmp(flags.size());
+        auto proc = [] (uint8_t f) { return (f & EDGECIRCLESPORT_EDGE) ? 255 : 0; };
+        std::transform(flags.begin(), flags.end(), tmp.begin(), proc);
+        cv::imshow("rien", tmp);
+        cv::waitKey(1);
+    }
+    */
+
+    if(ok)
+    {
+        ok = edge->available && video->frame.isValid() && video->frame.getNumViews() == 1;
+    }
+
+    if(ok)
+    {
+        //std::cout << "Circles detection on frame " << video->frame.getId() << std::endl;
+        input_image = video->frame.getView();
+        ok = ( input_image.type() == CV_8UC3 );
+    }
+
+    if(ok)
+    {
+        image_size = input_image.size();
+
+        pixels_to_process.reserve(image_size.width*image_size.height);
+
+        for(int i=0; i<image_size.height; i++)
+        {
+            for(int j=0; j<image_size.width; j++)
+            {
+                if(edge->flags(i,j) & EDGECIRCLESPORT_EDGE)
+                {
+                    pixels_to_process.push_back(cv::Point2i(j,i));
+                }
+            }
+        }
+
+        while(pixels_to_process.empty() == false)
+        {
+            std::uniform_int_distribution<int> distrib(0, pixels_to_process.size()-1);
+
+            const int selected_index = distrib(mEngine);
+
+            const cv::Point2i seed = pixels_to_process[selected_index];
+            pixels_to_process[selected_index] = pixels_to_process.back();
+            pixels_to_process.pop_back();
+
+            if( (edge->flags(seed) & EDGECIRCLESPORT_NO_SEED) == 0 )
+            {
+                cv::Vec3f circle;
+
+                const bool found = findCircle(
+                    edge->normals,
+                    seed,
+                    edge->flags,
+                    circle);
+
+                if(found)
+                {
+                    circles.push_back(circle);
+                }
+            }
+        }
+    }
+
+    if(ok)
+    {
+        edge->circles.swap(circles);
+    }
+
+    std::cout << "Num circles detected: " << edge->circles.size() << std::endl;
+
+    /*
     cv::Mat tmp = input_image.clone();
     for(cv::Vec3f& c : circles)
     {
         cv::circle(tmp, cv::Point2f(c[0], c[1]), c[2], cv::Scalar(255, 255, 255));
     }
+
     cv::imshow("rien", tmp);
     cv::waitKey(1);
+    */
 }
 
-void TrackerCPUImpl::detectEdges(const cv::Mat& input_image)
-{
-    if( input_image.type() != CV_8UC3 ) throw "Internal error: incorrect image format.";
-
-    const cv::Size image_size = input_image.size();
-
-    cv::Mat1b gray;
-    cv::Mat1b blurred;
-    cv::Mat1f sobel_x;
-    cv::Mat1f sobel_y;
-    cv::Mat1f edgeness(image_size);
-
-    mFlags.create( image_size );
-    mNormals.create( image_size );
-
-    // convert to gray.
-
-    {
-        gray.create(image_size);
-        const int from_to[2] = {0, 0};
-        cv::mixChannels(&input_image, 1, &gray, 1, from_to, 1);
-    }
-    cv::GaussianBlur(gray, gray, cv::Size(), 3.0);
-    //cv::imshow("rien", gray);
-    //cv::waitKey(0);
-
-    // compute sobel x-derivative and y-derivative.
-
-    cv::Sobel(gray, sobel_x, CV_32F, 1, 0, 5);
-    cv::Sobel(gray, sobel_y, CV_32F, 0, 1, 5);
-
-    // compute norm of gradient.
-
-    const int margin = 3;
-
-    for(int i=0; i<image_size.height; i++)
-    {
-        for(int j=0; j<image_size.width; j++)
-        {
-            mFlags(i,j) = 0;
-            mNormals(i,j)[0] = 0.0f;
-            mNormals(i,j)[1] = 0.0f;
-
-            if( margin <= i && i+margin < image_size.height && margin <= j && j+margin < image_size.width )
-            {
-                const float gradient_norm = std::hypot(sobel_x(i,j), sobel_y(i,j));
-
-                edgeness(i,j) = gradient_norm;
-
-                const float epsilon = 1.0e-5;
-
-                if( gradient_norm > epsilon )
-                {
-                    mFlags(i,j) = FLAG_NONZERO_GRADIENT;
-                    mNormals(i,j)[0] = sobel_x(i,j) / gradient_norm;
-                    mNormals(i,j)[1] = sobel_y(i,j) / gradient_norm;
-                }
-            }
-        }
-    }
-
-    // non-maximum suppression.
-
-    for(int i=0; i<image_size.height; i++)
-    {
-        for(int j=0; j<image_size.width; j++)
-        {
-            if( mFlags(i,j) & FLAG_NONZERO_GRADIENT )
-            {
-                const cv::Vec2f N = mNormals(i,j);
-
-                int dx = 0;
-                int dy = 0;
-
-                if( N[0] <= -M_SQRT1_2)
-                {
-                    dx = -1;
-                }
-                else if(N[0] >= M_SQRT1_2)
-                {
-                    dx = 1;
-                }
-
-                if(N[1] <= -M_SQRT1_2)
-                {
-                    dy = -1;
-                }
-                else if(N[1] >= M_SQRT1_2)
-                {
-                    dy = 1;
-                }
-
-                if( dx != 0 || dy != 0 )
-                {
-                    const bool ismaximum = ( edgeness(i,j) >= edgeness(i+dy,j+dx) && edgeness(i,j) >= edgeness(i-dy,j-dx) );
-
-                    if( ismaximum )
-                    {
-                        mFlags(i,j) |= FLAG_MAXIMUM_ALONG_GRADIENT;
-                    }
-                }
-            }
-        }
-    }
-
-    {
-        const float high_threshold = 760.0f;
-        const float low_threshold = 0.7f*high_threshold; //200.0f;
-
-        for(int i=0; i<image_size.height; i++)
-        {
-            for(int j=0; j<image_size.width; j++)
-            {
-                if( mFlags(i,j) & FLAG_MAXIMUM_ALONG_GRADIENT )
-                {
-                    const float this_value = edgeness(i,j);
-
-                    if( this_value >= high_threshold )
-                    {
-                        mFlags(i,j) |= FLAG_EDGE;
-                    }
-                    else if( this_value >= low_threshold )
-                    {
-                        for(const cv::Vec2i& delta : mNeighbors)
-                        {
-                            const cv::Vec2i that_point(i+delta[0], j+delta[1]);
-
-                            if( 0 <= that_point[0] && that_point[0] < image_size.height && 0 <= that_point[1] && that_point[1] < image_size.width )
-                            {
-                                const float that_value = edgeness(that_point[0], that_point[1]);
-
-                                if(that_value > high_threshold)
-                                {
-                                    mFlags(i,j) |= FLAG_EDGE;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-#if 0
-    {
-        cv::Mat3b tmp = input_image.clone();
-        for(int i=0; i<image_size.height; i++)
-        {
-            for(int j=0; j<image_size.width; j++)
-            {
-                if(mFlags(i,j) & FLAG_EDGE)
-                {
-                    tmp(i,j) = cv::Vec3b(0,255,0);
-                }
-                else
-                {
-                    cv::Vec3b& pix = tmp(i,j);
-                    int gray = (pix[0]+pix[1]+pix[2])/3;
-                    pix = cv::Vec3b(gray,gray,gray);
-                }
-            }
-        }
-        cv::imshow("rien", tmp);
-        cv::waitKey(0);
-    }
-#endif
-}
-
-void TrackerCPUImpl::detectCirclesWithRANSAC(std::vector<cv::Vec3f>& circles)
-{
-    const cv::Size image_size = mFlags.size();
-
-    std::vector<cv::Point2i> pixels_to_process;
-    
-    pixels_to_process.reserve(image_size.width*image_size.height);
-
-    for(int i=0; i<image_size.height; i++)
-    {
-        for(int j=0; j<image_size.width; j++)
-        {
-            if(mFlags(i,j) & FLAG_EDGE)
-            {
-                pixels_to_process.push_back(cv::Point2i(j,i));
-            }
-        }
-    }
-
-    circles.clear();
-
-    while(pixels_to_process.empty() == false)
-    {
-        std::uniform_int_distribution<int> distrib(0, pixels_to_process.size()-1);
-
-        const int selected_index = distrib(mEngine);
-
-        const cv::Point2i seed = pixels_to_process[selected_index];
-        pixels_to_process[selected_index] = pixels_to_process.back();
-        pixels_to_process.pop_back();
-
-        if( (mFlags(seed) & FLAG_NO_SEED) == 0 )
-        {
-            cv::Vec3f circle;
-
-            if( findCircle(seed, circle) )
-            {
-                circles.push_back(circle);
-            }
-        }
-    }
-}
-
-bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
+bool CirclesDetection::findCircle(
+    const cv::Mat2f& normals,
+    const cv::Point2i& seed,
+    cv::Mat1b& flags,
+    cv::Vec3f& circle)
 {
     const cv::Point2f from(
-        seed.x + 0.5f - 2.0f*mNormals(seed)[0]*mMinRadius,
-        seed.y + 0.5f - 2.0f*mNormals(seed)[1]*mMinRadius );
+        seed.x + 0.5f - 2.0f*normals(seed)[0]*mMinRadius,
+        seed.y + 0.5f - 2.0f*normals(seed)[1]*mMinRadius );
 
     const cv::Point2f to(
-        seed.x + 0.5f - 2.0f*mNormals(seed)[0]*mMaxRadius,
-        seed.y + 0.5f - 2.0f*mNormals(seed)[1]*mMaxRadius );
+        seed.x + 0.5f - 2.0f*normals(seed)[0]*mMaxRadius,
+        seed.y + 0.5f - 2.0f*normals(seed)[1]*mMaxRadius );
 
     const cv::Point2i from_int = static_cast<cv::Point2i>(from);
 
     const cv::Point2i to_int = static_cast<cv::Point2i>(to);
 
-    cv::LineIterator line(mFlags, from_int, to_int);
+    cv::LineIterator line(flags, from_int, to_int);
 
     bool has_hit = false;
     cv::Point2i opposite;
@@ -275,12 +167,13 @@ bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
 
     for(int k=0; has_hit == false && k<line.count; k++)
     {
-        has_hit = findEdgeInNeighborhood(line.pos(), 1, opposite);
+        has_hit = findEdgeInNeighborhood(flags, line.pos(), 1, opposite);
         line++;
     }
 
     if( has_hit )
     {
+        //std::cout << "hello" << std::endl;
         constexpr int N_points = 4;
         std::array<cv::Point2i,N_points> found_points;
         std::vector<cv::Point2i> patch;
@@ -289,7 +182,7 @@ bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
 
         if(ret)
         {
-            const float dot_product = mNormals(seed).dot(mNormals(opposite));
+            const float dot_product = normals(seed).dot(normals(opposite));
             constexpr float threshold = -cos(10.0*M_PI/180.0);
 
             ret = (dot_product < threshold);
@@ -299,8 +192,8 @@ bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
         {
             const float radius = 0.5f * std::hypot( opposite.x - seed.x, opposite.y - seed.y );
 
-            circle[0] = seed.x + 0.5f - radius*mNormals(seed)[0];
-            circle[1] = seed.y + 0.5f - radius*mNormals(seed)[1];
+            circle[0] = seed.x + 0.5f - radius*normals(seed)[0];
+            circle[1] = seed.y + 0.5f - radius*normals(seed)[1];
             circle[2] = radius;
         }
 
@@ -326,11 +219,11 @@ bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
                 target_point.x = static_cast<int>(target[0]);
                 target_point.y = static_cast<int>(target[1]);
 
-                ret = findEdgeInNeighborhood(target_point, 3, found_points[i]);
+                ret = findEdgeInNeighborhood(flags, target_point, 3, found_points[i]);
 
                 if(ret)
                 {
-                    const cv::Vec2f normal = mNormals(found_points[i]);
+                    const cv::Vec2f normal = normals(found_points[i]);
                     const float scalar_product = normal[0]*cos_beta + normal[1]*sin_beta;
                     constexpr float threshold = std::cos(30.0*M_PI/180.0);
                     ret = scalar_product > threshold;
@@ -365,6 +258,7 @@ bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
 
         // optionnally perform mean square minimization.
 
+        /*
         if(true)
         {
             if(ret)
@@ -378,7 +272,7 @@ bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
 
                     const float x = pt.x + 0.5f;
                     const float y = pt.y + 0.5f;
-                    const cv::Vec2f normal = mNormals(pt);
+                    const cv::Vec2f normal = normals(pt);
                     const float dx = x - circle[0];
                     const float dy = y - circle[1];
                     const float dist = std::hypot(dx,dy);
@@ -399,14 +293,14 @@ bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
 
                 ret = (patch.size() >= 20);
 
-                /*
-                cv::Mat1b rien(mFlags.size());
+                #if 0
+                cv::Mat1b rien(flags.size());
                 std::fill(rien.begin(), rien.end(), 0);
                 for(cv::Point2i pt : patch)
                     rien(pt) = 255;
                 cv::imshow("rien",rien);
                 cv::waitKey(0);
-                */
+                #endif
             }
 
             if(ret)
@@ -426,6 +320,7 @@ bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
                 ret = f.fit(data, true, circle);
             }
         }
+        */
 
         if(ret)
         {
@@ -448,9 +343,9 @@ bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
                     const float dy = pt.y + 0.5f - circle[1];
                     const float dist = std::hypot(dx,dy);
 
-                    if( 0 <= pt.x && pt.x < mFlags.cols && 0 <= pt.y && pt.y < mFlags.rows && dist < clear_radius )
+                    if( 0 <= pt.x && pt.x < flags.cols && 0 <= pt.y && pt.y < flags.rows && dist < clear_radius )
                     {
-                        mFlags(pt) |= FLAG_NO_SEED;
+                        flags(pt) |= EDGECIRCLESPORT_NO_SEED;
                     }
                 }
             }
@@ -460,7 +355,11 @@ bool TrackerCPUImpl::findCircle(const cv::Point2i& seed, cv::Vec3f& circle)
     return ret;
 }
 
-bool TrackerCPUImpl::findEdgeInNeighborhood(const cv::Point& center, int half_size, cv::Point& edge)
+bool CirclesDetection::findEdgeInNeighborhood(
+    const cv::Mat1b& flags,
+    const cv::Point& center,
+    int half_size,
+    cv::Point& edge)
 {
     bool ret = false;
     double best_dist = 0.0f;
@@ -471,9 +370,9 @@ bool TrackerCPUImpl::findEdgeInNeighborhood(const cv::Point& center, int half_si
         {
             const cv::Point2i other(center.x+dj, center.y+di);
 
-            if( 0 <= other.x && other.x < mFlags.cols && 0 <= other.y && other.y < mFlags.rows )
+            if( 0 <= other.x && other.x < flags.cols && 0 <= other.y && other.y < flags.rows )
             {
-                if( mFlags(other) & FLAG_EDGE )
+                if( flags(other) & EDGECIRCLESPORT_EDGE )
                 {
                     const double dist = std::hypot( other.x - center.x, other.y - center.y );
 
@@ -491,9 +390,11 @@ bool TrackerCPUImpl::findEdgeInNeighborhood(const cv::Point& center, int half_si
     return ret;
 }
 
-/*
+///////////////////////////////////////
+
 template<typename PrimitiveType, typename EstimatorType, typename ClassifierType>
-bool TrackerCPUImpl::growPrimitive(
+bool CirclesDetection::growPrimitive(
+    cv::Mat1b& flags,
     std::vector<cv::Point2i>& patch,
     const EstimatorType& estimator,
     const ClassifierType& classifier,
@@ -516,7 +417,7 @@ bool TrackerCPUImpl::growPrimitive(
         if(go_on)
         {
             const size_t prev_size = patch.size();
-            growPatch(patch, growth_pred);
+            growPatch(flags, patch, growth_pred);
             go_on = (patch.size() > prev_size);
         }
 
@@ -525,18 +426,20 @@ bool TrackerCPUImpl::growPrimitive(
 
     return ret;
 }
-*/
 
 template<typename T>
-void TrackerCPUImpl::growPatch(std::vector<cv::Point2i>& patch, const T& pred)
+void CirclesDetection::growPatch(
+    cv::Mat1b& flags,
+    std::vector<cv::Point2i>& patch,
+    const T& pred)
 {
-    // TODO: set these variable as class members to avoid many memory allocations.
+    // TODO: maybe set these variable as class members to avoid many memory allocations.
     std::vector<cv::Point2i> visited;
     std::queue<cv::Point2i> queue;
 
     for(cv::Point2i& pt : patch)
     {
-        mFlags(pt) |= FLAG_VISITED;
+        flags(pt) |= EDGECIRCLESPORT_VISITED;
         visited.push_back(pt);
         queue.push(pt);
     }
@@ -552,15 +455,15 @@ void TrackerCPUImpl::growPatch(std::vector<cv::Point2i>& patch, const T& pred)
             neighbor.x += mNeighbors[k][1];
             neighbor.y += mNeighbors[k][0];
 
-            if( 0 <= neighbor.x && neighbor.x < mFlags.cols && 0 <= neighbor.y && neighbor.y < mFlags.rows )
+            if( 0 <= neighbor.x && neighbor.x < flags.cols && 0 <= neighbor.y && neighbor.y < flags.rows )
             {
-                const uint8_t f = mFlags(neighbor);
+                const uint8_t f = flags(neighbor);
 
-                if( (f & FLAG_EDGE) != 0 && (f & FLAG_VISITED) == 0 )
+                if( (f & EDGECIRCLESPORT_EDGE) != 0 && (f & EDGECIRCLESPORT_VISITED) == 0 )
                 {
                     if( pred(neighbor) )
                     {
-                        mFlags(neighbor) |= FLAG_VISITED;
+                        flags(neighbor) |= EDGECIRCLESPORT_VISITED;
                         visited.push_back(neighbor);
                         queue.push(neighbor);
                         patch.push_back(neighbor);
@@ -572,7 +475,7 @@ void TrackerCPUImpl::growPatch(std::vector<cv::Point2i>& patch, const T& pred)
 
     for( const cv::Point2i& pt : visited )
     {
-        mFlags(pt) &= ~FLAG_VISITED;
+        flags(pt) &= ~EDGECIRCLESPORT_VISITED;
     }
 }
 

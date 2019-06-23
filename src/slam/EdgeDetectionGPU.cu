@@ -1,3 +1,43 @@
+#include "EdgeDetectionGPU.h"
+
+#include "EdgeCirclesPort.h"
+#include "EdgeDetectionGPU.h"
+#include "VideoPort.h"
+
+EdgeDetectionGPU::EdgeDetectionGPU()
+{
+}
+
+size_t EdgeDetectionGPU::getNumPorts() const
+{
+    return 2;
+}
+
+bool EdgeDetectionGPU::initialize()
+{
+    return true;
+}
+
+void EdgeDetectionGPU::finalize()
+{
+}
+
+void EdgeDetectionGPU::pullGPU(PipelinePort** ports)
+{
+    VideoPort* video = static_cast<VideoPort*>(ports[0]);
+    EdgeCirclesPort* edge = static_cast<EdgeCirclesPort*>(ports[1]);
+}
+
+void EdgeDetectionGPU::pushGPU(PipelinePort** ports)
+{
+    VideoPort* video = static_cast<VideoPort*>(ports[0]);
+    EdgeCirclesPort* edge = static_cast<EdgeCirclesPort*>(ports[1]);
+
+    edge->circles.clear();
+}
+
+/*
+
 #include <iostream>
 #include <queue>
 #include <opencv2/core/cuda.hpp>
@@ -147,10 +187,8 @@ void TrackerGPUImpl::detectEdges(const cv::Mat& input_image)
 
     s3.waitForCompletion();
 
-    /*
-    cv::Sobel(input_image, sobel_x, CV_32F, 1, 0, 5);
-    cv::Sobel(input_image, sobel_y, CV_32F, 0, 1, 5);
-    */
+    //cv::Sobel(input_image, sobel_x, CV_32F, 1, 0, 5);
+    //cv::Sobel(input_image, sobel_y, CV_32F, 0, 1, 5);
 
     // non-maximum suppression.
 
@@ -267,4 +305,5 @@ void TrackerGPUImpl::detectEdges(const cv::Mat& input_image)
     cv::imshow("rien", mFlags*255);
     cv::waitKey(1);
 }
+*/
 

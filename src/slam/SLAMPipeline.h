@@ -1,19 +1,14 @@
-
 #pragma once
 
-#include <memory>
-#include <vector>
-#include "SLAMModule.h"
+#include "VideoSource.h"
+#include "PipelineDescription.h"
 
-class SLAMPipeline
+class SLAMPipeline : public PipelineDescription
 {
 public:
 
-    std::vector< std::unique_ptr<SLAMModule> > modules;
-    std::vector< std::function<SLAMPort*()> > meta_ports;
-    std::vector<size_t> connections;
+    SLAMPipeline();
 
-    std::vector<size_t> lags;
-    std::vector<size_t> thread_partition;
+    void build(VideoSourcePtr video);
 };
 

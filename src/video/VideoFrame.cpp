@@ -36,21 +36,37 @@ bool VideoFrame::isValid()
 
 int VideoFrame::getId()
 {
+    if( mIsValid == false)
+    {
+        throw std::runtime_error("internal error");
+    }
     return mId;
 }
 
 double VideoFrame::getTimestamp()
 {
+    if( mIsValid == false)
+    {
+        throw std::runtime_error("internal error");
+    }
     return mTimestamp;
 }
 
 int VideoFrame::getNumViews()
 {
+    if( mIsValid == false)
+    {
+        throw std::runtime_error("internal error");
+    }
     return mNumViews;
 }
 
 cv::Mat VideoFrame::getView(int index)
 {
+    if( mIsValid == false)
+    {
+        throw std::runtime_error("internal error");
+    }
     return mViews[index];
 }
 

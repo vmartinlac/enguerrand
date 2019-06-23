@@ -8,8 +8,7 @@ target_link_libraries(
     enguerrand
     PUBLIC
     opencv_core
-    enguerrand_tracker
-    enguerrand_video
+    enguerrand_slam
 )
 
 
