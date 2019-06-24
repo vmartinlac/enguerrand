@@ -55,7 +55,7 @@ void CirclesDetection::compute(PipelinePort** ports)
     cv::Mat input_image;
     cv::Size image_size;
     std::vector<cv::Point2i> pixels_to_process;
-    std::vector<cv::Vec3f> circles;
+    std::vector<EdgeCirclesPortCircle> circles;
 
     edge->circles.clear();
 
@@ -121,7 +121,11 @@ void CirclesDetection::compute(PipelinePort** ports)
 
                 if(found)
                 {
-                    circles.push_back(circle);
+                    circles.emplace_back();
+                    
+                    circles.back().circle = circle;
+                    circles.back().has_previous = false;
+                    circles.back().previous = 0;
                 }
             }
         }

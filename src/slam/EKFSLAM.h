@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <Eigen/Eigen>
 #include "PipelineModule.h"
 
 class EKFSLAM : public PipelineModule
@@ -18,5 +19,19 @@ public:
     void finalize() override;
 
     void compute(PipelinePort** ports) override;
+
+protected:
+
+    void predict();
+
+    void update();
+
+protected:
+
+    bool mFirst;
+    size_t mMaxLocalMapSize;
+    size_t mLocalMapSize;
+    Eigen::VectorXd mMu;
+    Eigen::MatrixXd mSigma;
 };
 

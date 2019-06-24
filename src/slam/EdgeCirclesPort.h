@@ -11,6 +11,13 @@
 #define EDGECIRCLESPORT_NO_SEED 16
 #define EDGECIRCLESPORT_CIRCLE 32
 
+struct EdgeCirclesPortCircle
+{
+    cv::Vec3f circle;
+    bool has_previous;
+    size_t previous;
+};
+
 class EdgeCirclesPort : public PipelinePort
 {
 public:
@@ -24,6 +31,6 @@ public:
     bool available;
     cv::Mat1b flags;
     cv::Mat2f normals;
-    std::vector<cv::Vec3f> circles;
+    std::vector<EdgeCirclesPortCircle> circles;
 };
 
