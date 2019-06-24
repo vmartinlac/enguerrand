@@ -21,6 +21,11 @@ CirclesDetection::CirclesDetection()
     mNeighbors[7] = cv::Vec2i(1,1);
 }
 
+const char* CirclesDetection::getName() const
+{
+    return "CirclesDetection";
+}
+
 void CirclesDetection::setSeed(size_t seed)
 {
     mEngine.seed(seed);

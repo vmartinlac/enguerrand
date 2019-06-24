@@ -8,6 +8,11 @@ EdgeDetectionGPU::EdgeDetectionGPU()
 {
 }
 
+const char* EdgeDetectionGPU::getName() const
+{
+    return "EdgeDetectionGPU";
+}
+
 size_t EdgeDetectionGPU::getNumPorts() const
 {
     return 2;

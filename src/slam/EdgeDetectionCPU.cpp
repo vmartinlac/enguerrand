@@ -17,6 +17,11 @@ EdgeDetectionCPU::EdgeDetectionCPU()
     mNeighbors[7] = cv::Vec2i(1,1);
 }
 
+const char* EdgeDetectionCPU::getName() const
+{
+    return "EdgeDetectionCPU";
+}
+
 size_t EdgeDetectionCPU::getNumPorts() const
 {
     return 2;

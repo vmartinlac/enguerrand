@@ -6,6 +6,11 @@ VideoModule::VideoModule()
 {
 }
 
+const char* VideoModule::getName() const
+{
+    return "VideoModule";
+}
+
 void VideoModule::setVideoSource(VideoSourcePtr video)
 {
     mVideo = std::move(video);

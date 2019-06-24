@@ -10,6 +10,8 @@ public:
 
     CirclesDetection();
 
+    const char* getName() const override;
+
     size_t getNumPorts() const override;
 
     void setSeed(size_t seed);

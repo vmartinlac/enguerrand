@@ -2,6 +2,8 @@
 add_library(
     enguerrand_pipeline
     SHARED
+    PipelineUtils.cpp
+    PipelineUtils.h
     PipelineDescription.cpp
     PipelineDescription.h
     PipelineEngine.cpp

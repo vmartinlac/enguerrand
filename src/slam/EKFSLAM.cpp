@@ -7,6 +7,11 @@ EKFSLAM::EKFSLAM()
 {
 }
 
+const char* EKFSLAM::getName() const
+{
+    return "EKFSLAM";
+}
+
 size_t EKFSLAM::getNumPorts() const
 {
     return 3;

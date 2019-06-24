@@ -9,6 +9,8 @@ public:
 
     VideoModule();
 
+    const char* getName() const;
+
     void setVideoSource(VideoSourcePtr video);
 
     size_t getNumPorts() const override;

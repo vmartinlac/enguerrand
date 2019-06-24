@@ -9,6 +9,8 @@ public:
 
     EdgeDetectionGPU();
 
+    const char* getName() const override;
+
     size_t getNumPorts() const override;
 
     bool initialize() override;

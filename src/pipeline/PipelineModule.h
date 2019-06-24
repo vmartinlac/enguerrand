@@ -9,6 +9,8 @@ public:
 
     PipelineModule();
 
+    virtual const char* getName() const = 0;
+
     virtual size_t getNumPorts() const = 0;
 
     virtual bool initialize() = 0;

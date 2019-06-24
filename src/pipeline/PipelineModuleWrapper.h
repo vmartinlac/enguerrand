@@ -1,5 +1,6 @@
 #pragma once
 
+#include "PipelineUtils.h"
 #include "PipelineModule.h"
 
 class PipelineModuleWrapper
@@ -24,5 +25,6 @@ public:
     PipelineModuleWrapper* next_in_thread;
     PipelinePort** ports;
     bool enabled;
+    PipelineTimeUnit elapsed;
 };
 

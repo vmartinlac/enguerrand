@@ -1,3 +1,4 @@
+#include <chrono>
 #include <numeric>
 #include "PipelineEngine.h"
 
@@ -142,6 +143,8 @@ void PipelineEngine::exec(PipelineDescription& pipeline)
 
     // run pipeline.
 
+    size_t cycle_id = 0;
+
     if(ok)
     {
         bool go_on = true;
@@ -151,7 +154,9 @@ void PipelineEngine::exec(PipelineDescription& pipeline)
 
         while(go_on)
         {
-            std::cout << "New cycle..." << std::endl;
+            std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+
+            std::cout << "CYCLE " << cycle_id << std::endl;
 
             // find which modules are ready to compute and update ports.
 
@@ -191,6 +196,19 @@ void PipelineEngine::exec(PipelineDescription& pipeline)
             {
                 t->wait();
             }
+
+            // print computation time.
+
+            std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
+
+            std::cout << "   Modules runtime:" << std::endl;
+            for(PipelineModuleWrapper& m : mModules)
+            {
+                std::cout << "      " << m.module->getName() << " (" PIPELINE_TIME_UNIT_NAME "): " << m.elapsed.count() << std::endl;
+            }
+            std::cout << "   Cycle runtime (" PIPELINE_TIME_UNIT_NAME "): " << std::chrono::duration_cast<PipelineTimeUnit>(t1-t0).count() << std::endl;
+
+            cycle_id++;
         }
     }
 
