@@ -7,7 +7,7 @@ set(ENGUERRAND_VERSION_MINOR 0)
 set(ENGUERRAND_VERSION_REVISION 0)
 
 enable_language(CXX)
-enable_language(CUDA)
+#enable_language(CUDA)
 
 include(GNUInstallDirs)
 include(GenerateExportHeader)
@@ -30,8 +30,10 @@ find_package(OpenCV REQUIRED)
 find_package(OSG REQUIRED)
 find_package(Qt5 COMPONENTS OpenGL Sql Core Widgets Gui Network Test REQUIRED)
 find_package(Sophus REQUIRED)
+find_package(TBB REQUIRED)
+#find_package(EMBB REQUIRED)
 
-add_subdirectory(src)
 add_subdirectory(app)
-add_subdirectory(tst)
+add_subdirectory(src)
+#add_subdirectory(tst)
 

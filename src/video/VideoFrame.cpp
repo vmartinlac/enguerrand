@@ -5,6 +5,15 @@ VideoFrame::VideoFrame()
     mIsValid = false;
 }
 
+VideoFrame::VideoFrame(const VideoFrame& other)
+{
+    mIsValid = other.mIsValid;
+    mId = other.mId;
+    mTimestamp = other.mTimestamp;;
+    mNumViews = other.mNumViews;
+    mViews = other.mViews;
+}
+
 void VideoFrame::setValid(int id, double timestamp, cv::Mat&& image)
 {
     mIsValid = true;

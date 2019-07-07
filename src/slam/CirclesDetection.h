@@ -2,25 +2,15 @@
 #pragma once
 
 #include <random>
-#include "PipelineModule.h"
+#include "EdgeCirclesData.h"
 
-class CirclesDetection : public PipelineModule
+class CirclesDetection
 {
 public:
 
     CirclesDetection();
 
-    const char* getName() const override;
-
-    size_t getNumPorts() const override;
-
-    void setSeed(size_t seed);
-
-    bool initialize() override;
-
-    void finalize() override;
-
-    void compute(PipelinePort** ports) override;
+    void detect(const cv::Mat3b& input_image, EdgeCirclesData& ecdata);
 
 protected:
 

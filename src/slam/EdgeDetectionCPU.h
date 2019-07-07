@@ -1,23 +1,18 @@
 
 #pragma once
 
-#include "PipelineModule.h"
+#include <array>
+#include "EdgeCirclesData.h"
 
-class EdgeDetectionCPU : public PipelineModule
+class EdgeDetectionCPU
 {
 public:
 
     EdgeDetectionCPU();
 
-    const char* getName() const override;
-
-    size_t getNumPorts() const override;
-
-    bool initialize() override;
-
-    void finalize() override;
-
-    void compute(PipelinePort** ports) override;
+    void detect(
+        const cv::Mat3b& input_image,
+        EdgeCirclesData& ecdata);
 
 protected:
 

@@ -1,3 +1,4 @@
+#include <iostream>
 #include "FileVideoSource.h"
 
 FileVideoSource::FileVideoSource()
@@ -12,7 +13,10 @@ void FileVideoSource::setFileName(const std::string& path)
 
 void FileVideoSource::trigger()
 {
-    mCap.grab();
+    if(mCap.isOpened())
+    {
+        mCap.grab();
+    }
 }
 
 void FileVideoSource::read(VideoFrame& frame)
@@ -33,8 +37,7 @@ void FileVideoSource::read(VideoFrame& frame)
 bool FileVideoSource::open()
 {
     mNextFrameId = 0;
-    mCap.open(mPath);
-    return mCap.isOpened();
+    return mCap.open(mPath);
 }
 
 void FileVideoSource::close()

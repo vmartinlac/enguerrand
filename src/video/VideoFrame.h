@@ -11,6 +11,8 @@ public:
 
     VideoFrame();
 
+    VideoFrame(const VideoFrame& o);
+
     void setValid(int id, double timestamp, cv::Mat&& image);
 
     void setValid(int id, double timestamp, cv::Mat&& image0, cv::Mat&& image1);

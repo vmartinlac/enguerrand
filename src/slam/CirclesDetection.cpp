@@ -2,8 +2,6 @@
 #include <queue>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include "VideoPort.h"
-#include "EdgeCirclesPort.h"
 #include "CirclesDetection.h"
 
 CirclesDetection::CirclesDetection()
@@ -21,66 +19,15 @@ CirclesDetection::CirclesDetection()
     mNeighbors[7] = cv::Vec2i(1,1);
 }
 
-const char* CirclesDetection::getName() const
+void CirclesDetection::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecdata)
 {
-    return "CirclesDetection";
-}
-
-void CirclesDetection::setSeed(size_t seed)
-{
-    mEngine.seed(seed);
-}
-
-size_t CirclesDetection::getNumPorts() const
-{
-    return 2;
-}
-
-bool CirclesDetection::initialize()
-{
-    return true;
-}
-
-void CirclesDetection::finalize()
-{
-}
-
-void CirclesDetection::compute(PipelinePort** ports)
-{
-    VideoPort* video = static_cast<VideoPort*>(ports[0]);
-    EdgeCirclesPort* edge = static_cast<EdgeCirclesPort*>(ports[1]);
-
     bool ok = true;
 
-    cv::Mat input_image;
     cv::Size image_size;
     std::vector<cv::Point2i> pixels_to_process;
-    std::vector<EdgeCirclesPortCircle> circles;
+    std::vector<EdgeCirclesDataCircle> circles;
 
-    edge->circles.clear();
-
-    /*
-    {
-        auto& flags = edge->flags;
-        cv::Mat1b tmp(flags.size());
-        auto proc = [] (uint8_t f) { return (f & EDGECIRCLESPORT_EDGE) ? 255 : 0; };
-        std::transform(flags.begin(), flags.end(), tmp.begin(), proc);
-        cv::imshow("rien", tmp);
-        cv::waitKey(1);
-    }
-    */
-
-    if(ok)
-    {
-        ok = edge->available && video->frame.isValid() && video->frame.getNumViews() == 1;
-    }
-
-    if(ok)
-    {
-        //std::cout << "Circles detection on frame " << video->frame.getId() << std::endl;
-        input_image = video->frame.getView();
-        ok = ( input_image.type() == CV_8UC3 );
-    }
+    ecdata.circles.clear();
 
     if(ok)
     {
@@ -92,7 +39,7 @@ void CirclesDetection::compute(PipelinePort** ports)
         {
             for(int j=0; j<image_size.width; j++)
             {
-                if(edge->flags(i,j) & EDGECIRCLESPORT_EDGE)
+                if(ecdata.flags(i,j) & EDGECIRCLE_EDGE)
                 {
                     pixels_to_process.push_back(cv::Point2i(j,i));
                 }
@@ -109,14 +56,14 @@ void CirclesDetection::compute(PipelinePort** ports)
             pixels_to_process[selected_index] = pixels_to_process.back();
             pixels_to_process.pop_back();
 
-            if( (edge->flags(seed) & EDGECIRCLESPORT_NO_SEED) == 0 )
+            if( (ecdata.flags(seed) & EDGECIRCLE_NO_SEED) == 0 )
             {
                 cv::Vec3f circle;
 
                 const bool found = findCircle(
-                    edge->normals,
+                    ecdata.normals,
                     seed,
-                    edge->flags,
+                    ecdata.flags,
                     circle);
 
                 if(found)
@@ -133,10 +80,10 @@ void CirclesDetection::compute(PipelinePort** ports)
 
     if(ok)
     {
-        edge->circles.swap(circles);
+        ecdata.circles.swap(circles);
     }
 
-    std::cout << "Num circles detected: " << edge->circles.size() << std::endl;
+    std::cout << "Num circles detected: " << ecdata.circles.size() << std::endl;
 
     /*
     cv::Mat tmp = input_image.clone();
@@ -354,7 +301,7 @@ bool CirclesDetection::findCircle(
 
                     if( 0 <= pt.x && pt.x < flags.cols && 0 <= pt.y && pt.y < flags.rows && dist < clear_radius )
                     {
-                        flags(pt) |= EDGECIRCLESPORT_NO_SEED;
+                        flags(pt) |= EDGECIRCLE_NO_SEED;
                     }
                 }
             }
@@ -381,7 +328,7 @@ bool CirclesDetection::findEdgeInNeighborhood(
 
             if( 0 <= other.x && other.x < flags.cols && 0 <= other.y && other.y < flags.rows )
             {
-                if( flags(other) & EDGECIRCLESPORT_EDGE )
+                if( flags(other) & EDGECIRCLE_EDGE )
                 {
                     const double dist = std::hypot( other.x - center.x, other.y - center.y );
 
@@ -398,8 +345,6 @@ bool CirclesDetection::findEdgeInNeighborhood(
 
     return ret;
 }
-
-///////////////////////////////////////
 
 template<typename PrimitiveType, typename EstimatorType, typename ClassifierType>
 bool CirclesDetection::growPrimitive(
@@ -448,7 +393,7 @@ void CirclesDetection::growPatch(
 
     for(cv::Point2i& pt : patch)
     {
-        flags(pt) |= EDGECIRCLESPORT_VISITED;
+        flags(pt) |= EDGECIRCLE_VISITED;
         visited.push_back(pt);
         queue.push(pt);
     }
@@ -468,11 +413,11 @@ void CirclesDetection::growPatch(
             {
                 const uint8_t f = flags(neighbor);
 
-                if( (f & EDGECIRCLESPORT_EDGE) != 0 && (f & EDGECIRCLESPORT_VISITED) == 0 )
+                if( (f & EDGECIRCLE_EDGE) != 0 && (f & EDGECIRCLE_VISITED) == 0 )
                 {
                     if( pred(neighbor) )
                     {
-                        flags(neighbor) |= EDGECIRCLESPORT_VISITED;
+                        flags(neighbor) |= EDGECIRCLE_VISITED;
                         visited.push_back(neighbor);
                         queue.push(neighbor);
                         patch.push_back(neighbor);
@@ -484,7 +429,7 @@ void CirclesDetection::growPatch(
 
     for( const cv::Point2i& pt : visited )
     {
-        flags(pt) &= ~EDGECIRCLESPORT_VISITED;
+        flags(pt) &= ~EDGECIRCLE_VISITED;
     }
 }
 

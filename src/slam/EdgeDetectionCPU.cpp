@@ -1,9 +1,7 @@
 #include <iostream>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
-#include "EdgeCirclesPort.h"
 #include "EdgeDetectionCPU.h"
-#include "VideoPort.h"
 
 EdgeDetectionCPU::EdgeDetectionCPU()
 {
@@ -17,31 +15,8 @@ EdgeDetectionCPU::EdgeDetectionCPU()
     mNeighbors[7] = cv::Vec2i(1,1);
 }
 
-const char* EdgeDetectionCPU::getName() const
+void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecdata)
 {
-    return "EdgeDetectionCPU";
-}
-
-size_t EdgeDetectionCPU::getNumPorts() const
-{
-    return 2;
-}
-
-bool EdgeDetectionCPU::initialize()
-{
-    return true;
-}
-
-void EdgeDetectionCPU::finalize()
-{
-}
-
-void EdgeDetectionCPU::compute(PipelinePort** ports)
-{
-    VideoPort* video = static_cast<VideoPort*>(ports[0]);
-    EdgeCirclesPort* edge = static_cast<EdgeCirclesPort*>(ports[1]);
-
-    cv::Mat input_image;
     cv::Size image_size;
 
     cv::Mat1b gray;
@@ -54,20 +29,6 @@ void EdgeDetectionCPU::compute(PipelinePort** ports)
     cv::Mat2f normals;
 
     bool ok = true;
-
-    edge->available = false;
-
-    if(ok)
-    {
-        ok = ( video->frame.isValid() && video->frame.getNumViews() == 1 );
-    }
-
-    if(ok)
-    {
-        //std::cout << "Edge detection on frame " << video->frame.getId() << std::endl;
-        input_image = video->frame.getView();
-        ok = ( input_image.type() == CV_8UC3 );
-    }
 
     if(ok)
     {
@@ -127,7 +88,7 @@ void EdgeDetectionCPU::compute(PipelinePort** ports)
 
                     if( gradient_norm > epsilon )
                     {
-                        flags(i,j) = EDGECIRCLESPORT_NONZERO_GRADIENT;
+                        flags(i,j) = EDGECIRCLE_NONZERO_GRADIENT;
                         normals(i,j)[0] = sobel_x(i,j) / gradient_norm;
                         normals(i,j)[1] = sobel_y(i,j) / gradient_norm;
                     }
@@ -144,7 +105,7 @@ void EdgeDetectionCPU::compute(PipelinePort** ports)
         {
             for(int j=0; j<image_size.width; j++)
             {
-                if( flags(i,j) & EDGECIRCLESPORT_NONZERO_GRADIENT )
+                if( flags(i,j) & EDGECIRCLE_NONZERO_GRADIENT )
                 {
                     const cv::Vec2f N = normals(i,j);
 
@@ -175,7 +136,7 @@ void EdgeDetectionCPU::compute(PipelinePort** ports)
 
                         if( ismaximum )
                         {
-                            flags(i,j) |= EDGECIRCLESPORT_MAXIMUM_ALONG_GRADIENT;
+                            flags(i,j) |= EDGECIRCLE_MAXIMUM_ALONG_GRADIENT;
                         }
                     }
                 }
@@ -194,13 +155,13 @@ void EdgeDetectionCPU::compute(PipelinePort** ports)
         {
             for(int j=0; j<image_size.width; j++)
             {
-                if( flags(i,j) & EDGECIRCLESPORT_MAXIMUM_ALONG_GRADIENT )
+                if( flags(i,j) & EDGECIRCLE_MAXIMUM_ALONG_GRADIENT )
                 {
                     const float this_value = edgeness(i,j);
 
                     if( this_value >= high_threshold )
                     {
-                        flags(i,j) |= EDGECIRCLESPORT_EDGE;
+                        flags(i,j) |= EDGECIRCLE_EDGE;
                     }
                     else if( this_value >= low_threshold )
                     {
@@ -214,7 +175,7 @@ void EdgeDetectionCPU::compute(PipelinePort** ports)
 
                                 if(that_value > high_threshold)
                                 {
-                                    flags(i,j) |= EDGECIRCLESPORT_EDGE;
+                                    flags(i,j) |= EDGECIRCLE_EDGE;
                                 }
                             }
                         }
@@ -227,7 +188,7 @@ void EdgeDetectionCPU::compute(PipelinePort** ports)
     /*
     {
         cv::Mat1b tmp(image_size);
-        auto proc = [] (uint8_t f) { return (f & EDGECIRCLESPORT_EDGE) ? 255 : 0; };
+        auto proc = [] (uint8_t f) { return (f & EDGECIRCLE_EDGE) ? 255 : 0; };
         std::transform(flags.begin(), flags.end(), tmp.begin(), proc);
         cv::imshow("rien", tmp);
         cv::waitKey(1);
@@ -238,9 +199,8 @@ void EdgeDetectionCPU::compute(PipelinePort** ports)
 
     if(ok)
     {
-        edge->available = true;
-        edge->flags = std::move(flags);
-        edge->normals = std::move(normals);
+        ecdata.flags = std::move(flags);
+        ecdata.normals = std::move(normals);
     }
 }
 
