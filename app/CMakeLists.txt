@@ -7,7 +7,8 @@ add_executable(
 target_link_libraries(
     enguerrand
     PUBLIC
-    tbb
+    TBB::tbb
+    TBB::tbbmalloc
     opencv_core
     opencv_imgcodecs
     opencv_imgproc
