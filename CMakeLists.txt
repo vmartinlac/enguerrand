@@ -23,6 +23,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(FFmpeg REQUIRED)
 #find_package(gRPC REQUIRED)
