@@ -1,12 +1,11 @@
+
 add_library(
     enguerrand_slam
     SHARED
-    EdgeCirclesData.h
-    EdgeCirclesData.cpp
-    EdgeDetectionCPU.h
-    EdgeDetectionCPU.cpp
-    CirclesDetection.h
-    CirclesDetection.cpp
+    #EdgeDetectionCPU.h
+    #EdgeDetectionCPU.cpp
+    #CirclesDetection.h
+    #CirclesDetection.cpp
     CircleFitter.h
     CircleFitter.cpp
     LineFitter.h

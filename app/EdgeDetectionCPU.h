@@ -2,7 +2,6 @@
 #pragma once
 
 #include <array>
-#include "EdgeCirclesData.h"
 
 class EdgeDetectionCPU
 {
@@ -11,8 +10,9 @@ public:
     EdgeDetectionCPU();
 
     void detect(
-        const cv::Mat3b& input_image,
-        EdgeCirclesData& ecdata);
+        const cv::Mat3b& image,
+        cv::Mat1b& edges,
+        cv::Mat2f& normals);
 
 protected:
 

@@ -3,6 +3,10 @@
 #include <opencv2/highgui.hpp>
 #include "EdgeDetectionCPU.h"
 
+#define EDGEDETECTIONCPU_NONZERO_GRADIENT 1
+#define EDGEDETECTIONCPU_MAXIMUM_ALONG_GRADIENT 2
+#define EDGEDETECTIONCPU_EDGE 4
+
 EdgeDetectionCPU::EdgeDetectionCPU()
 {
     mNeighbors[0] = cv::Vec2i(-1,-1);
@@ -15,7 +19,10 @@ EdgeDetectionCPU::EdgeDetectionCPU()
     mNeighbors[7] = cv::Vec2i(1,1);
 }
 
-void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecdata)
+void EdgeDetectionCPU::detect(
+    const cv::Mat3b& input_image,
+    cv::Mat1b& edges,
+    cv::Mat2f& normals)
 {
     cv::Size image_size;
 
@@ -25,16 +32,13 @@ void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
     cv::Mat1f sobel_y;
     cv::Mat1f edgeness;
 
-    cv::Mat1b flags;
-    cv::Mat2f normals;
-
     bool ok = true;
 
     if(ok)
     {
         image_size = input_image.size();
         edgeness.create(image_size);
-        flags.create( image_size );
+        edges.create( image_size );
         normals.create( image_size );
     }
 
@@ -74,7 +78,7 @@ void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
         {
             for(int j=0; j<image_size.width; j++)
             {
-                flags(i,j) = 0;
+                edges(i,j) = 0;
                 normals(i,j)[0] = 0.0f;
                 normals(i,j)[1] = 0.0f;
 
@@ -88,7 +92,7 @@ void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
 
                     if( gradient_norm > epsilon )
                     {
-                        flags(i,j) = EDGECIRCLE_NONZERO_GRADIENT;
+                        edges(i,j) = EDGEDETECTIONCPU_NONZERO_GRADIENT;
                         normals(i,j)[0] = sobel_x(i,j) / gradient_norm;
                         normals(i,j)[1] = sobel_y(i,j) / gradient_norm;
                     }
@@ -105,7 +109,7 @@ void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
         {
             for(int j=0; j<image_size.width; j++)
             {
-                if( flags(i,j) & EDGECIRCLE_NONZERO_GRADIENT )
+                if( edges(i,j) & EDGEDETECTIONCPU_NONZERO_GRADIENT )
                 {
                     const cv::Vec2f N = normals(i,j);
 
@@ -136,7 +140,7 @@ void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
 
                         if( ismaximum )
                         {
-                            flags(i,j) |= EDGECIRCLE_MAXIMUM_ALONG_GRADIENT;
+                            edges(i,j) |= EDGEDETECTIONCPU_MAXIMUM_ALONG_GRADIENT;
                         }
                     }
                 }
@@ -155,13 +159,13 @@ void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
         {
             for(int j=0; j<image_size.width; j++)
             {
-                if( flags(i,j) & EDGECIRCLE_MAXIMUM_ALONG_GRADIENT )
+                if( edges(i,j) & EDGEDETECTIONCPU_MAXIMUM_ALONG_GRADIENT )
                 {
                     const float this_value = edgeness(i,j);
 
                     if( this_value >= high_threshold )
                     {
-                        flags(i,j) |= EDGECIRCLE_EDGE;
+                        edges(i,j) |= EDGEDETECTIONCPU_EDGE;
                     }
                     else if( this_value >= low_threshold )
                     {
@@ -175,7 +179,7 @@ void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
 
                                 if(that_value > high_threshold)
                                 {
-                                    flags(i,j) |= EDGECIRCLE_EDGE;
+                                    edges(i,j) |= EDGEDETECTIONCPU_EDGE;
                                 }
                             }
                         }
@@ -185,10 +189,22 @@ void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
         }
     }
 
+    for(uint8_t& x : edges)
+    {
+        if(x == EDGEDETECTIONCPU_EDGE)
+        {
+            x = 255;
+        }
+        else
+        {
+            x = 0;
+        }
+    }
+
     /*
     {
         cv::Mat1b tmp(image_size);
-        auto proc = [] (uint8_t f) { return (f & EDGECIRCLE_EDGE) ? 255 : 0; };
+        auto proc = [] (uint8_t f) { return (f & EDGEDETECTIONCPU_EDGE) ? 255 : 0; };
         std::transform(flags.begin(), flags.end(), tmp.begin(), proc);
         cv::imshow("rien", tmp);
         cv::waitKey(1);
@@ -196,11 +212,5 @@ void EdgeDetectionCPU::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
     */
 
     // export result.
-
-    if(ok)
-    {
-        ecdata.flags = std::move(flags);
-        ecdata.normals = std::move(normals);
-    }
 }
 

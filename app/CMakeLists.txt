@@ -4,10 +4,20 @@ add_executable(
     main.cpp
     Semaphore.h
     Semaphore.cpp
-    EngineFrame.h
-    EngineFrame.cpp
     Engine.h
     Engine.cpp
+    EngineGraph.h
+    EngineGraph.cpp
+    EdgeDetectionCPU.h
+    EdgeDetectionCPU.cpp
+    CirclesTracker.h
+    CirclesTracker.cpp
+    TrackedCircle.h
+    TrackedCircle.cpp
+    OdometryCode.h
+    OdometryCode.cpp
+    EKFOdometry.h
+    EKFOdometry.cpp
 )
 
 target_link_libraries(
@@ -19,7 +29,7 @@ target_link_libraries(
     opencv_imgcodecs
     opencv_imgproc
     Threads::Threads
+    Sophus::Sophus
     enguerrand_video
-    enguerrand_slam
 )
 

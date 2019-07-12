@@ -1,10 +1,10 @@
 #include <iostream>
 #include "FileVideoSource.h"
+#include "EKFOdometry.h"
 #include "Engine.h"
 
 int main(int num_args, char** args)
 {
-    Engine engine;
     FileVideoSourcePtr video_source(new FileVideoSource());
 
     /*
@@ -14,31 +14,11 @@ int main(int num_args, char** args)
     */
     video_source->setFileName("/home/victor/Développement/enguerrand/data/VID_20190615_180529.mp4");
 
-    if( video_source->open() == false ) exit(1);
+    OdometryCodePtr odometry_code(new EKFOdometry());
 
-    engine.start();
+    Engine engine;
 
-    bool go_on = true;
-    while(go_on)
-    {
-        VideoFrame f;
-
-        video_source->trigger();
-        video_source->read(f);
-
-        if(f.isValid())
-        {
-            engine.grabFrame(std::move(f), false);
-        }
-        else
-        {
-            go_on = false;
-        }
-    }
-
-    engine.stop();
-
-    video_source->close();
+    engine.exec(video_source, odometry_code);
 
     return 0;
 }

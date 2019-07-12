@@ -2,9 +2,14 @@
 #include <queue>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include "CirclesDetection.h"
+#include "CirclesTracker.h"
 
-CirclesDetection::CirclesDetection()
+#define CIRCLESTRACKER_EDGE 1
+#define CIRCLESTRACKER_VISITED 2
+#define CIRCLESTRACKER_NO_SEED 4
+#define CIRCLESTRACKER_CIRCLE 8
+
+CirclesTracker::CirclesTracker()
 {
     mMinRadius = 5.0f;
     mMaxRadius = 600.0f;
@@ -19,27 +24,59 @@ CirclesDetection::CirclesDetection()
     mNeighbors[7] = cv::Vec2i(1,1);
 }
 
-void CirclesDetection::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecdata)
+void CirclesTracker::setMinRadius(float x)
+{
+    mMinRadius = x;
+}
+
+void CirclesTracker::setMaxRadius(float x)
+{
+    mMaxRadius = x;
+}
+
+void CirclesTracker::track(
+    const cv::Mat3b& input_image,
+    const cv::Mat1b& edges,
+    const cv::Mat2f& normals,
+    std::vector<TrackedCircle>& circles)
 {
     bool ok = true;
 
     cv::Size image_size;
     std::vector<cv::Point2i> pixels_to_process;
-    std::vector<EdgeCirclesDataCircle> circles;
 
-    ecdata.circles.clear();
+    circles.clear();
+
+    if( input_image.size() != edges.size() ) throw std::runtime_error("internal error");
+    if( input_image.size() != normals.size() ) throw std::runtime_error("internal error");
 
     if(ok)
     {
         image_size = input_image.size();
 
+        mFlags.create(image_size);
+
+        auto proc = [] (uint8_t x) -> uint8_t
+        {
+            return (x) ? CIRCLESTRACKER_EDGE : 0;
+        };
+
+        std::transform(
+            edges.begin(),
+            edges.end(),
+            mFlags.begin(),
+            proc);
+    }
+
+    if(ok)
+    {
         pixels_to_process.reserve(image_size.width*image_size.height);
 
         for(int i=0; i<image_size.height; i++)
         {
             for(int j=0; j<image_size.width; j++)
             {
-                if(ecdata.flags(i,j) & EDGECIRCLE_EDGE)
+                if(mFlags(i,j) & CIRCLESTRACKER_EDGE)
                 {
                     pixels_to_process.push_back(cv::Point2i(j,i));
                 }
@@ -56,14 +93,13 @@ void CirclesDetection::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
             pixels_to_process[selected_index] = pixels_to_process.back();
             pixels_to_process.pop_back();
 
-            if( (ecdata.flags(seed) & EDGECIRCLE_NO_SEED) == 0 )
+            if( (mFlags(seed) & CIRCLESTRACKER_NO_SEED) == 0 )
             {
                 cv::Vec3f circle;
 
                 const bool found = findCircle(
-                    ecdata.normals,
+                    normals,
                     seed,
-                    ecdata.flags,
                     circle);
 
                 if(found)
@@ -80,10 +116,36 @@ void CirclesDetection::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
 
     if(ok)
     {
-        ecdata.circles.swap(circles);
+        // TODO: track circles.
     }
 
-    std::cout << "Num circles detected: " << ecdata.circles.size() << std::endl;
+    if(ok)
+    {
+        mLastDetectionMap.create(image_size);
+        std::fill( mLastDetectionMap.begin(), mLastDetectionMap.end(), -1);
+
+        size_t id = 0;
+
+        for(TrackedCircle& c : circles)
+        {
+            cv::Point center;
+            center.x = c.circle[0];
+            center.y = c.circle[1];
+
+            const double radius = c.circle[2];
+
+            cv::circle(mLastDetectionMap, center, radius, id, cv::FILLED);
+
+            id++;
+        }
+    }
+
+    if(ok == false)
+    {
+        circles.clear();
+    }
+
+    std::cout << "Num circles detected: " << circles.size() << std::endl;
 
     /*
     cv::Mat tmp = input_image.clone();
@@ -97,10 +159,9 @@ void CirclesDetection::detect(const cv::Mat3b& input_image, EdgeCirclesData& ecd
     */
 }
 
-bool CirclesDetection::findCircle(
+bool CirclesTracker::findCircle(
     const cv::Mat2f& normals,
     const cv::Point2i& seed,
-    cv::Mat1b& flags,
     cv::Vec3f& circle)
 {
     const cv::Point2f from(
@@ -115,7 +176,7 @@ bool CirclesDetection::findCircle(
 
     const cv::Point2i to_int = static_cast<cv::Point2i>(to);
 
-    cv::LineIterator line(flags, from_int, to_int);
+    cv::LineIterator line(mFlags, from_int, to_int);
 
     bool has_hit = false;
     cv::Point2i opposite;
@@ -123,7 +184,7 @@ bool CirclesDetection::findCircle(
 
     for(int k=0; has_hit == false && k<line.count; k++)
     {
-        has_hit = findEdgeInNeighborhood(flags, line.pos(), 1, opposite);
+        has_hit = findEdgeInNeighborhood(line.pos(), 1, opposite);
         line++;
     }
 
@@ -175,7 +236,7 @@ bool CirclesDetection::findCircle(
                 target_point.x = static_cast<int>(target[0]);
                 target_point.y = static_cast<int>(target[1]);
 
-                ret = findEdgeInNeighborhood(flags, target_point, 3, found_points[i]);
+                ret = findEdgeInNeighborhood(target_point, 3, found_points[i]);
 
                 if(ret)
                 {
@@ -250,7 +311,7 @@ bool CirclesDetection::findCircle(
                 ret = (patch.size() >= 20);
 
                 #if 0
-                cv::Mat1b rien(flags.size());
+                cv::Mat1b rien(mFlags.size());
                 std::fill(rien.begin(), rien.end(), 0);
                 for(cv::Point2i pt : patch)
                     rien(pt) = 255;
@@ -299,9 +360,9 @@ bool CirclesDetection::findCircle(
                     const float dy = pt.y + 0.5f - circle[1];
                     const float dist = std::hypot(dx,dy);
 
-                    if( 0 <= pt.x && pt.x < flags.cols && 0 <= pt.y && pt.y < flags.rows && dist < clear_radius )
+                    if( 0 <= pt.x && pt.x < mFlags.cols && 0 <= pt.y && pt.y < mFlags.rows && dist < clear_radius )
                     {
-                        flags(pt) |= EDGECIRCLE_NO_SEED;
+                        mFlags(pt) |= CIRCLESTRACKER_NO_SEED;
                     }
                 }
             }
@@ -311,8 +372,7 @@ bool CirclesDetection::findCircle(
     return ret;
 }
 
-bool CirclesDetection::findEdgeInNeighborhood(
-    const cv::Mat1b& flags,
+bool CirclesTracker::findEdgeInNeighborhood(
     const cv::Point& center,
     int half_size,
     cv::Point& edge)
@@ -326,9 +386,9 @@ bool CirclesDetection::findEdgeInNeighborhood(
         {
             const cv::Point2i other(center.x+dj, center.y+di);
 
-            if( 0 <= other.x && other.x < flags.cols && 0 <= other.y && other.y < flags.rows )
+            if( 0 <= other.x && other.x < mFlags.cols && 0 <= other.y && other.y < mFlags.rows )
             {
-                if( flags(other) & EDGECIRCLE_EDGE )
+                if( mFlags(other) & CIRCLESTRACKER_EDGE )
                 {
                     const double dist = std::hypot( other.x - center.x, other.y - center.y );
 
@@ -347,8 +407,7 @@ bool CirclesDetection::findEdgeInNeighborhood(
 }
 
 template<typename PrimitiveType, typename EstimatorType, typename ClassifierType>
-bool CirclesDetection::growPrimitive(
-    cv::Mat1b& flags,
+bool CirclesTracker::growPrimitive(
     std::vector<cv::Point2i>& patch,
     const EstimatorType& estimator,
     const ClassifierType& classifier,
@@ -371,7 +430,7 @@ bool CirclesDetection::growPrimitive(
         if(go_on)
         {
             const size_t prev_size = patch.size();
-            growPatch(flags, patch, growth_pred);
+            growPatch(patch, growth_pred);
             go_on = (patch.size() > prev_size);
         }
 
@@ -382,8 +441,7 @@ bool CirclesDetection::growPrimitive(
 }
 
 template<typename T>
-void CirclesDetection::growPatch(
-    cv::Mat1b& flags,
+void CirclesTracker::growPatch(
     std::vector<cv::Point2i>& patch,
     const T& pred)
 {
@@ -393,7 +451,7 @@ void CirclesDetection::growPatch(
 
     for(cv::Point2i& pt : patch)
     {
-        flags(pt) |= EDGECIRCLE_VISITED;
+        mFlags(pt) |= CIRCLESTRACKER_VISITED;
         visited.push_back(pt);
         queue.push(pt);
     }
@@ -409,15 +467,15 @@ void CirclesDetection::growPatch(
             neighbor.x += mNeighbors[k][1];
             neighbor.y += mNeighbors[k][0];
 
-            if( 0 <= neighbor.x && neighbor.x < flags.cols && 0 <= neighbor.y && neighbor.y < flags.rows )
+            if( 0 <= neighbor.x && neighbor.x < mFlags.cols && 0 <= neighbor.y && neighbor.y < mFlags.rows )
             {
-                const uint8_t f = flags(neighbor);
+                const uint8_t f = mFlags(neighbor);
 
-                if( (f & EDGECIRCLE_EDGE) != 0 && (f & EDGECIRCLE_VISITED) == 0 )
+                if( (f & CIRCLESTRACKER_EDGE) != 0 && (f & CIRCLESTRACKER_VISITED) == 0 )
                 {
                     if( pred(neighbor) )
                     {
-                        flags(neighbor) |= EDGECIRCLE_VISITED;
+                        mFlags(neighbor) |= CIRCLESTRACKER_VISITED;
                         visited.push_back(neighbor);
                         queue.push(neighbor);
                         patch.push_back(neighbor);
@@ -429,7 +487,7 @@ void CirclesDetection::growPatch(
 
     for( const cv::Point2i& pt : visited )
     {
-        flags(pt) &= ~EDGECIRCLE_VISITED;
+        mFlags(pt) &= ~CIRCLESTRACKER_VISITED;
     }
 }
 
