@@ -191,7 +191,7 @@ void EdgeDetectionCPU::detect(
 
     for(uint8_t& x : edges)
     {
-        if(x == EDGEDETECTIONCPU_EDGE)
+        if(x & EDGEDETECTIONCPU_EDGE)
         {
             x = 255;
         }

@@ -1,0 +1,39 @@
+
+add_executable(
+    enguerrand_frontend
+    main.cpp
+    Semaphore.h
+    Semaphore.cpp
+    Engine.h
+    Engine.cpp
+    EngineGraph.h
+    EngineGraph.cpp
+    EdgeDetectionCPU.h
+    EdgeDetectionCPU.cpp
+    CirclesTracker.h
+    CirclesTracker.cpp
+    TrackedCircle.h
+    TrackedCircle.cpp
+    OdometryCode.h
+    OdometryCode.cpp
+    EKFOdometry.h
+    EKFOdometry.cpp
+)
+
+target_link_libraries(
+    enguerrand_frontend
+    PUBLIC
+    TBB::tbb
+    TBB::tbbmalloc
+    opencv_core
+    opencv_imgproc
+    opencv_imgcodecs
+    opencv_imgcodecs
+    opencv_imgproc
+    opencv_highgui
+    Threads::Threads
+    Sophus::Sophus
+    enguerrand_video
+    enguerrand_stuff
+)
+

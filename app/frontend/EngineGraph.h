@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <random>
 #include <memory>
 #include <opencv2/core.hpp>
 #include <sophus/se3.hpp>
@@ -49,6 +50,7 @@ struct CirclesMessage
     MessageHeader header;
     std::vector<TrackedCircle> circles;
     double timestamp;
+    cv::Size image_size;
 };
 
 using CirclesMessagePtr = std::shared_ptr<CirclesMessage>;
@@ -117,3 +119,23 @@ protected:
     OdometryCodePtr mOdometryCode;
 };
 
+class CirclesTracerBody
+{
+public:
+
+    CirclesTracerBody();
+
+    tbb::flow::continue_msg operator()(const CirclesMessagePtr circles);
+
+protected:
+
+    struct Track
+    {
+        std::vector<cv::Vec3f> trajectory;
+        cv::Vec3b color;
+    };
+
+    std::string mOutputFileName;
+    std::vector<Track> mTracks;
+    std::default_random_engine mEngine;
+};

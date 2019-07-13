@@ -23,6 +23,27 @@ public:
 
 protected:
 
+    /**
+    * \brief First stage of detection-tracking.
+    */
+    bool detect(
+        const cv::Mat1b& edges,
+        const cv::Mat2f& normals,
+        std::vector<TrackedCircle>& circles);
+
+    /**
+    * \brief Second stage of detection-tracking.
+    */
+    bool filter(
+        const cv::Mat3b& input_image,
+        std::vector<TrackedCircle>& circles);
+
+    /**
+    * \brief Third stage of detection-tracking.
+    */
+    bool track(
+        std::vector<TrackedCircle>& circles);
+
     bool findCircle(
         const cv::Mat2f& normals,
         const cv::Point2i& seed,
@@ -43,6 +64,8 @@ protected:
         const EstimatorType& estimator,
         const ClassifierType& classifier,
         PrimitiveType& result);
+
+    bool filterCircle(const cv::Mat3b& image, const cv::Vec3f& circle);
 
 protected:
 

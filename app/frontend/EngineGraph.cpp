@@ -1,4 +1,7 @@
 #include <iostream>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui.hpp>
 #include <tbb/scalable_allocator.h>
 #include "EngineGraph.h"
 
@@ -23,11 +26,17 @@ bool VideoBody::operator()(VideoMessagePtr& message)
         message->header.frame_id = mNextFrameId++;
         message->frame = std::move(frame);
         ret = true;
+        /*
+        cv::imshow("rien", message->frame.getView(0));
+        cv::waitKey(0);
+        */
     }
     else
     {
         message.reset();
     }
+
+    std::cout << "VideoBody " << message->header.frame_id << std::endl;
 
     return ret;
 }
@@ -51,7 +60,12 @@ EdgeMessagePtr EdgeBody::operator()(const VideoMessagePtr frame)
             frame->frame.getView(0),
             ret->edges,
             ret->normals);
+
+        //cv::imshow("rien", ret->edges);
+        //cv::waitKey(0);
     }
+
+    std::cout << "EdgeBody " << frame->header.frame_id << std::endl;
 
     return ret;
 }
@@ -85,7 +99,12 @@ CirclesMessagePtr CirclesBody::operator()(const tbb::flow::tuple<VideoMessagePtr
             edge_frame->edges,
             edge_frame->normals,
             circles_frame->circles);
+
+        circles_frame->timestamp = video_frame->frame.getTimestamp();
+        circles_frame->image_size = video_frame->frame.getView(0).size();
     }
+
+    std::cout << "CirclesBody " << video_frame->header.frame_id << std::endl;
 
     return circles_frame;
 }
@@ -123,5 +142,72 @@ OdometryMessagePtr OdometryBody::operator()(const CirclesMessagePtr circles)
     }
 
     return odometry;
+}
+
+CirclesTracerBody::CirclesTracerBody()
+{
+    mOutputFileName = "circles_trajectories.png";
+}
+
+tbb::flow::continue_msg CirclesTracerBody::operator()(const CirclesMessagePtr circles)
+{
+    std::uniform_int_distribution<uint8_t> color_distrib(64,192);
+
+    if(circles && circles->header.available)
+    {
+        // update tracks.
+
+        {
+            std::vector<Track> new_tracks(circles->circles.size());
+
+            for(size_t i=0; i<circles->circles.size(); i++)
+            {
+                Track& nt = new_tracks[i];
+                const TrackedCircle& tc = circles->circles[i];
+
+                if( tc.has_previous )
+                {
+                    nt.trajectory = std::move( mTracks[tc.previous].trajectory );
+                    nt.color = mTracks[tc.previous].color;
+                }
+                else
+                {
+                    nt.color[0] = color_distrib(mEngine);
+                    nt.color[1] = color_distrib(mEngine);
+                    nt.color[2] = color_distrib(mEngine);
+                }
+
+                nt.trajectory.emplace_back( tc.circle );
+            }
+
+            mTracks = std::move(new_tracks);
+        }
+
+        //  produce output image.
+
+        {
+            cv::Mat3b output(circles->image_size);
+            std::fill(output.begin(), output.end(), cv::Vec3b(0,0,0));
+
+            for(Track& t : mTracks)
+            {
+                int k = 0;
+                const int n = t.trajectory.size();
+                const int m = 10;
+                for(cv::Vec3f circle : t.trajectory)
+                {
+                    const cv::Point center( circle[0], circle[1] );
+                    const double radius = circle[2];
+                    const double gamma = std::max<double>(0.0, 1.0 - double(n-k-1)/m);
+                    const cv::Vec3b color = t.color * gamma;
+                    cv::circle(output, center, radius, color, -1);
+
+                    k++;
+                }
+            }
+
+            cv::imwrite(mOutputFileName, output);
+        }
+    }
 }
 

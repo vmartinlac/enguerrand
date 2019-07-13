@@ -42,107 +42,28 @@ void CirclesTracker::track(
 {
     bool ok = true;
 
-    cv::Size image_size;
-    std::vector<cv::Point2i> pixels_to_process;
-
-    circles.clear();
-
     if( input_image.size() != edges.size() ) throw std::runtime_error("internal error");
     if( input_image.size() != normals.size() ) throw std::runtime_error("internal error");
 
     if(ok)
     {
-        image_size = input_image.size();
-
-        mFlags.create(image_size);
-
-        auto proc = [] (uint8_t x) -> uint8_t
-        {
-            return (x) ? CIRCLESTRACKER_EDGE : 0;
-        };
-
-        std::transform(
-            edges.begin(),
-            edges.end(),
-            mFlags.begin(),
-            proc);
+        ok = detect(edges, normals, circles);
     }
 
     if(ok)
     {
-        pixels_to_process.reserve(image_size.width*image_size.height);
-
-        for(int i=0; i<image_size.height; i++)
-        {
-            for(int j=0; j<image_size.width; j++)
-            {
-                if(mFlags(i,j) & CIRCLESTRACKER_EDGE)
-                {
-                    pixels_to_process.push_back(cv::Point2i(j,i));
-                }
-            }
-        }
-
-        while(pixels_to_process.empty() == false)
-        {
-            std::uniform_int_distribution<int> distrib(0, pixels_to_process.size()-1);
-
-            const int selected_index = distrib(mEngine);
-
-            const cv::Point2i seed = pixels_to_process[selected_index];
-            pixels_to_process[selected_index] = pixels_to_process.back();
-            pixels_to_process.pop_back();
-
-            if( (mFlags(seed) & CIRCLESTRACKER_NO_SEED) == 0 )
-            {
-                cv::Vec3f circle;
-
-                const bool found = findCircle(
-                    normals,
-                    seed,
-                    circle);
-
-                if(found)
-                {
-                    circles.emplace_back();
-                    
-                    circles.back().circle = circle;
-                    circles.back().has_previous = false;
-                    circles.back().previous = 0;
-                }
-            }
-        }
+        ok = filter(input_image, circles);
     }
 
     if(ok)
     {
-        // TODO: track circles.
-    }
-
-    if(ok)
-    {
-        mLastDetectionMap.create(image_size);
-        std::fill( mLastDetectionMap.begin(), mLastDetectionMap.end(), -1);
-
-        size_t id = 0;
-
-        for(TrackedCircle& c : circles)
-        {
-            cv::Point center;
-            center.x = c.circle[0];
-            center.y = c.circle[1];
-
-            const double radius = c.circle[2];
-
-            cv::circle(mLastDetectionMap, center, radius, id, cv::FILLED);
-
-            id++;
-        }
+        ok = track(circles);
     }
 
     if(ok == false)
     {
         circles.clear();
+        mLastDetectionMap = cv::Mat();
     }
 
     std::cout << "Num circles detected: " << circles.size() << std::endl;
@@ -157,6 +78,257 @@ void CirclesTracker::track(
     cv::imshow("rien", tmp);
     cv::waitKey(1);
     */
+}
+
+bool CirclesTracker::detect(
+    const cv::Mat1b& edges,
+    const cv::Mat2f& normals,
+    std::vector<TrackedCircle>& circles)
+{
+    std::vector<cv::Point2i> pixels_to_process;
+
+    const cv::Size image_size = edges.size();
+
+    mFlags.create(image_size);
+    pixels_to_process.reserve(image_size.width*image_size.height/10);
+
+    for(int i=0; i<image_size.height; i++)
+    {
+        for(int j=0; j<image_size.width; j++)
+        {
+            if(edges(i,j))
+            {
+                pixels_to_process.push_back(cv::Point2i(j,i));
+                mFlags(i,j) = CIRCLESTRACKER_EDGE;
+            }
+            else
+            {
+                mFlags(i,j) = 0;
+            }
+        }
+    }
+
+    circles.clear();
+
+    while(pixels_to_process.empty() == false)
+    {
+        std::uniform_int_distribution<int> distrib(0, pixels_to_process.size()-1);
+
+        const int selected_index = distrib(mEngine);
+
+        const cv::Point2i seed = pixels_to_process[selected_index];
+        pixels_to_process[selected_index] = pixels_to_process.back();
+        pixels_to_process.pop_back();
+
+        if( (mFlags(seed) & CIRCLESTRACKER_NO_SEED) == 0 )
+        {
+            cv::Vec3f circle;
+
+            const bool found = findCircle(
+                normals,
+                seed,
+                circle);
+
+            if(found)
+            {
+                circles.emplace_back();
+                
+                circles.back().circle = circle;
+                circles.back().has_previous = false;
+                circles.back().previous = 0;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool CirclesTracker::filter(
+    const cv::Mat3b& input_image,
+    std::vector<TrackedCircle>& circles)
+{
+    std::vector<TrackedCircle>::iterator it = circles.begin();
+
+    while(it != circles.end())
+    {
+        bool keep = filterCircle(input_image, it->circle);
+
+        if(keep)
+        {
+            it++;
+        }
+        else
+        {
+            *it = circles.back();
+            circles.pop_back();
+        }
+    }
+
+    return true;
+}
+
+#include <opencv2/imgcodecs.hpp>
+bool CirclesTracker::filterCircle(const cv::Mat3b& image, const cv::Vec3f& circle)
+{
+    cv::Rect a( circle[0]-circle[2], circle[1]-circle[2], 2*circle[2], 2*circle[2] );
+    cv::Rect b( cv::Point(0,0), image.size() );
+    cv::Rect c = a&b;
+    static int i = 0;
+    cv::imwrite("rien_"+std::to_string(i)+".png", image(c));
+    i++;
+    return true;
+}
+
+bool CirclesTracker::track(std::vector<TrackedCircle>& circles)
+{
+    const cv::Size image_size = mFlags.size();
+    std::vector<bool> to_remove(circles.size(), false);
+    cv::Mat1i new_detection_map(image_size);
+
+    // create new detection map.
+
+    {
+        std::fill( new_detection_map.begin(), new_detection_map.end(), -1);
+
+        int id = 0;
+
+        for(TrackedCircle& c : circles)
+        {
+            cv::Point center;
+            center.x = c.circle[0];
+            center.y = c.circle[1];
+
+            const double radius = c.circle[2];
+
+            const int x0 = std::max<int>(0, std::floor(center.x - radius));
+            const int x1 = std::min<int>(image_size.width-1, std::ceil(center.x + radius));
+            const int y0 = std::max<int>(0, std::floor(center.y - radius));
+            const int y1 = std::min<int>(image_size.height-1, std::ceil(center.y + radius));
+
+            for(int i=y0; i<=y1; i++)
+            {
+                for(int j=x0; j<=x1; j++)
+                {
+                    const double candidate_radius = std::hypot( j+0.5 - center.x, i+0.5-center.y );
+                    if( candidate_radius < radius )
+                    {
+                        int& value = new_detection_map(i,j);
+
+                        if( value >= 0 )
+                        {
+                            to_remove[id] = true;
+                            to_remove[value] = true;
+                        }
+                        else
+                        {
+                            value = id;
+                        }
+                    }
+                }
+            }
+
+            id++;
+        }
+    }
+
+    //cv::imshow("rien", new_detection_map*65535/(id-1));
+    //cv::waitKey(0);
+
+    // if there is a previous detection map, use it to track.
+
+    if( mLastDetectionMap.data && mLastDetectionMap.size() == image_size )
+    {
+        std::vector<size_t> new_count(circles.size(), 0);
+        std::vector<size_t> last_count(circles.size(), 0);
+
+        auto it_last = mLastDetectionMap.begin();
+        auto end_last = mLastDetectionMap.end();
+        auto it_new = new_detection_map.begin();
+
+        while(it_last != end_last)
+        {
+            if( *it_new >= 0 && to_remove[*it_new] == false )
+            {
+                new_count[*it_new]++;
+
+                if( *it_last >= 0 )
+                {
+                    if( circles[*it_new].has_previous == false )
+                    {
+                        circles[*it_new].has_previous = true;
+                        circles[*it_new].previous = *it_last;
+                        last_count[*it_new]++;
+                    }
+                    else if( *it_last == circles[*it_new].previous )
+                    {
+                        last_count[*it_new]++;
+                    }
+                    else
+                    {
+                        to_remove[*it_new] = true;
+                    }
+                }
+            }
+
+            it_last++;
+            it_new++;
+        }
+
+        for(size_t i=0; i<circles.size(); i++)
+        {
+            if( to_remove[i] == false )
+            {
+                const double ratio = double(new_count[i]) / double(last_count[i]);
+
+                constexpr double factor = 3.0;
+
+                to_remove[i] = (ratio > factor || ratio < 1.0/factor);
+            }
+        }
+    }
+
+    // remove eliminated circles.
+
+    {
+        std::vector<TrackedCircle> new_circles;
+        std::vector<size_t> new_id(circles.size());
+
+        for(size_t i=0; i<circles.size(); i++)
+        {
+            if(to_remove[i])
+            {
+                new_id[i] = 0;
+            }
+            else
+            {
+                new_id[i] = new_circles.size();
+                new_circles.push_back(circles[i]);
+            }
+        }
+
+        circles.swap(new_circles);
+
+        for(int& x : new_detection_map)
+        {
+            if(x >= 0)
+            {
+                if(to_remove[x])
+                {
+                    x = -1;
+                }
+                else
+                {
+                    x = new_id[x];
+                }
+            }
+        }
+    }
+
+    // update detection map.
+
+    mLastDetectionMap = std::move(new_detection_map);
+
+    return true;
 }
 
 bool CirclesTracker::findCircle(
