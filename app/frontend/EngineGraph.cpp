@@ -36,7 +36,10 @@ bool VideoBody::operator()(VideoMessagePtr& message)
         message.reset();
     }
 
-    std::cout << "VideoBody " << message->header.frame_id << std::endl;
+    if(message)
+    {
+        std::cout << "VideoBody " << message->header.frame_id << std::endl;
+    }
 
     return ret;
 }
@@ -45,29 +48,32 @@ EdgeBody::EdgeBody()
 {
 }
 
-EdgeMessagePtr EdgeBody::operator()(const VideoMessagePtr frame)
+EdgeMessagePtr EdgeBody::operator()(const VideoMessagePtr video_msg)
 {
-    EdgeMessagePtr ret;
+    EdgeMessagePtr edge_msg;
 
-    if( bool(frame) && frame->header.available )
+    if( bool(video_msg) && video_msg->header.available )
     {
-        ret = std::allocate_shared<EdgeMessage>( tbb::scalable_allocator<EdgeMessage>() );
+        edge_msg = std::allocate_shared<EdgeMessage>( tbb::scalable_allocator<EdgeMessage>() );
 
-        ret->header.available = true;
-        ret->header.frame_id = frame->header.frame_id;
+        edge_msg->header.available = true;
+        edge_msg->header.frame_id = video_msg->header.frame_id;
 
         mDetector.detect(
-            frame->frame.getView(0),
-            ret->edges,
-            ret->normals);
+            video_msg->frame.getView(0),
+            edge_msg->edges,
+            edge_msg->normals);
 
         //cv::imshow("rien", ret->edges);
         //cv::waitKey(0);
     }
 
-    std::cout << "EdgeBody " << frame->header.frame_id << std::endl;
+    if(edge_msg)
+    {
+        std::cout << "EdgeBody " << edge_msg->header.frame_id << std::endl;
+    }
 
-    return ret;
+    return edge_msg;
 }
 
 CirclesBody::CirclesBody(HistogramPtr reference_histogram)
@@ -106,7 +112,10 @@ CirclesMessagePtr CirclesBody::operator()(const tbb::flow::tuple<VideoMessagePtr
         circles_frame->image_size = video_frame->frame.getView(0).size();
     }
 
-    std::cout << "CirclesBody " << video_frame->header.frame_id << std::endl;
+    if(circles_frame)
+    {
+        std::cout << "CirclesBody " << circles_frame->header.frame_id << std::endl;
+    }
 
     return circles_frame;
 }
@@ -141,6 +150,11 @@ OdometryMessagePtr OdometryBody::operator()(const CirclesMessagePtr circles)
             odometry->camera_to_world = camera_to_world;
             odometry->aligned_wrt_previous = aligned_wrt_previous;
         }
+    }
+
+    if(odometry)
+    {
+        std::cout << "OdometryBody " << odometry->header.frame_id << std::endl;
     }
 
     return odometry;
