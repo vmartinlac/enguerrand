@@ -70,8 +70,9 @@ EdgeMessagePtr EdgeBody::operator()(const VideoMessagePtr frame)
     return ret;
 }
 
-CirclesBody::CirclesBody()
+CirclesBody::CirclesBody(HistogramPtr reference_histogram)
 {
+    mTracker.setReferenceHistogram(std::move(reference_histogram));
 }
 
 CirclesMessagePtr CirclesBody::operator()(const tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> frame)
@@ -85,6 +86,7 @@ CirclesMessagePtr CirclesBody::operator()(const tbb::flow::tuple<VideoMessagePtr
     {
         if( video_frame->header.frame_id != edge_frame->header.frame_id )
         {
+            std::cerr << video_frame->header.frame_id << " " << edge_frame->header.frame_id << std::endl;
             std::cerr << "Fatal internal error!" << std::endl;
             exit(1);
         }

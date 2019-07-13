@@ -97,7 +97,7 @@ class CirclesBody
 {
 public:
 
-    CirclesBody();
+    CirclesBody(HistogramPtr reference_histogram);
 
     CirclesMessagePtr operator()(const tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> frame);
 

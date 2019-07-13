@@ -2,6 +2,7 @@
 #pragma once
 
 #include <array>
+#include <memory>
 
 class EdgeDetectionCPU
 {
@@ -18,3 +19,6 @@ protected:
 
     std::array<cv::Vec2i,8> mNeighbors;
 };
+
+using EdgeDetectionCPUPtr = std::shared_ptr<EdgeDetectionCPU>;
+

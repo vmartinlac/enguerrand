@@ -3,14 +3,14 @@
 #include "Engine.h"
 #include "EngineGraph.h"
 
-bool Engine::exec(VideoSourcePtr video, OdometryCodePtr odometry_code)
+bool Engine::exec(EngineConfigPtr config)
 {
     const char* err = "";
     bool ok = true;
 
     if(ok)
     {
-        ok = video->open();
+        ok = config->video->open();
         err = "Could not open video input.";
     }
 
@@ -18,19 +18,19 @@ bool Engine::exec(VideoSourcePtr video, OdometryCodePtr odometry_code)
     {
         tbb::flow::graph g;
 
-        tbb::flow::source_node<VideoMessagePtr> video_node(g, VideoBody(video));
+        tbb::flow::source_node<VideoMessagePtr> video_node(g, VideoBody(config->video));
 
         tbb::flow::limiter_node<VideoMessagePtr> limiter_node(g, 4);
 
-        tbb::flow::function_node<VideoMessagePtr,EdgeMessagePtr> edge_node(g, 2, EdgeBody());
+        tbb::flow::function_node<VideoMessagePtr,EdgeMessagePtr> edge_node(g, 1, EdgeBody());
 
         tbb::flow::join_node< tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> > join_node(g);
 
-        tbb::flow::function_node< tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr>, CirclesMessagePtr> circles_node(g, 1, CirclesBody());
+        tbb::flow::function_node< tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr>, CirclesMessagePtr> circles_node(g, 1, CirclesBody(config->balls_reference_histogram));
 
         tbb::flow::broadcast_node<CirclesMessagePtr> broadcast_node(g);
 
-        tbb::flow::function_node<CirclesMessagePtr,OdometryMessagePtr> odometry_node(g, 1, OdometryBody(odometry_code));
+        tbb::flow::function_node<CirclesMessagePtr,OdometryMessagePtr> odometry_node(g, 1, OdometryBody(config->odometry_code));
 
         tbb::flow::function_node<CirclesMessagePtr> circles_tracer_node(g, 1, CirclesTracerBody());
 
@@ -51,7 +51,7 @@ bool Engine::exec(VideoSourcePtr video, OdometryCodePtr odometry_code)
 
         g.wait_for_all();
 
-        video->close();
+        config->video->close();
     }
 
     if(ok == false)

@@ -5,18 +5,24 @@
 
 int main(int num_args, char** args)
 {
-    if(num_args != 2)
+    if(num_args != 4)
     {
         std::cerr << "Invalid command line!" << std::endl;
         exit(1);
     }
 
-    QDir directory(args[1]);
+
+    const std::string thumbnails_directory(args[1]);
+    const int num_bins = std::atoi(args[2]);
+    const std::string output_path(args[3]);
+
+
+    QDir directory(thumbnails_directory.c_str());
 
     QStringList files = directory.entryList(QDir::Files);
 
-    HistogramBuilder builder;
-    builder.init(64);
+    BigHistogramBuilder builder;
+    builder.init(num_bins);
 
     for(const QString& f : files)
     {
@@ -25,13 +31,21 @@ int main(int num_args, char** args)
 
         if(image.data != nullptr)
         {
-            builder.add(image);
+            std::cout << "Loaded thumbnail " << path << std::endl;
+            builder.add(image, 0.9);
         }
     }
 
     Histogram hist;
-    builder.build(hist);
-    hist.save("balls_histogram.bin");
+    if(builder.build(hist))
+    {
+        hist.save(output_path);
+    }
+    else
+    {
+        std::cerr << "Could not build histogram!" << std::endl;
+        exit(1);
+    }
 
     return 0;
 }

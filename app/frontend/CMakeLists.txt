@@ -8,6 +8,8 @@ add_executable(
     Engine.cpp
     EngineGraph.h
     EngineGraph.cpp
+    EngineConfig.h
+    EngineConfig.cpp
     EdgeDetectionCPU.h
     EdgeDetectionCPU.cpp
     CirclesTracker.h
@@ -18,6 +20,8 @@ add_executable(
     OdometryCode.cpp
     EKFOdometry.h
     EKFOdometry.cpp
+    CircleFitter.h
+    CircleFitter.cpp
 )
 
 target_link_libraries(

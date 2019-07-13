@@ -1,8 +1,9 @@
 
 #pragma once
 
+#include <memory>
 #include <random>
-#include "EdgeCirclesData.h"
+#include "Histogram.h"
 #include "TrackedCircle.h"
 
 class CirclesTracker
@@ -16,6 +17,8 @@ public:
         const cv::Mat1b& edges,
         const cv::Mat2f& normals,
         std::vector<TrackedCircle>& circles);
+
+    void setReferenceHistogram(HistogramPtr histogram);
 
     void setMinRadius(float x);
 
@@ -75,5 +78,12 @@ protected:
     std::array<cv::Vec2i,8> mNeighbors;
     float mMinRadius;
     float mMaxRadius;
+    HistogramPtr mReferenceHistogram;
+    bool mExportThumbnails;
+    size_t mThumbnailsCount;
+    bool mExportDetectionPicture;
+    double mHistogramIntersectionThreshold;
 };
+
+using CirclesTrackerPtr = std::shared_ptr<CirclesTracker>;
 

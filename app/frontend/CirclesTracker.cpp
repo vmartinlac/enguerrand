@@ -2,7 +2,10 @@
 #include <queue>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include "CirclesTracker.h"
+
+#define CIRCLESTRACKER_DEBUG
 
 #define CIRCLESTRACKER_EDGE 1
 #define CIRCLESTRACKER_VISITED 2
@@ -11,6 +14,13 @@
 
 CirclesTracker::CirclesTracker()
 {
+    mHistogramIntersectionThreshold = 0.03;
+
+    mExportDetectionPicture = true;
+
+    mExportThumbnails = false;
+    mThumbnailsCount = 0;
+
     mMinRadius = 5.0f;
     mMaxRadius = 600.0f;
 
@@ -22,6 +32,11 @@ CirclesTracker::CirclesTracker()
     mNeighbors[5] = cv::Vec2i(1,-1);
     mNeighbors[6] = cv::Vec2i(1,0);
     mNeighbors[7] = cv::Vec2i(1,1);
+}
+
+void CirclesTracker::setReferenceHistogram(HistogramPtr histogram)
+{
+    mReferenceHistogram = histogram;
 }
 
 void CirclesTracker::setMinRadius(float x)
@@ -50,15 +65,21 @@ void CirclesTracker::track(
         ok = detect(edges, normals, circles);
     }
 
+    //std::cout << "   Num circles after detection: " << circles.size() << std::endl;
+
     if(ok)
     {
         ok = filter(input_image, circles);
     }
 
+    //std::cout << "   Num circles after filtering: " << circles.size() << std::endl;
+
     if(ok)
     {
         ok = track(circles);
     }
+
+    //std::cout << "   Num circles after tracking: " << circles.size() << std::endl;
 
     if(ok == false)
     {
@@ -66,18 +87,37 @@ void CirclesTracker::track(
         mLastDetectionMap = cv::Mat();
     }
 
-    std::cout << "Num circles detected: " << circles.size() << std::endl;
+    //std::cout << "   Success: " << ok << std::endl;
 
-    /*
-    cv::Mat tmp = input_image.clone();
-    for(cv::Vec3f& c : circles)
+    if(mExportDetectionPicture)
     {
-        cv::circle(tmp, cv::Point2f(c[0], c[1]), c[2], cv::Scalar(255, 255, 255));
+        cv::Mat output = input_image.clone();
+        for(TrackedCircle& tc : circles)
+        {
+            const cv::Vec3f& c = tc.circle;
+            cv::circle(output, cv::Point2f(c[0], c[1]), c[2], cv::Scalar(255, 255, 255));
+        }
+
+        cv::resize( output, output, cv::Size(), 0.5, 0.5);
+
+        cv::imwrite("detected_circles.png", output);
     }
 
-    cv::imshow("rien", tmp);
-    cv::waitKey(1);
-    */
+    if( mExportThumbnails)
+    {
+        for(TrackedCircle& c : circles)
+        {
+            const cv::Vec3f& circle = c.circle;
+
+            const cv::Rect ROI =
+                cv::Rect( circle[0]-circle[2], circle[1]-circle[2], 2*circle[2], 2*circle[2] ) &
+                cv::Rect( cv::Point(0,0), input_image.size() );
+
+            cv::imwrite("circles_tracker_"+std::to_string(mThumbnailsCount)+".png", input_image(ROI));
+
+            mThumbnailsCount++;
+        }
+    }
 }
 
 bool CirclesTracker::detect(
@@ -167,16 +207,30 @@ bool CirclesTracker::filter(
     return true;
 }
 
-#include <opencv2/imgcodecs.hpp>
 bool CirclesTracker::filterCircle(const cv::Mat3b& image, const cv::Vec3f& circle)
 {
-    cv::Rect a( circle[0]-circle[2], circle[1]-circle[2], 2*circle[2], 2*circle[2] );
-    cv::Rect b( cv::Point(0,0), image.size() );
-    cv::Rect c = a&b;
-    static int i = 0;
-    cv::imwrite("rien_"+std::to_string(i)+".png", image(c));
-    i++;
-    return true;
+    bool ret = true;
+
+    if( mReferenceHistogram )
+    {
+        Histogram candidate_histogram;
+
+        if(ret)
+        {
+            ret = candidate_histogram.build(mReferenceHistogram->getBins(), image, circle, 0.9);
+        }
+
+        if(ret)
+        {
+            const double score = mReferenceHistogram->computeIntersectionWith(candidate_histogram);
+            //std::cout << "HISTOGRAM INTERSECTION " << score << std::endl;
+            ret = ( score > mHistogramIntersectionThreshold );
+        }
+    }
+
+    //if(ret == false) std::cout << "   REMOVED ONE CIRCLE DURING FILTERING!" << std::endl;
+
+    return ret;
 }
 
 bool CirclesTracker::track(std::vector<TrackedCircle>& circles)
@@ -218,6 +272,7 @@ bool CirclesTracker::track(std::vector<TrackedCircle>& circles)
                         {
                             to_remove[id] = true;
                             to_remove[value] = true;
+                            //std::cout << "   REMOVED TWO OVERLAPPING CIRCLES!" << std::endl;
                         }
                         else
                         {
@@ -265,6 +320,7 @@ bool CirclesTracker::track(std::vector<TrackedCircle>& circles)
                     }
                     else
                     {
+                        //std::cout << "   REMOVED ONE CIRCLE BECAUSE AMBIGUOUS TRACK!" << std::endl;
                         to_remove[*it_new] = true;
                     }
                 }
@@ -276,13 +332,17 @@ bool CirclesTracker::track(std::vector<TrackedCircle>& circles)
 
         for(size_t i=0; i<circles.size(); i++)
         {
-            if( to_remove[i] == false )
+            if( to_remove[i] == false && circles[i].has_previous )
             {
+                if( last_count[i] == 0 ) throw std::logic_error("internal error");
+
                 const double ratio = double(new_count[i]) / double(last_count[i]);
 
                 constexpr double factor = 3.0;
 
                 to_remove[i] = (ratio > factor || ratio < 1.0/factor);
+
+                //if(to_remove[i]) std::cout << "   REMOVED ONE CIRCLE BECAUSE DISSIMILAR RADII!" << std::endl;
             }
         }
     }
@@ -513,7 +573,7 @@ bool CirclesTracker::findCircle(
 
         if(ret)
         {
-            const float clear_radius = circle[2] + 5.0f;
+            const float clear_radius = circle[2] + 10.0f;
             const int N = static_cast<int>(std::ceil(clear_radius));
 
             cv::Point2i the_center;

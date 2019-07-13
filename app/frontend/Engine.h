@@ -3,12 +3,11 @@
 #include <tbb/flow_graph.h>
 #include <thread>
 #include <mutex>
-#include "VideoSource.h"
-#include "OdometryCode.h"
+#include "EngineConfig.h"
 
 class Engine
 {
 public:
 
-    bool exec(VideoSourcePtr video, OdometryCodePtr odometry_code);
+    bool exec(EngineConfigPtr config);
 };
