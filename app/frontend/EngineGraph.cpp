@@ -225,5 +225,7 @@ tbb::flow::continue_msg CirclesTracerBody::operator()(const CirclesMessagePtr ci
             cv::imwrite(mOutputFileName, output);
         }
     }
+
+    return tbb::flow::continue_msg();
 }
 

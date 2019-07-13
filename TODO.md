@@ -1,5 +1,0 @@
-TODO
-====
-
-* add runtime statistics
-
