@@ -35,6 +35,7 @@ target_link_libraries(
     opencv_imgcodecs
     opencv_imgproc
     opencv_highgui
+    Qt5::Core
     Threads::Threads
     Sophus::Sophus
     enguerrand_video

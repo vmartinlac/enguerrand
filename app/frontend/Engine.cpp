@@ -10,7 +10,7 @@ bool Engine::exec(EngineConfigPtr config)
 
     if(ok)
     {
-        ok = config->video->open();
+        ok = config->video_input->open();
         err = "Could not open video input.";
     }
 
@@ -18,7 +18,7 @@ bool Engine::exec(EngineConfigPtr config)
     {
         tbb::flow::graph g;
 
-        tbb::flow::source_node<VideoMessagePtr> video_node(g, VideoBody(config->video));
+        tbb::flow::source_node<VideoMessagePtr> video_node(g, VideoBody(config->video_input));
 
         tbb::flow::limiter_node<VideoMessagePtr> limiter_node(g, 4);
 
@@ -26,7 +26,7 @@ bool Engine::exec(EngineConfigPtr config)
 
         tbb::flow::join_node< tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> > join_node(g);
 
-        tbb::flow::function_node< tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr>, CirclesMessagePtr> circles_node(g, 1, CirclesBody(config->balls_reference_histogram));
+        tbb::flow::function_node< tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr>, CirclesMessagePtr> circles_node(g, 1, CirclesBody(config->balls_histogram));
 
         tbb::flow::broadcast_node<CirclesMessagePtr> broadcast_node(g);
 
@@ -51,7 +51,7 @@ bool Engine::exec(EngineConfigPtr config)
 
         g.wait_for_all();
 
-        config->video->close();
+        config->video_input->close();
     }
 
     if(ok == false)
