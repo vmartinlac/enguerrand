@@ -14,6 +14,8 @@ add_executable(
     EdgeDetectionCPU.cpp
     CirclesTracker.h
     CirclesTracker.cpp
+    CalibrationData.h
+    CalibrationData.cpp
     TrackedCircle.h
     TrackedCircle.cpp
     OdometryCode.h
@@ -27,6 +29,7 @@ add_executable(
 target_link_libraries(
     enguerrand_frontend
     PUBLIC
+    ceres
     TBB::tbb
     TBB::tbbmalloc
     opencv_core

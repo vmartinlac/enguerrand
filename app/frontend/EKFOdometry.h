@@ -2,12 +2,13 @@
 #pragma once
 
 #include "OdometryCode.h"
+#include "CalibrationData.h"
 
 class EKFOdometry : public OdometryCode
 {
 public:
 
-    EKFOdometry();
+    EKFOdometry(CalibrationDataPtr calibration);
 
     bool track(
         double timestamp,
@@ -52,5 +53,6 @@ protected:
     bool mInitialized;
     int mStateOffset;
     State mState[2];
+    CalibrationDataPtr mCalibration;
 };
 

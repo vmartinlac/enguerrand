@@ -55,11 +55,38 @@ bool EngineConfig::loadFromFile(const std::string& path)
         err = "Could not load histogram!";
     }
 
+    // set calibration.
+
+    if(ret)
+    {
+        QJsonObject obj = root["camera_calibration"].toObject();
+
+        calibration.reset(new CalibrationData());
+
+        calibration->num_cameras = 1;
+
+        calibration->cameras[0].image_size.width = obj["image_width"].toDouble();
+        calibration->cameras[0].image_size.height = obj["image_height"].toDouble();
+
+        const double cam_fx = obj["fx"].toDouble();
+        const double cam_fy = obj["fy"].toDouble();
+        const double cam_cx = obj["cx"].toDouble();
+        const double cam_cy = obj["cy"].toDouble();
+        const double cam_k1 = obj["k1"].toDouble();
+        const double cam_k2 = obj["k2"].toDouble();
+        const double cam_p1 = obj["p1"].toDouble();
+        const double cam_p2 = obj["p2"].toDouble();
+        const double cam_k3 = obj["k3"].toDouble();
+
+        calibration->cameras[0].calibration_matrix = { cam_fx, 0.0, cam_cx, 0.0, cam_fy, cam_cx, 0.0, 0.0, 1.0 };
+        calibration->cameras[0].distortion_coefficients.assign({ cam_k1, cam_k2, cam_p1, cam_p2, cam_k3 });
+    }
+
     // set odometry_code.
 
     if(ret)
     {
-        odometry_code.reset(new EKFOdometry());
+        odometry_code.reset(new EKFOdometry(calibration));
         err = "Could not set odometry code!";
     }
 

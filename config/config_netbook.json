@@ -11,6 +11,8 @@
     },
     "camera_calibration":
     {
+        "image_width":1920,
+        "image_height":1080,
         "fx":1.80993344e+03,
         "fy":1.80745383e+03,
         "cx":9.20081895e+02,

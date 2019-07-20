@@ -1,7 +1,21 @@
+#include <ceres/ceres.h>
 #include "EKFOdometry.h"
 
-EKFOdometry::EKFOdometry()
+struct LandmarkTriangulation
 {
+    template<typename T>
+    bool operator()(const T* const circle, T* landmark)
+    {
+        T centerx = circle[0];
+        T centery = circle[1];
+        T radius = circle[2];
+        return false;
+    }
+};
+
+EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
+{
+    mCalibration = calibration;
     mInitialized = false;
     mStateOffset = 0;
 }
