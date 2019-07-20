@@ -22,6 +22,8 @@ add_executable(
     OdometryCode.cpp
     EKFOdometry.h
     EKFOdometry.cpp
+    BAOdometry.h
+    BAOdometry.cpp
     CircleFitter.h
     CircleFitter.cpp
 )
@@ -38,6 +40,7 @@ target_link_libraries(
     opencv_imgcodecs
     opencv_imgproc
     opencv_highgui
+    opencv_calib3d
     Qt5::Core
     Threads::Threads
     Sophus::Sophus

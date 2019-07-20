@@ -16,6 +16,7 @@ public:
 
     cv::Size image_size;
     cv::Matx33d calibration_matrix;
+    cv::Matx33d inverse_calibration_matrix;
     std::vector<double> distortion_coefficients;
     Sophus::SE3d camera_to_robot;
 };

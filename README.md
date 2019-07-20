@@ -12,6 +12,7 @@ Dependencies
 * Qt5
 * realsense2
 * Sophus
+* Threading Building Blocks
 
 Added value
 -----------

@@ -78,7 +78,8 @@ bool EngineConfig::loadFromFile(const std::string& path)
         const double cam_p2 = obj["p2"].toDouble();
         const double cam_k3 = obj["k3"].toDouble();
 
-        calibration->cameras[0].calibration_matrix = { cam_fx, 0.0, cam_cx, 0.0, cam_fy, cam_cx, 0.0, 0.0, 1.0 };
+        calibration->cameras[0].calibration_matrix = { cam_fx, 0.0, cam_cx, 0.0, cam_fy, cam_cy, 0.0, 0.0, 1.0 };
+        calibration->cameras[0].inverse_calibration_matrix = { 1.0/cam_fx, 0.0, -cam_cx/cam_fx, 0.0, 1.0/cam_fy, -cam_cy/cam_fy, 0.0, 0.0, 1.0 };
         calibration->cameras[0].distortion_coefficients.assign({ cam_k1, cam_k2, cam_p1, cam_p2, cam_k3 });
     }
 
@@ -97,6 +98,16 @@ bool EngineConfig::loadFromFile(const std::string& path)
         std::cerr << err << std::endl;
         clear();
     }
+
+    /*
+    Eigen::Matrix3d A;
+    Eigen::Matrix3d B;
+    cv::cv2eigen(calibration->cameras[0].calibration_matrix, A);
+    cv::cv2eigen(calibration->cameras[0].inverse_calibration_matrix, B);
+    std::cout << A << std::endl;
+    std::cout << B*A << std::endl;
+    exit(0);
+    */
 
     return ret;
 }

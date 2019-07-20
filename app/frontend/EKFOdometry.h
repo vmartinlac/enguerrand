@@ -20,20 +20,29 @@ public:
 
 protected:
 
+    struct TriangulationFunctor;
+    struct PredictionFunctor;
+    struct UpdateFunctor;
+
     struct Landmark
     {
-        Eigen::Vector3d position_in_world;
+        Eigen::Vector3d position;
     };
 
     struct State
     {
         double timestamp;
-        bool aligned_wrt_previous;
         Sophus::SE3d camera_to_world;
         Eigen::Vector3d linear_momentum;
         Eigen::Vector3d angular_momentum;
         std::vector<Landmark> landmarks;
         Eigen::MatrixXd covariance; //* \brief Dimension of covariance matrix is 12 + 3*num_landmarks.
+    };
+
+    struct CircleToLandmark
+    {
+        bool has_landmark;
+        size_t landmark;
     };
 
 protected:
@@ -43,16 +52,24 @@ protected:
         const std::vector<TrackedCircle>& circles,
         State& new_state);
 
-    void estimateLandmarkPositionInCameraFrame(
+    /**
+    * \brief Triangulated landmark is in camera frame.
+    * \return true on success false on failure.
+    */
+    bool triangulateLandmark(
         const TrackedCircle& tc,
         Eigen::Vector3d& position,
         Eigen::Matrix3d& covariance);
 
+    cv::Vec3f undistortCircle(const cv::Vec3f& c);
+
 protected:
 
     bool mInitialized;
+    double mLandmarkRadius;
     int mStateOffset;
     State mState[2];
     CalibrationDataPtr mCalibration;
+    std::vector<CircleToLandmark> mCirclesToLandmark;
 };
 
