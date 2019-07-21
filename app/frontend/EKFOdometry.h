@@ -1,6 +1,8 @@
 
 #pragma once
 
+//#include <random>
+#include <ceres/ceres.h>
 #include "OdometryCode.h"
 #include "CalibrationData.h"
 
@@ -20,9 +22,9 @@ public:
 
 protected:
 
-    struct TriangulationFunctor;
-    struct PredictionFunctor;
-    struct UpdateFunctor;
+    struct TriangulationFunction;
+    struct PredictionFunction;
+    struct ObservationFunction;
 
     struct Landmark
     {
@@ -52,6 +54,12 @@ protected:
         const std::vector<TrackedCircle>& circles,
         State& new_state);
 
+    bool track(
+        double timestamp,
+        const std::vector<TrackedCircle>& circles,
+        State& old_state,
+        State& new_state);
+
     /**
     * \brief Triangulated landmark is in camera frame.
     * \return true on success false on failure.
@@ -65,11 +73,19 @@ protected:
 
 protected:
 
-    bool mInitialized;
     double mLandmarkRadius;
+    size_t mMaxLandmarks;
+    bool mInitialized;
     int mStateOffset;
     State mState[2];
     CalibrationDataPtr mCalibration;
     std::vector<CircleToLandmark> mCirclesToLandmark;
+    TriangulationFunction* mTriangulationFunction;
+    PredictionFunction* mPredictionFunction;
+    ObservationFunction* mObservationFunction;
+    std::unique_ptr<ceres::CostFunction> mTriangulationCostFunction;
+    std::unique_ptr<ceres::CostFunction> mPredictionCostFunction;
+    std::unique_ptr<ceres::CostFunction> mObservationCostFunction;
+    //std::default_random_engine mEngine;
 };
 
