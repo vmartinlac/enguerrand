@@ -28,11 +28,16 @@ protected:
 
     struct Landmark
     {
+        Landmark();
+
+        size_t seen_count;
         Eigen::Vector3d position;
     };
 
     struct State
     {
+        State();
+
         double timestamp;
         Sophus::SE3d camera_to_world;
         Eigen::Vector3d linear_momentum;
@@ -43,22 +48,29 @@ protected:
 
     struct CircleToLandmark
     {
+        CircleToLandmark();
+
         bool has_landmark;
         size_t landmark;
+    };
+
+    struct ObservedLandmark
+    {
+        size_t landmark;
+        cv::Vec3f undistorted_circle;
     };
 
 protected:
 
     void initialize(
         double timestamp,
-        const std::vector<TrackedCircle>& circles,
-        State& new_state);
+        const std::vector<TrackedCircle>& circles);
 
-    bool track(
-        double timestamp,
-        const std::vector<TrackedCircle>& circles,
-        State& old_state,
-        State& new_state);
+    bool trackingPrediction(double timestamp);
+
+    bool trackingUpdate(const std::vector<TrackedCircle>& circles);
+
+    bool trackingAugment(const std::vector<TrackedCircle>& circles);
 
     /**
     * \brief Triangulated landmark is in camera frame.
@@ -71,21 +83,37 @@ protected:
 
     cv::Vec3f undistortCircle(const cv::Vec3f& c);
 
+    void switchStates();
+
+    State& oldState();
+
+    State& newState();
+
 protected:
 
     double mLandmarkRadius;
     size_t mMaxLandmarks;
-    bool mInitialized;
-    int mStateOffset;
-    State mState[2];
+    double mPredictionLinearMomentumSigmaRate;
+    double mPredictionAngularMomentumSigmaRate;
     CalibrationDataPtr mCalibration;
+
+    bool mInitialized;
+    std::unique_ptr<State> mStates[2];
     std::vector<CircleToLandmark> mCirclesToLandmark;
-    TriangulationFunction* mTriangulationFunction;
-    PredictionFunction* mPredictionFunction;
-    ObservationFunction* mObservationFunction;
-    std::unique_ptr<ceres::CostFunction> mTriangulationCostFunction;
-    std::unique_ptr<ceres::CostFunction> mPredictionCostFunction;
-    std::unique_ptr<ceres::CostFunction> mObservationCostFunction;
-    //std::default_random_engine mEngine;
 };
+
+inline void EKFOdometry::switchStates()
+{
+    std::swap(mStates[0], mStates[1]);
+}
+
+inline EKFOdometry::State& EKFOdometry::oldState()
+{
+    return *mStates[0];
+}
+
+inline EKFOdometry::State& EKFOdometry::newState()
+{
+    return *mStates[1];
+}
 

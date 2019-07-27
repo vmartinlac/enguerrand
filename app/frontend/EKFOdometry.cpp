@@ -83,22 +83,61 @@ struct EKFOdometry::PredictionFunction
 {
     EKFOdometry* mParent;
     double mTimestep;
+    size_t mNumLandmarks;
 
-    PredictionFunction(EKFOdometry* parent)
+    PredictionFunction(double dt, size_t num_landmarks, EKFOdometry* parent)
     {
         mParent = parent;
-        mTimestep = 1.0;
-    }
-
-    void setTimestep(double dt)
-    {
         mTimestep = dt;
+        mNumLandmarks = num_landmarks;
     }
 
     template<typename T>
-    bool operator()(const T* const old_state, T* new_state) const
+    bool operator()(T const* const* old_state_arr, T* new_state) const
     {
-        return false;
+        const T* old_state = *old_state_arr;
+
+        T linear_velocity[3];
+        T angular_velocity[3];
+
+        linear_velocity[0] = old_state[7];
+        linear_velocity[1] = old_state[8];
+        linear_velocity[2] = old_state[9];
+
+        angular_velocity[0] = old_state[10];
+        angular_velocity[1] = old_state[11];
+        angular_velocity[2] = old_state[12];
+
+        // update position.
+
+        new_state[0] = old_state[0] + mTimestep*linear_velocity[0];
+        new_state[1] = old_state[1] + mTimestep*linear_velocity[1];
+        new_state[2] = old_state[2] + mTimestep*linear_velocity[2];
+
+        // update attitude.
+
+        // TODO
+
+        // copy linear and angular momenta.
+
+        new_state[7] = old_state[7];
+        new_state[8] = old_state[8];
+        new_state[9] = old_state[9];
+
+        new_state[10] = old_state[10];
+        new_state[11] = old_state[11];
+        new_state[12] = old_state[12];
+
+        // copy landmarks.
+
+        for(size_t i=0; i<mNumLandmarks; i++)
+        {
+            new_state[13+3*i+0] = old_state[13+3*i+0];
+            new_state[13+3*i+1] = old_state[13+3*i+1];
+            new_state[13+3*i+2] = old_state[13+3*i+2];
+        }
+
+        return true;
     }
 };
 
@@ -123,16 +162,13 @@ EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
     mLandmarkRadius = 1.0;
     mMaxLandmarks = 330;
     mCalibration = calibration;
+    mPredictionLinearMomentumSigmaRate = 1.0;
+    mPredictionLinearMomentumSigmaRate = M_PI*10.0/180.0;
+
     mInitialized = false;
-    mStateOffset = 0;
 
-    mTriangulationFunction = new TriangulationFunction(this);
-    mPredictionFunction = new PredictionFunction(this);
-    mObservationFunction = new ObservationFunction(this);
-
-    mTriangulationCostFunction.reset(new ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>(mTriangulationFunction));
-    //mPredictionCostFunction.reset(new ceres::AutoDiffCostFunction<PredictionFunction, 13, 13>(mPredictionFunction));
-    //mObservationCostFunction.reset(new ceres::AutoDiffCostFunction<ObservationFunction, 13, 13>(mObservationFunction));
+    mStates[0].reset(new State());
+    mStates[1].reset(new State());
 
     if(mCalibration->num_cameras == 0)
     {
@@ -147,26 +183,32 @@ bool EKFOdometry::track(
     Sophus::SE3d& camera_to_world,
     bool& aligned_wrt_previous)
 {
-    const int new_state_offset = (mStateOffset+1)%2;
-
-    State& old_state = mState[mStateOffset];
-    State& new_state = mState[new_state_offset];
-
-    mStateOffset = new_state_offset;
-
     bool successful_tracking = false;
 
-    if(mInitialized)
+    if( mInitialized && circles.empty() == false )
     {
-        successful_tracking = track(timestamp, circles, old_state, new_state);
+        switchStates();
+        successful_tracking = trackingPrediction(timestamp);
+
+        if(successful_tracking)
+        {
+            switchStates();
+            successful_tracking = trackingUpdate(circles);
+        }
+
+        if(successful_tracking)
+        {
+            switchStates();
+            successful_tracking = trackingAugment(circles);
+        }
     }
 
     if(successful_tracking == false)
     {
-        initialize(timestamp, circles, new_state);
+        initialize(timestamp, circles);
     }
 
-    camera_to_world = new_state.camera_to_world;
+    camera_to_world = newState().camera_to_world;
     aligned_wrt_previous = successful_tracking;
 
     return true;
@@ -188,13 +230,15 @@ bool EKFOdometry::triangulateLandmark(
     double* ceres_variable_ptr = ceres_variable;
     double* ceres_jacobian_ptr = ceres_jacobian;
 
-    cv::Vec3f undistorted = undistortCircle(tc.circle);
+    const cv::Vec3f undistorted = undistortCircle(tc.circle);
 
     ceres_variable[0] = undistorted[0];
     ceres_variable[1] = undistorted[1];
     ceres_variable[2] = undistorted[2];
 
-    const bool ok = mTriangulationCostFunction->Evaluate( &ceres_variable_ptr, ceres_value, &ceres_jacobian_ptr );
+    std::unique_ptr<ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>> function(new ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>(new TriangulationFunction(this)));
+
+    const bool ok = function->Evaluate( &ceres_variable_ptr, ceres_value, &ceres_jacobian_ptr );
 
     if(ok)
     {
@@ -224,11 +268,10 @@ bool EKFOdometry::triangulateLandmark(
     return ok;
 }
 
-void EKFOdometry::initialize(
-    double timestamp,
-    const std::vector<TrackedCircle>& circles,
-    State& new_state)
+void EKFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& circles)
 {
+    State& new_state = newState();
+
     const size_t num_circles = circles.size();
 
     new_state.timestamp = timestamp;
@@ -241,7 +284,9 @@ void EKFOdometry::initialize(
     std::vector<Eigen::Matrix3d> landmark_covariances(num_circles);
     mCirclesToLandmark.resize(num_circles);
 
-    // TODO: enforce maximum number of landmarks.
+    // triangulate circles into landmarks.
+
+    size_t num_triangulated = 0;
 
     for(size_t i=0; i<num_circles; i++)
     {
@@ -252,10 +297,50 @@ void EKFOdometry::initialize(
 
         if( mCirclesToLandmark[i].has_landmark )
         {
+            num_triangulated++;
+        }
+    }
+
+    // take only mMaxLandmarks landmarks (those with less variance).
+
+    if( num_triangulated > mMaxLandmarks )
+    {
+        std::vector<size_t> sorted;
+        sorted.reserve(num_triangulated);
+
+        for(size_t i=0; i<num_circles; i++)
+        {
+            if(mCirclesToLandmark[i].has_landmark)
+            {
+                sorted.push_back(i);
+                mCirclesToLandmark[i].has_landmark = false;
+            }
+        }
+
+        auto pred = [&landmark_covariances] (size_t a, size_t b) -> bool
+        {
+            const double var_a = landmark_covariances[a].trace();
+            const double var_b = landmark_covariances[b].trace();
+            return var_a <= var_b;
+        };
+
+        std::sort(sorted.begin(), sorted.end(), pred);
+
+        for(size_t i=0; i<mMaxLandmarks; i++)
+        {
+            mCirclesToLandmark[ sorted[i] ].has_landmark = true;
+        }
+    }
+
+    for(size_t i=0; i<num_circles; i++)
+    {
+        if( mCirclesToLandmark[i].has_landmark )
+        {
             mCirclesToLandmark[i].landmark = new_state.landmarks.size();
 
             new_state.landmarks.emplace_back();
             new_state.landmarks.back().position = landmark_positions[i];
+            new_state.landmarks.back().seen_count = 1;
         }
         else
         {
@@ -289,9 +374,10 @@ void EKFOdometry::initialize(
         }
     }
 
+    //std::cout << new_state.covariance.block<3,3>(13, 13) << std::endl;
     //std::cout << "num_landmarks: " << num_landmarks << std::endl;
 
-    //mInitialized = true;
+    mInitialized = true;
     //std::cout << new_state.covariance << std::endl;
 }
 
@@ -341,18 +427,110 @@ cv::Vec3f EKFOdometry::undistortCircle(const cv::Vec3f& c)
     return ret;
 }
 
-bool EKFOdometry::track(
-    double timestamp,
-    const std::vector<TrackedCircle>& circles,
-    State& old_state,
-    State& new_state)
+bool EKFOdometry::trackingAugment(const std::vector<TrackedCircle>& circles)
 {
-    const double dt = timestamp - old_state.timestamp;
+    State& old_state = oldState();
+    State& new_state = newState();
 
-    new_state.timestamp = timestamp;
+    // TODO
 
-    // predict.
+    // TODO: update mCirclesToLandmark.
 
-    return true;
+    return false;
+}
+
+bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
+{
+    State& old_state = oldState();
+    State& new_state = newState();
+
+    std::vector<ObservedLandmark> observed_landmarks;
+    observed_landmarks.reserve(old_state.landmarks.size());
+
+    for(size_t i=0; i<circles.size(); i++)
+    {
+        if(circles[i].has_previous && mCirclesToLandmark[circles[i].previous].has_landmark)
+        {
+            observed_landmarks.emplace_back();
+            observed_landmarks.back().landmark = mCirclesToLandmark[circles[i].previous].landmark;
+            observed_landmarks.back().undistorted_circle = undistortCircle( circles[i].circle );
+        }
+    }
+
+    return false;
+}
+
+bool EKFOdometry::trackingPrediction(double timestamp)
+{
+    State& old_state = oldState();
+    State& new_state = newState();
+
+    const double timestep = timestamp - old_state.timestamp;
+
+    const size_t dim = 13 + 3*old_state.landmarks.size();
+
+    Eigen::VectorXd initial_state(dim);
+    Eigen::VectorXd predicted_state(dim);
+    Eigen::VectorXd updated_state(dim);
+
+    initial_state.segment<3>(0) = old_state.camera_to_world.translation();
+    initial_state.segment<3>(3) = old_state.camera_to_world.unit_quaternion().vec();
+    initial_state(6) = old_state.camera_to_world.unit_quaternion().w();
+    initial_state.segment<3>(7) = old_state.linear_momentum;
+    initial_state.segment<3>(10) = old_state.angular_momentum;
+
+    for(size_t i=0; i<old_state.landmarks.size(); i++)
+    {
+        initial_state.segment<3>(13+3*i) = old_state.landmarks[i].position;
+    }
+
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> jacobian(dim, dim);
+
+    std::unique_ptr< ceres::DynamicAutoDiffCostFunction<PredictionFunction> > function(new ceres::DynamicAutoDiffCostFunction<PredictionFunction>(new PredictionFunction(timestep, old_state.landmarks.size(), this)));
+    function->AddParameterBlock(dim);
+    function->SetNumResiduals(dim);
+    const double* ceres_params = initial_state.data();
+    double* ceres_derivative = jacobian.data();
+    bool ok = function->Evaluate(&ceres_params, predicted_state.data(), &ceres_derivative);
+
+    if(ok)
+    {
+        new_state.timestamp = timestamp;
+
+        new_state.camera_to_world.translation() = predicted_state.segment<3>(0);
+        //new_state.camera_to_world.
+
+        new_state.landmarks = std::move(old_state.landmarks);
+
+        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> noise(dim, dim);
+        noise.setZero();
+
+        noise(7,7) = mPredictionLinearMomentumSigmaRate * mPredictionLinearMomentumSigmaRate * timestep * timestep;
+        noise(8,8) = mPredictionLinearMomentumSigmaRate * mPredictionLinearMomentumSigmaRate * timestep * timestep;
+        noise(9,9) = mPredictionLinearMomentumSigmaRate * mPredictionLinearMomentumSigmaRate * timestep * timestep;
+        noise(10,10) = mPredictionAngularMomentumSigmaRate * mPredictionAngularMomentumSigmaRate * timestep * timestep;
+        noise(11,11) = mPredictionAngularMomentumSigmaRate * mPredictionAngularMomentumSigmaRate * timestep * timestep;
+        noise(12,12) = mPredictionAngularMomentumSigmaRate * mPredictionAngularMomentumSigmaRate * timestep * timestep;
+
+        new_state.covariance = jacobian * (old_state.covariance + noise) * jacobian.transpose();
+    }
+
+    return ok;
+}
+
+EKFOdometry::Landmark::Landmark()
+{
+    seen_count = 0;
+}
+
+EKFOdometry::CircleToLandmark::CircleToLandmark()
+{
+    has_landmark = false;
+    landmark = 0;
+}
+
+EKFOdometry::State::State()
+{
+    timestamp = 0.0;
 }
 

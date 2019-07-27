@@ -6,7 +6,7 @@ Dependencies
 
 * Ceres
 * Eigen3
-* FFmpeg
+* libvpx
 * OpenCV
 * openscenegraph
 * Qt5
