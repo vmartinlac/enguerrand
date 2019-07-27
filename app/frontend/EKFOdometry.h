@@ -38,6 +38,10 @@ protected:
     {
         State();
 
+        size_t getDimension();
+
+        Eigen::VectorXd toVector();
+
         double timestamp;
         Sophus::SE3d camera_to_world;
         Eigen::Vector3d linear_momentum;
@@ -70,7 +74,7 @@ protected:
 
     bool trackingUpdate(const std::vector<TrackedCircle>& circles);
 
-    bool trackingAugment(const std::vector<TrackedCircle>& circles);
+    bool mappingAugment(const std::vector<TrackedCircle>& circles);
 
     /**
     * \brief Triangulated landmark is in camera frame.
@@ -99,7 +103,7 @@ protected:
 
     bool mInitialized;
     std::unique_ptr<State> mStates[2];
-    std::vector<CircleToLandmark> mCirclesToLandmark;
+    std::vector<CircleToLandmark> mCircleToLandmark;
 };
 
 inline void EKFOdometry::switchStates()
