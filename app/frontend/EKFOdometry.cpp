@@ -1,6 +1,7 @@
 #include <Eigen/Eigen>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/calib3d.hpp>
+#include <ceres/rotation.h>
 #include "EKFOdometry.h"
 
 struct EKFOdometry::TriangulationFunction
@@ -60,7 +61,7 @@ struct EKFOdometry::TriangulationFunction
 
         constexpr double threshold = std::cos(M_PI*0.3/180.0);
 
-        if( M_PI*0.1 < cosalpha && cosalpha < threshold)
+        if( M_PI*0.1 < cosalpha && cosalpha < threshold )
         {
             T sinalpha = sqrt( T(1.0) - cosalpha*cosalpha );
 
@@ -97,16 +98,43 @@ struct EKFOdometry::PredictionFunction
     {
         const T* old_state = *old_state_arr;
 
+        // convert linear momentum to linear velocity. Assumes mass is one.
         T linear_velocity[3];
-        T angular_velocity[3];
-
         linear_velocity[0] = old_state[7];
         linear_velocity[1] = old_state[8];
         linear_velocity[2] = old_state[9];
 
+        // convert angular momentum to angular velocity. Assumes inertia matrix is identity.
+        T angular_velocity[3];
         angular_velocity[0] = old_state[10];
         angular_velocity[1] = old_state[11];
         angular_velocity[2] = old_state[12];
+
+        T old_camera_to_world[4];
+        old_camera_to_world[0] = old_state[6];
+        old_camera_to_world[1] = old_state[3];
+        old_camera_to_world[2] = old_state[4];
+        old_camera_to_world[3] = old_state[5];
+
+        T angle_axis[3];
+        angle_axis[0] = mTimestep*angular_velocity[0];
+        angle_axis[1] = mTimestep*angular_velocity[1];
+        angle_axis[2] = mTimestep*angular_velocity[2];
+
+        T new_camera_to_old_camera[4];
+        ceres::AngleAxisToQuaternion(angle_axis, new_camera_to_old_camera);
+
+        T new_camera_to_world[4];
+        ceres::QuaternionProduct(old_camera_to_world, new_camera_to_old_camera, new_camera_to_world);
+        T cte = ceres::sqrt(
+            new_camera_to_world[0]*new_camera_to_world[0] +
+            new_camera_to_world[1]*new_camera_to_world[1] +
+            new_camera_to_world[2]*new_camera_to_world[2] +
+            new_camera_to_world[3]*new_camera_to_world[3] );
+        new_camera_to_world[0] /= cte;
+        new_camera_to_world[1] /= cte;
+        new_camera_to_world[2] /= cte;
+        new_camera_to_world[3] /= cte;
 
         // update position.
 
@@ -116,7 +144,10 @@ struct EKFOdometry::PredictionFunction
 
         // update attitude.
 
-        // TODO
+        new_state[3] = new_camera_to_world[1];
+        new_state[4] = new_camera_to_world[2];
+        new_state[5] = new_camera_to_world[3];
+        new_state[6] = new_camera_to_world[0];
 
         // copy linear and angular momenta.
 
@@ -156,21 +187,72 @@ struct EKFOdometry::ObservationFunction
     bool operator()(T const* const* state_arr, T* prediction) const
     {
         const T* state = *state_arr;
-        for(size_t i=0; i<mVisibleLandmarks.size(); i++)
+
+        bool ok = true;
+
+        T camera_to_world_t[3];
+        camera_to_world_t[0] = state[0];
+        camera_to_world_t[1] = state[1];
+        camera_to_world_t[2] = state[2];
+
+        T world_to_camera_q [4];
+        world_to_camera_q[0] = state[6];
+        world_to_camera_q[1] = -state[3];
+        world_to_camera_q[2] = -state[4];
+        world_to_camera_q[3] = -state[5];
+
+        for(size_t i=0; ok && i<mVisibleLandmarks.size(); i++)
         {
+            const size_t j = mVisibleLandmarks[i].landmark;
+
+            T landmark_in_world[3];
+            landmark_in_world[0] = state[13+3*j+0];
+            landmark_in_world[1] = state[13+3*j+1];
+            landmark_in_world[2] = state[13+3*j+2];
+
+            T tmp[3];
+            tmp[0] = landmark_in_world[0] - camera_to_world_t[0];
+            tmp[1] = landmark_in_world[1] - camera_to_world_t[1];
+            tmp[2] = landmark_in_world[2] - camera_to_world_t[2];
+
+            T landmark_in_camera[3];
+            ceres::QuaternionRotatePoint(world_to_camera_q, tmp, landmark_in_camera);
+            
+            T fx(mParent->mCalibration->cameras[0].calibration_matrix(0,0));
+            T fy(mParent->mCalibration->cameras[0].calibration_matrix(1,1));
+            T cx(mParent->mCalibration->cameras[0].calibration_matrix(0,2));
+            T cy(mParent->mCalibration->cameras[0].calibration_matrix(1,2));
+
+            if( landmark_in_camera[2] < 1.0e-4 )
+            {
+                ok = false;
+            }
+            else
+            {
+                T proj_x = fx * landmark_in_camera[0]/landmark_in_camera[2] + cx;
+                T proj_y = fy * landmark_in_camera[1]/landmark_in_camera[2] + cy;
+
+                T proj_radius;
+                // TODO
+
+                prediction[3*i+0] = proj_x;
+                prediction[3*i+1] = proj_y;
+                prediction[3*i+2] = proj_radius;
+            }
         }
 
-        return true;
+        return ok;
     }
 };
 
 EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
 {
+    mLandmarkMinDistanceToCamera = 1.0;
     mLandmarkRadius = 1.0;
     mMaxLandmarks = 330;
     mCalibration = calibration;
     mPredictionLinearMomentumSigmaRate = 1.0;
-    mPredictionLinearMomentumSigmaRate = M_PI*10.0/180.0;
+    mPredictionAngularMomentumSigmaRate = M_PI*10.0/180.0;
 
     mInitialized = false;
 
@@ -474,26 +556,49 @@ bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
     {
         if(circles[i].has_previous && mCircleToLandmark[circles[i].previous].has_landmark)
         {
-            observed_landmarks.emplace_back();
-            observed_landmarks.back().landmark = mCircleToLandmark[circles[i].previous].landmark;
-            observed_landmarks.back().undistorted_circle = undistortCircle( circles[i].circle );
+            const size_t landmark = mCircleToLandmark[circles[i].previous].landmark;
+
+            const Eigen::Vector3d landmark_in_camera = old_state.camera_to_world.inverse() * old_state.landmarks[landmark].position;
+
+            if( landmark_in_camera.z() > mLandmarkMinDistanceToCamera )
+            {
+                observed_landmarks.emplace_back();
+                observed_landmarks.back().landmark = landmark;
+                observed_landmarks.back().undistorted_circle = undistortCircle( circles[i].circle );
+            }
         }
     }
 
     const size_t observation_dim = 3*observed_landmarks.size();
 
-    Eigen::VectorXd state_vector = old_state.toVector();
+    Eigen::VectorXd old_state_vector = old_state.toVector();
 
-    Eigen::VectorXd observation;
-    observation.resize(observation_dim);
+    Eigen::VectorXd predicted_observation(observation_dim);
+
+    Eigen::VectorXd sensed_observation(observation_dim);
+
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> jacobian(observation_dim, old_state.getDimension());
+
+    for(size_t i=0; i<observed_landmarks.size(); i++)
+    {
+        sensed_observation[3*i+0] = observed_landmarks[i].undistorted_circle[0];
+        sensed_observation[3*i+1] = observed_landmarks[i].undistorted_circle[1];
+        sensed_observation[3*i+2] = observed_landmarks[i].undistorted_circle[2];
+    }
 
     std::unique_ptr< ceres::DynamicAutoDiffCostFunction<ObservationFunction> > function(new ceres::DynamicAutoDiffCostFunction<ObservationFunction>(new ObservationFunction(observed_landmarks, this)));
     function->AddParameterBlock(old_state.getDimension());
     function->SetNumResiduals(observation_dim);
+    const double* ceres_old_state = old_state_vector.data();
+    double* ceres_jacobian = jacobian.data();
+    bool ok = function->Evaluate(&ceres_old_state, predicted_observation.data(), &ceres_jacobian);
 
-    // TODO
+    if(ok)
+    {
+        // TODO
+    }
 
-    return true;
+    return ok;
 }
 
 bool EKFOdometry::trackingPrediction(double timestamp)

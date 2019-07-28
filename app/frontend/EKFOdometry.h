@@ -99,6 +99,7 @@ protected:
     size_t mMaxLandmarks;
     double mPredictionLinearMomentumSigmaRate;
     double mPredictionAngularMomentumSigmaRate;
+    double mLandmarkMinDistanceToCamera;
     CalibrationDataPtr mCalibration;
 
     bool mInitialized;
