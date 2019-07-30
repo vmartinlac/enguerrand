@@ -25,6 +25,7 @@ protected:
     struct TriangulationFunction;
     struct PredictionFunction;
     struct ObservationFunction;
+    struct AugmentationFunction;
 
     struct Landmark
     {
@@ -41,6 +42,8 @@ protected:
         size_t getDimension();
 
         Eigen::VectorXd toVector();
+
+        void dump();
 
         double timestamp;
         Sophus::SE3d camera_to_world;
@@ -89,9 +92,9 @@ protected:
 
     void switchStates();
 
-    State& oldState();
+    State& workingState();
 
-    State& newState();
+    State& currentState();
 
 protected:
 
@@ -114,12 +117,12 @@ inline void EKFOdometry::switchStates()
     std::swap(mStates[0], mStates[1]);
 }
 
-inline EKFOdometry::State& EKFOdometry::oldState()
+inline EKFOdometry::State& EKFOdometry::currentState()
 {
     return *mStates[0];
 }
 
-inline EKFOdometry::State& EKFOdometry::newState()
+inline EKFOdometry::State& EKFOdometry::workingState()
 {
     return *mStates[1];
 }
