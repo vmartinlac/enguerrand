@@ -1,3 +1,3 @@
-add_subdirectory(frontend)
+add_subdirectory(demo)
 add_subdirectory(histogrambuilder)
 

@@ -3,6 +3,7 @@
 #include <Eigen/Eigen>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/calib3d.hpp>
+#include <opencv2/imgproc.hpp>
 #include <ceres/rotation.h>
 #include "EKFOdometry.h"
 
@@ -22,56 +23,96 @@ struct EKFOdometry::TriangulationFunction
         T cy = circle[1];
         T r = circle[2];
 
-        T invK[] =
+        T four_points[8];
+
+        // left
+        four_points[0] = cx-r;
+        four_points[1] = cy;
+
+        // right
+        four_points[2] = cx+r;
+        four_points[3] = cy;
+
+        // top
+        four_points[4] = cx;
+        four_points[5] = cy-r;
+
+        // bottom
+        four_points[6] = cx;
+        four_points[7] = cy+r;
+
+        const double IK00 = mParent->mCalibration->cameras[0].inverse_calibration_matrix(0,0);
+        const double IK02 = mParent->mCalibration->cameras[0].inverse_calibration_matrix(0,2);
+        const double IK11 = mParent->mCalibration->cameras[0].inverse_calibration_matrix(1,1);
+        const double IK12 = mParent->mCalibration->cameras[0].inverse_calibration_matrix(1,2);
+
+        T four_los[12];
+
+        four_los[0] = IK00*four_points[0] + IK02;
+        four_los[1] = IK11*four_points[1] + IK12;
+        four_los[2] = T(1.0);
+
+        four_los[3] = IK00*four_points[2] + IK02;
+        four_los[4] = IK11*four_points[3] + IK12;
+        four_los[5] = T(1.0);
+
+        four_los[6] = IK00*four_points[4] + IK02;
+        four_los[7] = IK11*four_points[5] + IK12;
+        four_los[8] = T(1.0);
+
+        four_los[9] = IK00*four_points[6] + IK02;
+        four_los[10] = IK11*four_points[7] + IK12;
+        four_los[11] = T(1.0);
+
+        T norms[4];
+
+        norms[0] = ceres::sqrt( four_los[0]*four_los[0] + four_los[1]*four_los[1] + four_los[2]*four_los[2] );
+        norms[1] = ceres::sqrt( four_los[3]*four_los[3] + four_los[4]*four_los[4] + four_los[5]*four_los[5] );
+        norms[2] = ceres::sqrt( four_los[6]*four_los[6] + four_los[7]*four_los[7] + four_los[8]*four_los[8] );
+        norms[3] = ceres::sqrt( four_los[9]*four_los[9] + four_los[10]*four_los[10] + four_los[11]*four_los[11] );
+
+        four_los[0] /= norms[0];
+        four_los[1] /= norms[0];
+        four_los[2] /= norms[0];
+        four_los[3] /= norms[1];
+        four_los[4] /= norms[1];
+        four_los[5] /= norms[1];
+        four_los[6] /= norms[2];
+        four_los[7] /= norms[2];
+        four_los[8] /= norms[2];
+        four_los[9] /= norms[3];
+        four_los[10] /= norms[3];
+        four_los[11] /= norms[3];
+
+        T cosalpha[2];
+        cosalpha[0] = four_los[0]*four_los[3] + four_los[1]*four_los[4] + four_los[2]*four_los[5];
+        cosalpha[1] = four_los[6]*four_los[9] + four_los[7]*four_los[10] + four_los[8]*four_los[11];
+
+        constexpr double lower_threshold = std::cos(M_PI*10.0/180.0);
+        constexpr double upper_threshold = std::cos(M_PI*0.3/180.0);
+
+        if( lower_threshold < cosalpha[0] && cosalpha[0] < upper_threshold && lower_threshold < cosalpha[1] && cosalpha[1] < upper_threshold )
         {
-            T(mParent->mCalibration->cameras[0].inverse_calibration_matrix(0,0)),
-            T(mParent->mCalibration->cameras[0].inverse_calibration_matrix(0,1)),
-            T(mParent->mCalibration->cameras[0].inverse_calibration_matrix(0,2)),
-            T(mParent->mCalibration->cameras[0].inverse_calibration_matrix(1,0)),
-            T(mParent->mCalibration->cameras[0].inverse_calibration_matrix(1,1)),
-            T(mParent->mCalibration->cameras[0].inverse_calibration_matrix(1,2)),
-            T(mParent->mCalibration->cameras[0].inverse_calibration_matrix(2,0)),
-            T(mParent->mCalibration->cameras[0].inverse_calibration_matrix(2,1)),
-            T(mParent->mCalibration->cameras[0].inverse_calibration_matrix(2,2)),
-        };
+            T center_los[3];
+            center_los[0] = four_los[0] + four_los[3] + four_los[6] + four_los[9];
+            center_los[1] = four_los[1] + four_los[4] + four_los[7] + four_los[10];
+            center_los[2] = four_los[2] + four_los[5] + four_los[8] + four_los[11];
 
-        T dir[3] =
-        {
-            cx*invK[0] + cy*invK[1] + invK[2],
-            cx*invK[3] + cy*invK[4] + invK[5],
-            cx*invK[6] + cy*invK[7] + invK[8]
-        };
+            T center_norm = ceres::sqrt( center_los[0]+center_los[0] + center_los[1]*center_los[1] + center_los[2]*center_los[2] );
 
-        T norm = sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
-        dir[0] /= norm;
-        dir[1] /= norm;
-        dir[2] /= norm;
+            center_los[0] /= center_norm;
+            center_los[1] /= center_norm;
+            center_los[2] /= center_norm;
 
-        T tdir[3] =
-        {
-            (cx+r)*invK[0] + cy*invK[1] + invK[2],
-            (cx+r)*invK[3] + cy*invK[4] + invK[5],
-            (cx+r)*invK[6] + cy*invK[7] + invK[8]
-        };
+            T sinalpha[2];
+            sinalpha[0] = ceres::sqrt(1.0 - cosalpha[0]*cosalpha[0]);
+            sinalpha[1] = ceres::sqrt(1.0 - cosalpha[1]*cosalpha[1]);
 
-        T tnorm = sqrt(tdir[0]*tdir[0] + tdir[1]*tdir[1] + tdir[2]*tdir[2]);
-        tdir[0] /= tnorm;
-        tdir[1] /= tnorm;
-        tdir[2] /= tnorm;
+            T distance = 0.5*( T(mParent->mLandmarkRadius) / sinalpha[0] + T(mParent->mLandmarkRadius) / sinalpha[1] );
 
-        T cosalpha = dir[0]*tdir[0] + dir[1]*tdir[1] + dir[2]*tdir[2];
-
-        constexpr double threshold = std::cos(M_PI*0.3/180.0);
-
-        if( M_PI*0.1 < cosalpha && cosalpha < threshold )
-        {
-            T sinalpha = sqrt( T(1.0) - cosalpha*cosalpha );
-
-            T distance = T(mParent->mLandmarkRadius) / sinalpha;
-
-            landmark[0] = distance*dir[0];
-            landmark[1] = distance*dir[1];
-            landmark[2] = distance*dir[2];
+            landmark[0] = distance*center_los[0];
+            landmark[1] = distance*center_los[1];
+            landmark[2] = distance*center_los[2];
 
             return true;
         }
@@ -576,19 +617,21 @@ void EKFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>&
 
 cv::Vec3f EKFOdometry::undistortCircle(const cv::Vec3f& c)
 {
-    std::array< cv::Vec2d, 5 > distorted;
-    std::array< cv::Vec2d, 5 > undistorted;
+    std::vector<cv::Vec2d> distorted(4);
+    std::vector<cv::Vec2d> undistorted(4);
 
-    distorted[0][0] = c[0];
+    // require newer version of OpenCV.
+    //std::array< cv::Vec2d, 4 > distorted;
+    //std::array< cv::Vec2d, 4 > undistorted;
+
+    distorted[0][0] = c[0]+c[2];
     distorted[0][1] = c[1];
-    distorted[1][0] = c[0]+c[2];
+    distorted[1][0] = c[0]-c[2];
     distorted[1][1] = c[1];
-    distorted[2][0] = c[0]-c[2];
-    distorted[2][1] = c[1];
+    distorted[2][0] = c[0];
+    distorted[2][1] = c[1]+c[2];
     distorted[3][0] = c[0];
-    distorted[3][1] = c[1]+c[2];
-    distorted[4][0] = c[0];
-    distorted[4][1] = c[1]-c[2];
+    distorted[3][1] = c[1]-c[2];
 
     cv::undistortPoints(
         distorted,
@@ -598,24 +641,17 @@ cv::Vec3f EKFOdometry::undistortCircle(const cv::Vec3f& c)
         cv::noArray(),
         mCalibration->cameras[0].calibration_matrix);
 
-    Eigen::Matrix<double, 5, 2, Eigen::RowMajor> eig;
+    const cv::Vec2f center = 0.25f * ( undistorted[0] + undistorted[1] + undistorted[2] + undistorted[3] );
 
-    eig <<
-        undistorted[0][0], undistorted[0][1],
-        undistorted[1][0], undistorted[1][1],
-        undistorted[2][0], undistorted[2][1],
-        undistorted[3][0], undistorted[3][1],
-        undistorted[4][0], undistorted[4][1];
-
-    eig.row(1) -= eig.topRows<1>();
-    eig.row(2) -= eig.topRows<1>();
-    eig.row(3) -= eig.topRows<1>();
-    eig.row(4) -= eig.topRows<1>();
+    const double l0 = cv::norm(center, undistorted[0]);
+    const double l1 = cv::norm(center, undistorted[1]);
+    const double l2 = cv::norm(center, undistorted[2]);
+    const double l3 = cv::norm(center, undistorted[3]);
 
     cv::Vec3f ret;
-    ret[0] = undistorted[0][0];
-    ret[1] = undistorted[0][1];
-    ret[2] = ( eig.row(1).norm() + eig.row(2).norm() + eig.row(3).norm() + eig.row(4).norm() ) / 4.0;
+    ret[0] = center[0];
+    ret[1] = center[1];
+    ret[2] = ( l0+l1+l2+l3 ) / 4.0;
 
     return ret;
 }
