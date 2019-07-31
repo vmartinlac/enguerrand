@@ -2,6 +2,8 @@
 add_library(
     enguerrand_ui
     SHARED
+    MainWindow.cpp
+    MainWindow.h
 )
 
 target_link_libraries(

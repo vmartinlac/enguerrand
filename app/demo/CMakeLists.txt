@@ -8,5 +8,6 @@ target_link_libraries(
     enguerrand_demo
     PUBLIC
     enguerrand_engine
+    enguerrand_ui
 )
 

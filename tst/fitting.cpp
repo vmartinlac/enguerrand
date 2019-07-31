@@ -119,5 +119,5 @@ protected:
 };
 
 QTEST_MAIN(TestFitting)
-#include "main.moc"
+#include "fitting.moc"
 

@@ -641,7 +641,7 @@ cv::Vec3f EKFOdometry::undistortCircle(const cv::Vec3f& c)
         cv::noArray(),
         mCalibration->cameras[0].calibration_matrix);
 
-    const cv::Vec2f center = 0.25f * ( undistorted[0] + undistorted[1] + undistorted[2] + undistorted[3] );
+    const cv::Vec2d center = 0.25f * ( undistorted[0] + undistorted[1] + undistorted[2] + undistorted[3] );
 
     const double l0 = cv::norm(center, undistorted[0]);
     const double l1 = cv::norm(center, undistorted[1]);
