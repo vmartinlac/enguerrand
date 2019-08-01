@@ -23,32 +23,41 @@ protected:
 
     struct Landmark
     {
-        size_t id;
-        Eigen::Vector3d position_in_world;
+        Eigen::Vector3d position;
+        size_t seen_count;
+        size_t reference_count;
     };
-
-    using LandmarkPtr = std::shared_ptr<Landmark>;
 
     struct Projection
     {
-        LandmarkPtr landmark;
-        cv::Vec2f projection;
+        size_t landmark;
+        cv::Vec3f projection;
     };
 
     struct Frame
     {
+        size_t id;
+        double timestamp;
+        Sophus::SE3d camera_to_world;
+        double ceres_camera_to_world_t[3];
+        double ceres_camera_to_world_q[4];
         std::vector<Projection> projections;
     };
-
-    using FramePtr = std::shared_ptr<Frame>;
-
-protected:
 
     class LandmarkTriangulation;
 
 protected:
 
-    std::deque<FramePtr> mFrames;
-    CalibrationDataPtr mCalibration;
+    void clear();
+
+protected:
+
+    double myLandmarkRadius;
+    double myMaxKeyFrames;
+    double myMaxProjections;
+    CalibrationDataPtr myCalibration;
+    std::vector<Landmark> myLandmarks;
+    std::vector<size_t> myAvailableLandmarks;
+    std::deque<Frame> myKeyFrames;
 };
 
