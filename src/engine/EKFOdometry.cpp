@@ -89,7 +89,7 @@ struct EKFOdometry::TriangulationFunction
         cosalpha[1] = four_los[6]*four_los[9] + four_los[7]*four_los[10] + four_los[8]*four_los[11];
 
         constexpr double lower_threshold = std::cos(M_PI*10.0/180.0);
-        constexpr double upper_threshold = std::cos(M_PI*0.3/180.0);
+        constexpr double upper_threshold = std::cos(M_PI*0.30/180.0);
 
         if( lower_threshold < cosalpha[0] && cosalpha[0] < upper_threshold && lower_threshold < cosalpha[1] && cosalpha[1] < upper_threshold )
         {
@@ -662,6 +662,22 @@ bool EKFOdometry::mappingAugment(const std::vector<TrackedCircle>& circles)
     State& old_state = currentState();
     State& new_state = workingState();
 
+    size_t num_seen = 0;
+    for(size_t i=0; i<old_state.landmaks.size(); i++)
+    {
+        if(old_state.landmarks[i].seen_in_current_frame)
+        {
+            num_seen++;
+        }
+    }
+
+    for(size_t i=0; i<circles.size() && num_seen < mMaxLandmarks; i++)
+    {
+        //if(old_state.landmarks[
+    }
+    */
+
+    /*
     std::unique_ptr<ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>> f1
         (new ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>(new TriangulationFunction(this)));
 

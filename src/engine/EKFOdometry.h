@@ -33,6 +33,7 @@ protected:
 
         size_t seen_count;
         Eigen::Vector3d position;
+        bool seen_in_current_frame;
     };
 
     struct State
