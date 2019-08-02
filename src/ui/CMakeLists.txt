@@ -17,7 +17,7 @@ target_link_libraries(
     PUBLIC
     Qt5::Widgets
     enguerrand_engine
-    openscenegraph
+    PkgConfig::OSG
 )
 
 target_include_directories(enguerrand_ui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -24,7 +24,6 @@ target_link_libraries(
     opencv_core
     opencv_videoio
     realsense2::realsense2
-    libusb
 )
 
 target_include_directories(enguerrand_video INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
