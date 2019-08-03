@@ -1,8 +1,12 @@
 #include <Eigen/Eigen>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/core/eigen.hpp>
 #include <iostream>
 #include <random>
 #include "TestOdometry.h"
+
+//#define TESTODOMETRY_EXPORT_IMAGES
 
 void TestOdometry::initTestCase()
 {
@@ -13,8 +17,8 @@ void TestOdometry::initTestCase()
     // setup landmarks.
 
     myLandmarks.resize(4);
-    myLandmarks[0] << 10.0, 0.0, 50.0;
-    myLandmarks[1] << -10.0, 0.0, 50.0;
+    myLandmarks[0] << 10.0, 0.0, 70.0;
+    myLandmarks[1] << -10.0, 0.0, 70.0;
     myLandmarks[2] << 0.0, 10.0, 50.0;
     myLandmarks[3] << 0.0, -10.0, 50.0;
 
@@ -51,11 +55,11 @@ void TestOdometry::initTestCase()
         const double kappa = double(i)/double(N-1);
         const double theta0 = 2.0*M_PI*kappa;
         const double alpha = 5.0;
-        const double gamma = -8.0 * kappa*(kappa-1.0)/0.25;
+        const double gamma = -80.0 * kappa*(kappa-1.0)/0.25;
 
         const Eigen::Vector3d camera_to_world_t
         {
-            alpha*std::cos(theta0),
+            alpha*( std::cos(theta0) - 1),
             alpha*std::sin(theta0),
             gamma
         };
@@ -130,6 +134,18 @@ void TestOdometry::testOdometry(OdometryCodePtr code)
     {
         Sophus::SE3d estimated_camera_to_world;
         bool aligned;
+
+#ifdef TESTODOMETRY_EXPORT_IMAGES
+        cv::Mat1b image(myCalibration->cameras[0].image_size);
+        std::fill(image.begin(), image.end(), 0);
+        for(const TrackedCircle& c : myCircles[i])
+        {
+            cv::circle(image, cv::Point(c.circle[0], c.circle[1]), c.circle[2], 255, -1);
+        }
+        std::stringstream s;
+        s << "rien_" << i << ".png";
+        cv::imwrite(s.str(), image);
+#endif
 
         const bool ok = code->track(
             myTimestamps[i],

@@ -10,5 +10,6 @@ target_link_libraries(
     PUBLIC
     Qt5::Test
     enguerrand_engine
+    opencv_imgproc
 )
 

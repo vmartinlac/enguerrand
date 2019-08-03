@@ -23,96 +23,42 @@ struct EKFOdometry::TriangulationFunction
         T cy = circle[1];
         T r = circle[2];
 
-        T four_points[8];
-
-        // left
-        four_points[0] = cx-r;
-        four_points[1] = cy;
-
-        // right
-        four_points[2] = cx+r;
-        four_points[3] = cy;
-
-        // top
-        four_points[4] = cx;
-        four_points[5] = cy-r;
-
-        // bottom
-        four_points[6] = cx;
-        four_points[7] = cy+r;
-
         const double IK00 = mParent->mCalibration->cameras[0].inverse_calibration_matrix(0,0);
         const double IK02 = mParent->mCalibration->cameras[0].inverse_calibration_matrix(0,2);
         const double IK11 = mParent->mCalibration->cameras[0].inverse_calibration_matrix(1,1);
         const double IK12 = mParent->mCalibration->cameras[0].inverse_calibration_matrix(1,2);
 
-        T four_los[12];
+        T los_cx = IK00*cx + IK02;
+        T los_cy = IK11*cy + IK12;
+        T los_cxminus = IK00*(cx-r) + IK02;
+        T los_cxplus = IK00*(cx+r) + IK02;
+        T los_cyminus = IK11*(cy-r) + IK12;
+        T los_cyplus = IK11*(cy+r) + IK12;
 
-        four_los[0] = IK00*four_points[0] + IK02;
-        four_los[1] = IK11*four_points[1] + IK12;
-        four_los[2] = T(1.0);
+        T alpha_xminus = ceres::atan(los_cxminus);
+        T alpha_xplus = ceres::atan(los_cxplus);
+        T alpha_yminus = ceres::atan(los_cyminus);
+        T alpha_yplus = ceres::atan(los_cyplus);
 
-        four_los[3] = IK00*four_points[2] + IK02;
-        four_los[4] = IK11*four_points[3] + IK12;
-        four_los[5] = T(1.0);
+        T los_dirx = ceres::tan( (alpha_xminus + alpha_xplus) / 2.0 );
+        T los_diry = ceres::tan( (alpha_yminus + alpha_yplus) / 2.0 );
 
-        four_los[6] = IK00*four_points[4] + IK02;
-        four_los[7] = IK11*four_points[5] + IK12;
-        four_los[8] = T(1.0);
+        T beta = ( (alpha_xplus - alpha_xminus)/2.0 + (alpha_yplus - alpha_yminus)/2.0 ) / 2.0;
 
-        four_los[9] = IK00*four_points[6] + IK02;
-        four_los[10] = IK11*four_points[7] + IK12;
-        four_los[11] = T(1.0);
-
-        T norms[4];
-
-        norms[0] = ceres::sqrt( four_los[0]*four_los[0] + four_los[1]*four_los[1] + four_los[2]*four_los[2] );
-        norms[1] = ceres::sqrt( four_los[3]*four_los[3] + four_los[4]*four_los[4] + four_los[5]*four_los[5] );
-        norms[2] = ceres::sqrt( four_los[6]*four_los[6] + four_los[7]*four_los[7] + four_los[8]*four_los[8] );
-        norms[3] = ceres::sqrt( four_los[9]*four_los[9] + four_los[10]*four_los[10] + four_los[11]*four_los[11] );
-
-        four_los[0] /= norms[0];
-        four_los[1] /= norms[0];
-        four_los[2] /= norms[0];
-        four_los[3] /= norms[1];
-        four_los[4] /= norms[1];
-        four_los[5] /= norms[1];
-        four_los[6] /= norms[2];
-        four_los[7] /= norms[2];
-        four_los[8] /= norms[2];
-        four_los[9] /= norms[3];
-        four_los[10] /= norms[3];
-        four_los[11] /= norms[3];
-
-        T cosalpha[2];
-        cosalpha[0] = four_los[0]*four_los[3] + four_los[1]*four_los[4] + four_los[2]*four_los[5];
-        cosalpha[1] = four_los[6]*four_los[9] + four_los[7]*four_los[10] + four_los[8]*four_los[11];
-
-        constexpr double lower_threshold = std::cos(M_PI*10.0/180.0);
-        constexpr double upper_threshold = std::cos(M_PI*0.30/180.0);
-
-        if( lower_threshold < cosalpha[0] && cosalpha[0] < upper_threshold && lower_threshold < cosalpha[1] && cosalpha[1] < upper_threshold )
+        if( M_PI*0.3/180.0 < beta && beta < M_PI*150.0/180.0)
         {
-            T center_los[3];
-            center_los[0] = four_los[0] + four_los[3] + four_los[6] + four_los[9];
-            center_los[1] = four_los[1] + four_los[4] + four_los[7] + four_los[10];
-            center_los[2] = four_los[2] + four_los[5] + four_los[8] + four_los[11];
+            T distance = mParent->mLandmarkRadius/ceres::sin(beta);
 
-            T center_norm = ceres::sqrt( center_los[0]+center_los[0] + center_los[1]*center_los[1] + center_los[2]*center_los[2] );
+            T dir[3];
+            dir[0] = los_dirx;
+            dir[1] = los_diry;
+            dir[2] = T(1.0);
 
-            center_los[0] /= center_norm;
-            center_los[1] /= center_norm;
-            center_los[2] /= center_norm;
+            T norm = ceres::sqrt( dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2] );
 
-            T sinalpha[2];
-            sinalpha[0] = ceres::sqrt(1.0 - cosalpha[0]*cosalpha[0]);
-            sinalpha[1] = ceres::sqrt(1.0 - cosalpha[1]*cosalpha[1]);
-
-            T distance = 0.5*( T(mParent->mLandmarkRadius) / sinalpha[0] + T(mParent->mLandmarkRadius) / sinalpha[1] );
-
-            landmark[0] = distance*center_los[0];
-            landmark[1] = distance*center_los[1];
-            landmark[2] = distance*center_los[2];
+            landmark[0] = distance*dir[0]/norm;
+            landmark[1] = distance*dir[1]/norm;
+            landmark[2] = distance*dir[2]/norm;
 
             return true;
         }
@@ -279,50 +225,48 @@ struct EKFOdometry::ObservationFunction
 
                 T alpha = ceres::asin( T(mParent->mLandmarkRadius) / distance );
 
-                T center_los[3];
+                T center_los[2];
                 center_los[0] = landmark_in_camera[0] / landmark_in_camera[2];
                 center_los[1] = landmark_in_camera[1] / landmark_in_camera[2];
-                center_los[2] = T(1.0);
 
                 T beta[2];
                 beta[0] = ceres::acos( center_los[0] );
                 beta[1] = ceres::acos( center_los[1] );
 
-                T tangentlos0[3];
+
+                T tangentlos0[2];
                 tangentlos0[0] = ceres::cos( beta[0] - alpha );
                 tangentlos0[1] = center_los[1];
-                tangentlos0[2] = T(1.0);
 
-                T tangentlos1[3];
+                T tangentlos1[2];
                 tangentlos1[0] = ceres::cos( beta[0] + alpha );
                 tangentlos1[1] = center_los[1];
-                tangentlos1[2] = T(1.0);
 
-                T tangentlos2[3];
+                T tangentlos2[2];
                 tangentlos2[0] = center_los[0];
                 tangentlos2[1] = ceres::cos( beta[1] - alpha );
-                tangentlos2[2] = T(1.0);
 
-                T tangentlos3[3];
+                T tangentlos3[2];
                 tangentlos3[0] = center_los[0];
                 tangentlos3[1] = ceres::cos( beta[1] + alpha );
-                tangentlos3[2] = T(1.0);
+
 
                 T tanpoint0[2];
-                tanpoint0[0] = fx * tangentlos0[0]/tangentlos0[2] + cx;
-                tanpoint0[1] = fy * tangentlos0[1]/tangentlos0[2] + cy;
+                tanpoint0[0] = fx * tangentlos0[0] + cx;
+                tanpoint0[1] = fy * tangentlos0[1] + cy;
 
                 T tanpoint1[2];
-                tanpoint1[0] = fx * tangentlos1[0]/tangentlos1[2] + cx;
-                tanpoint1[1] = fy * tangentlos1[1]/tangentlos1[2] + cy;
+                tanpoint1[0] = fx * tangentlos1[0] + cx;
+                tanpoint1[1] = fy * tangentlos1[1] + cy;
 
                 T tanpoint2[2];
-                tanpoint2[0] = fx * tangentlos2[0]/tangentlos2[2] + cx;
-                tanpoint2[1] = fy * tangentlos2[1]/tangentlos2[2] + cy;
+                tanpoint2[0] = fx * tangentlos2[0] + cx;
+                tanpoint2[1] = fy * tangentlos2[1] + cy;
 
                 T tanpoint3[2];
-                tanpoint3[0] = fx * tangentlos3[0]/tangentlos3[2] + cx;
-                tanpoint3[1] = fy * tangentlos3[1]/tangentlos3[2] + cy;
+                tanpoint3[0] = fx * tangentlos3[0] + cx;
+                tanpoint3[1] = fy * tangentlos3[1] + cy;
+
 
                 T proj_x = ( tanpoint0[0] + tanpoint1[0] + tanpoint2[0] + tanpoint3[0] ) / 4.0;
                 T proj_y = ( tanpoint0[1] + tanpoint1[1] + tanpoint2[1] + tanpoint3[1] ) / 4.0;
