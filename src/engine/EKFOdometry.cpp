@@ -260,13 +260,13 @@ struct EKFOdometry::ObservationFunction
 
             T landmark_in_camera[3];
             ceres::QuaternionRotatePoint(world_to_camera_q, tmp, landmark_in_camera);
-            
+
             T fx(mParent->mCalibration->cameras[0].calibration_matrix(0,0));
             T fy(mParent->mCalibration->cameras[0].calibration_matrix(1,1));
             T cx(mParent->mCalibration->cameras[0].calibration_matrix(0,2));
             T cy(mParent->mCalibration->cameras[0].calibration_matrix(1,2));
 
-            if( landmark_in_camera[2] < 1.0e-4 )
+            if( landmark_in_camera[2] < mParent->mLandmarkRadius*0.1 )
             {
                 ok = false;
             }
@@ -279,37 +279,34 @@ struct EKFOdometry::ObservationFunction
 
                 T alpha = ceres::asin( T(mParent->mLandmarkRadius) / distance );
 
-                T angleaxis0[3];
-                angleaxis0[0] = alpha;
-                angleaxis0[1] = T(0.0);
-                angleaxis0[2] = T(0.0);
+                T center_los[3];
+                center_los[0] = landmark_in_camera[0] / landmark_in_camera[2];
+                center_los[1] = landmark_in_camera[1] / landmark_in_camera[2];
+                center_los[2] = T(1.0);
 
-                T angleaxis1[3];
-                angleaxis1[0] = -alpha;
-                angleaxis1[1] = T(0.0);
-                angleaxis1[2] = T(0.0);
-
-                T angleaxis2[3];
-                angleaxis2[0] = T(0.0);
-                angleaxis2[1] = alpha;
-                angleaxis2[2] = T(0.0);
-
-                T angleaxis3[3];
-                angleaxis3[0] = T(0.0);
-                angleaxis3[1] = -alpha;
-                angleaxis3[2] = T(0.0);
+                T beta[2];
+                beta[0] = ceres::acos( center_los[0] );
+                beta[1] = ceres::acos( center_los[1] );
 
                 T tangentlos0[3];
-                ceres::AngleAxisRotatePoint(angleaxis0, landmark_in_camera, tangentlos0);
+                tangentlos0[0] = ceres::cos( beta[0] - alpha );
+                tangentlos0[1] = center_los[1];
+                tangentlos0[2] = T(1.0);
 
                 T tangentlos1[3];
-                ceres::AngleAxisRotatePoint(angleaxis1, landmark_in_camera, tangentlos1);
+                tangentlos1[0] = ceres::cos( beta[0] + alpha );
+                tangentlos1[1] = center_los[1];
+                tangentlos1[2] = T(1.0);
 
                 T tangentlos2[3];
-                ceres::AngleAxisRotatePoint(angleaxis2, landmark_in_camera, tangentlos2);
+                tangentlos2[0] = center_los[0];
+                tangentlos2[1] = ceres::cos( beta[1] - alpha );
+                tangentlos2[2] = T(1.0);
 
                 T tangentlos3[3];
-                ceres::AngleAxisRotatePoint(angleaxis3, landmark_in_camera, tangentlos3);
+                tangentlos3[0] = center_los[0];
+                tangentlos3[1] = ceres::cos( beta[1] + alpha );
+                tangentlos3[2] = T(1.0);
 
                 T tanpoint0[2];
                 tanpoint0[0] = fx * tangentlos0[0]/tangentlos0[2] + cx;
@@ -329,7 +326,7 @@ struct EKFOdometry::ObservationFunction
 
                 T proj_x = ( tanpoint0[0] + tanpoint1[0] + tanpoint2[0] + tanpoint3[0] ) / 4.0;
                 T proj_y = ( tanpoint0[1] + tanpoint1[1] + tanpoint2[1] + tanpoint3[1] ) / 4.0;
-                T proj_radius = ( ceres::abs(tanpoint1[1] -tanpoint0[1]) + ceres::abs(tanpoint3[0] - tanpoint2[0]) ) / 4.0;
+                T proj_radius = ( ceres::abs(tanpoint1[1] - tanpoint0[1]) + ceres::abs(tanpoint3[0] - tanpoint2[0]) ) / 4.0;
 
                 prediction[3*i+0] = proj_x;
                 prediction[3*i+1] = proj_y;

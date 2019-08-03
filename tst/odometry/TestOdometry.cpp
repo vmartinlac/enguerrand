@@ -1,3 +1,5 @@
+#include <Eigen/Eigen>
+#include <opencv2/core/eigen.hpp>
 #include <iostream>
 #include <random>
 #include "TestOdometry.h"
@@ -50,6 +52,7 @@ void TestOdometry::initTestCase()
         const double theta0 = 2.0*M_PI*kappa;
         const double alpha = 5.0;
         const double gamma = -8.0 * kappa*(kappa-1.0)/0.25;
+
         const Eigen::Vector3d camera_to_world_t
         {
             alpha*std::cos(theta0),
@@ -58,6 +61,7 @@ void TestOdometry::initTestCase()
         };
 
         const double beta = kappa * 2.0*M_PI;
+
         const Eigen::Quaterniond camera_to_world_q(Eigen::AngleAxisd(beta, Eigen::Vector3d::UnitZ()));
 
         myCameraToWorldTrajectory[i] = Sophus::SE3d(camera_to_world_q, camera_to_world_t);
@@ -65,9 +69,39 @@ void TestOdometry::initTestCase()
         myTimestamps[i] = 10.0*kappa;
 
         myCircles[i].resize(myLandmarks.size());
+
         for(size_t j=0; j<myLandmarks.size(); j++)
         {
-            // TODO: set circle.
+            const Eigen::Vector3d landmark_in_camera = myCameraToWorldTrajectory[i] * myLandmarks[j];
+
+            QVERIFY( landmark_in_camera.z() > myLandmarkRadius*0.1 );
+
+            const double alpha = std::asin( myLandmarkRadius/landmark_in_camera.norm() );
+
+            const Eigen::Vector3d los = landmark_in_camera / landmark_in_camera.z();
+
+            const double betax = std::acos(los.x());
+            const double betay = std::acos(los.y());
+
+            Eigen::Matrix<double,4,3> tangent_los;
+            tangent_los <<
+                std::cos(betax - alpha), los.y(), 1.0,
+                std::cos(betax + alpha), los.y(), 1.0,
+                los.x(), std::cos(betay - alpha), 1.0,
+                los.x(), std::cos(betay + alpha), 1.0;
+
+            Eigen::Matrix3d K;
+            cv::cv2eigen(myCalibration->cameras[0].calibration_matrix, K);
+
+            const Eigen::Matrix<double, 3, 4> tangent_points = K * tangent_los.transpose();
+
+            const Eigen::Vector2d circle_center = 0.25 * ( tangent_points.block<2,1>(0,0) + tangent_points.block<2,1>(0,1) + tangent_points.block<2,1>(0,2) + tangent_points.block<2,1>(0,3) );
+
+            const double circle_radius = 0.25 * ( std::fabs( tangent_points(0,1) - tangent_points(0,0) ) + std::fabs( tangent_points(1,3) - tangent_points(1,2) ) );
+
+            myCircles[i][j].circle = cv::Vec3f( circle_center.x(), circle_center.y(), circle_radius );
+            myCircles[i][j].has_previous = (i>0);
+            myCircles[i][j].previous = j;
         }
     }
 }
@@ -104,7 +138,7 @@ void TestOdometry::testOdometry(OdometryCodePtr code)
             aligned);
 
         QVERIFY(ok);
-        QVERIFY(aligned);
+        QVERIFY(i == 0 || aligned);
 
         const Sophus::SE3d tmp = myCameraToWorldTrajectory[i] * estimated_camera_to_world.inverse();
         const Sophus::SE3d::Tangent err = tmp.log();
