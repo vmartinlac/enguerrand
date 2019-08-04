@@ -270,7 +270,7 @@ struct EKFOdometry::ObservationFunction
 
                 T proj_x = ( tanpoint0[0] + tanpoint1[0] + tanpoint2[0] + tanpoint3[0] ) / 4.0;
                 T proj_y = ( tanpoint0[1] + tanpoint1[1] + tanpoint2[1] + tanpoint3[1] ) / 4.0;
-                T proj_radius = ( ceres::abs(tanpoint1[1] - tanpoint0[1]) + ceres::abs(tanpoint3[0] - tanpoint2[0]) ) / 4.0;
+                T proj_radius = ( ceres::abs(tanpoint1[0] - tanpoint0[0]) + ceres::abs(tanpoint3[1] - tanpoint2[1]) ) / 4.0;
 
                 prediction[3*i+0] = proj_x;
                 prediction[3*i+1] = proj_y;
@@ -721,7 +721,7 @@ bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
 
         if(ok)
         {
-            /*
+            //
             for(size_t i=0; i<observed_landmarks.size(); i++)
             {
                 std::cout << sensed_observation[3*i+0] << " -> " << predicted_observation[3*i+0] << std::endl;
@@ -729,7 +729,7 @@ bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
                 std::cout << sensed_observation[3*i+2] << " -> " << predicted_observation[3*i+2] << std::endl;
                 std::cout << std::endl;
             }
-            */
+            //
 
             const Eigen::VectorXd residual = sensed_observation - predicted_observation;
 

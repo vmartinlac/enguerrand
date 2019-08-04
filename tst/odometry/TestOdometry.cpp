@@ -55,7 +55,7 @@ void TestOdometry::initTestCase()
         const double kappa = double(i)/double(N-1);
         const double theta0 = 2.0*M_PI*kappa;
         const double alpha = 5.0;
-        const double gamma = -80.0 * kappa*(kappa-1.0)/0.25;
+        const double gamma = -80.0 * kappa*(1.0-kappa)/0.25;
 
         const Eigen::Vector3d camera_to_world_t
         {
@@ -76,7 +76,7 @@ void TestOdometry::initTestCase()
 
         for(size_t j=0; j<myLandmarks.size(); j++)
         {
-            const Eigen::Vector3d landmark_in_camera = myCameraToWorldTrajectory[i] * myLandmarks[j];
+            const Eigen::Vector3d landmark_in_camera = myCameraToWorldTrajectory[i].inverse() * myLandmarks[j];
 
             QVERIFY( landmark_in_camera.z() > myLandmarkRadius*0.1 );
 
