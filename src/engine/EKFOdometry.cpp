@@ -313,12 +313,12 @@ EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
 {
     mLandmarkMinDistanceToCamera = 1.0;
     mLandmarkRadius = 1.0;
-    mMaxLandmarks = 330;
+    mMaxLandmarks = 100; //330; // (1000-13)/3;
     mCalibration = calibration;
     mPredictionLinearMomentumSigmaRate = 1.0;
     mPredictionAngularMomentumSigmaRate = M_PI*10.0/180.0;
-    mObservationRadiusSigma = 1.0;
     mObservationPositionSigma = 1.0;
+    mObservationRadiusSigma = 5.0;
 
     mInitialized = false;
 
@@ -343,6 +343,8 @@ bool EKFOdometry::track(
     if( mInitialized && circles.empty() == false )
     {
         successful_tracking = trackingPrediction(timestamp);
+        //std::cout << "A " << currentState().camera_to_world.translation() << std::endl;
+        //std::cout << "A " << currentState().covariance << std::endl;
 
         if(successful_tracking)
         {
@@ -351,7 +353,7 @@ bool EKFOdometry::track(
 
         if(successful_tracking)
         {
-            successful_tracking = mappingAugment(circles);
+            successful_tracking = mappingPruneAugment(circles);
         }
     }
 
@@ -364,7 +366,9 @@ bool EKFOdometry::track(
     aligned_wrt_previous = successful_tracking;
 
     //std::cout << "TRACKING STATUS: " << aligned_wrt_previous << std::endl;
-    //newState().dump();
+
+    //currentState().dump();
+
     /*
     std::ofstream file("trajectory.csv", std::ofstream::app);
     file
@@ -380,12 +384,20 @@ bool EKFOdometry::track(
 
 void EKFOdometry::State::dump()
 {
+    std::cout << std::endl;
     std::cout << "timestamp: " << timestamp << std::endl;
-    std::cout << "num landmarks: " << landmarks.size() << std::endl;
     std::cout << "camera_to_world: " << std::endl;
-    std::cout << camera_to_world.matrix() << std::endl;
+    std::cout << camera_to_world.matrix().topRows<3>() << std::endl;
     std::cout << "linear_momentum: " << linear_momentum.transpose() << std::endl;
     std::cout << "angular_momentum: " << angular_momentum.transpose() << std::endl;
+    for(size_t i=0; i<landmarks.size(); i++)
+    {
+        std::cout << "landmark_in_world #" << i << ": " << landmarks[i].position.transpose() << std::endl;
+    }
+    for(size_t i=0; i<landmarks.size(); i++)
+    {
+        std::cout << "landmark_in_camera #" << i << ": " << ( camera_to_world.inverse() * landmarks[i].position ).transpose() << std::endl;
+    }
     std::cout << std::endl;
 }
 
@@ -597,40 +609,57 @@ cv::Vec3f EKFOdometry::undistortCircle(const cv::Vec3f& c)
     return ret;
 }
 
-bool EKFOdometry::mappingAugment(const std::vector<TrackedCircle>& circles)
+bool EKFOdometry::mappingPruneAugment(const std::vector<TrackedCircle>& circles)
 {
     /*
+    std::vector<NewLandmark> new_landmarks;
+
     State& old_state = currentState();
     State& new_state = workingState();
 
-    size_t num_seen = 0;
-    for(size_t i=0; i<old_state.landmaks.size(); i++)
+    // count number of landmarks seen.
+
+    const size_t num_seen = std::count_if(
+        old_state.landmarks.begin(),
+        old_state.landmarks.end(),
+        [] (const Landmark& lm) { return lm.seen_in_current_frame; } );
+
+    // try to triangulate new landmarks.
+
+    if( num_seen < circles.size() && num_seen < mMaxLandmarks )
     {
-        if(old_state.landmarks[i].seen_in_current_frame)
+        std::unique_ptr<ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>> f1
+            (new ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>(new TriangulationFunction(this)));
+
+        std::unique_ptr<ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 4, 3>> f2
+            (new ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 4, 3>(new AugmentationFunction(this)));
+
+        for(size_t i=0; num_seen + new_landmarks.size() < mMaxLandmarks && i < circles.size(); i++)
         {
-            num_seen++;
+            Eigen::Vector3d in_camera;
+            Eigen::Matrix3d in_camera_cov;
+            NewLandmark new_landmark;
+
+            const bool ok =
+                circles[i].has_previous  == false ||
+                mCircleToLandmark[circles[i].previous].has_landmark == false ||
+                old_state.landmarks[ mCircleToLandmark[circles[i].previous].landmark ].seen_in_current_frame == false;
+
+            if(ok)
+            {
+                // TODO: triangulate landmark.
+                // const bool ok = function->Evaluate( &ceres_variable_ptr, ceres_value, &ceres_jacobian_ptr );
+            }
+
+            if(ok)
+            {
+                new_landmarks.pus_back(std::move(new_landmark));
+            }
         }
     }
-
-    for(size_t i=0; i<circles.size() && num_seen < mMaxLandmarks; i++)
-    {
-        //if(old_state.landmarks[
-    }
     */
 
-    /*
-    std::unique_ptr<ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>> f1
-        (new ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>(new TriangulationFunction(this)));
-
-    std::unique_ptr<ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 4, 3>> f2
-        (new ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 4, 3>(new AugmentationFunction(this)));
-    */
-
-    /*
-    const bool ok = function->Evaluate( &ceres_variable_ptr, ceres_value, &ceres_jacobian_ptr );
-    */
-
-    // TODO
+    // compute new state.
 
     std::vector<CircleToLandmark> new_circle_to_landmark(circles.size());
 
@@ -650,7 +679,7 @@ bool EKFOdometry::mappingAugment(const std::vector<TrackedCircle>& circles)
 
     mCircleToLandmark = std::move(new_circle_to_landmark);
 
-    //new_state = std::move(old_state);
+    //switchStates();
 
     return true;
 }
@@ -721,15 +750,17 @@ bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
 
         if(ok)
         {
-            //
-            for(size_t i=0; i<observed_landmarks.size(); i++)
+            /*
+            //for(size_t i=0; i<observed_landmarks.size(); i++)
             {
+                const int i = 0;
                 std::cout << sensed_observation[3*i+0] << " -> " << predicted_observation[3*i+0] << std::endl;
                 std::cout << sensed_observation[3*i+1] << " -> " << predicted_observation[3*i+1] << std::endl;
                 std::cout << sensed_observation[3*i+2] << " -> " << predicted_observation[3*i+2] << std::endl;
                 std::cout << std::endl;
+                //break;
             }
-            //
+            */
 
             const Eigen::VectorXd residual = sensed_observation - predicted_observation;
 
@@ -755,16 +786,24 @@ bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
             for(size_t i=0; i<new_state.landmarks.size(); i++)
             {
                 new_state.landmarks[i].position = new_state_vector.segment<3>(13+3*i);
+                new_state.landmarks[i].seen_in_current_frame = false;
+                new_state.landmarks[i].seen_count = old_state.landmarks[i].seen_count;
             }
 
             for(size_t i=0; i<observed_landmarks.size(); i++)
             {
                 new_state.landmarks[ observed_landmarks[i].landmark ].seen_count++;
+                new_state.landmarks[ observed_landmarks[i].landmark ].seen_in_current_frame = true;
             }
 
             new_state.covariance = new_covariance;
-        }
 
+            new_state.timestamp = old_state.timestamp;
+        }
+    }
+
+    if(ok)
+    {
         switchStates();
     }
 

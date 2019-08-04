@@ -46,7 +46,7 @@ void TestOdometry::initTestCase()
 
     // setup reference trajectory, timestamps and circles.
 
-    const size_t N = 2000;
+    const size_t N = 500;
     myCameraToWorldTrajectory.resize(N);
     myTimestamps.resize(N);
     myCircles.resize(N);
@@ -156,10 +156,12 @@ void TestOdometry::testOdometry(OdometryCodePtr code)
         QVERIFY(ok);
         QVERIFY(i == 0 || aligned);
 
-        const Sophus::SE3d tmp = myCameraToWorldTrajectory[i] * estimated_camera_to_world.inverse();
-        const Sophus::SE3d::Tangent err = tmp.log();
-        const double err_translation = err.tail<3>().norm();
-        std::cout << "[ " << i << " ] translation error: " << err_translation << std::endl;
+        //std::cout << "G-T = " << myCameraToWorldTrajectory[i].translation().transpose() << std::endl;
+        //std::cout << "Est = " << estimated_camera_to_world.translation().transpose() << std::endl;
+
+        const Sophus::SE3d::Tangent err = ( myCameraToWorldTrajectory[i].inverse() * estimated_camera_to_world ).log();
+        std::cout << "[ " << i << " ] translation error: " << err.head<3>().transpose() << std::endl;
+        std::cout << "[ " << i << " ] rotation error (deg): " << err.tail<3>().transpose()*180.0/M_PI << std::endl;
 
         // TODO: check error.
     }

@@ -31,9 +31,15 @@ protected:
     {
         Landmark();
 
-        size_t seen_count;
         Eigen::Vector3d position;
+        size_t seen_count;
         bool seen_in_current_frame;
+    };
+
+    struct NewLandmark
+    {
+        Eigen::Vector3d position;
+        Eigen::Matrix<double,10,10> covariance;
     };
 
     struct State
@@ -78,7 +84,7 @@ protected:
 
     bool trackingUpdate(const std::vector<TrackedCircle>& circles);
 
-    bool mappingAugment(const std::vector<TrackedCircle>& circles);
+    bool mappingPruneAugment(const std::vector<TrackedCircle>& circles);
 
     /**
     * \brief Triangulated landmark is in camera frame.
