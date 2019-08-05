@@ -4,6 +4,12 @@ add_library(
     SHARED
     MainWindow.cpp
     MainWindow.h
+    VideoWidget.cpp
+    VideoWidget.h
+    ViewerWidgetBase.cpp
+    ViewerWidgetBase.h
+    ViewerWidget.cpp
+    ViewerWidget.h
 )
 
 target_link_libraries(
