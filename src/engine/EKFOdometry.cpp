@@ -406,7 +406,52 @@ void EKFOdometry::reset()
     mInitialized = false;
 }
 
-bool EKFOdometry::triangulateLandmark(
+bool EKFOdometry::triangulateLandmarkInWorldFrame(
+    const Sophus::SE3d& camera_to_world,
+    const Eigen::Matrix<double, 7, 7>& pose_covariance,
+    const TrackedCircle& circle,
+    NewLandmark& new_landmark)
+{
+    Eigen::Vector3d in_camera;
+    Eigen::Matrix3d in_camera_covariance;
+
+    Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian_wrt_incamera;
+    Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian_wrt_camerat;
+    Eigen::Matrix<double, 3, 4, Eigen::RowMajor> jacobian_wrt_cameraq;
+
+    bool ok = true;
+
+    if(ok)
+    {
+        ok = triangulateLandmarkInCameraFrame(circle, in_camera, in_camera_covariance);
+    }
+
+    if(ok)
+    {
+        const Eigen::Vector3d tmp0 = camera_to_world.translation();
+
+        Eigen::Vector4d tmp1;
+        tmp1.head<3>() = camera_to_world.unit_quaternion().vec();
+        tmp1.w() = camera_to_world.unit_quaternion().w();
+
+        const double* ceres_variable_ptr[3] = { in_camera.data(), tmp0.data(), tmp1.data() };
+        double ceres_value;
+        double* ceres_jacobian_ptr[3] = { jacobian_wrt_incamera.data(), jacobian_wrt_camerat.data(), jacobian_wrt_cameraq.data() };
+
+        std::unique_ptr<ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 3, 4>> function(new ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 3, 4>(new AugmentationFunction(this)));
+
+        ok = function->Evaluate( ceres_variable_ptr, &ceres_value, ceres_jacobian_ptr );
+    }
+
+    if(ok)
+    {
+        ok = false; // TODO
+    }
+
+    return ok;
+}
+
+bool EKFOdometry::triangulateLandmarkInCameraFrame(
     const TrackedCircle& tc,
     Eigen::Vector3d& position,
     Eigen::Matrix3d& covariance)
@@ -477,7 +522,7 @@ void EKFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>&
 
     for(size_t i=0; i<num_circles; i++)
     {
-        mCircleToLandmark[i].has_landmark = triangulateLandmark(
+        mCircleToLandmark[i].has_landmark = triangulateLandmarkInCameraFrame(
             circles[i],
             landmark_positions[i],
             landmark_covariances[i]);
@@ -611,75 +656,202 @@ cv::Vec3f EKFOdometry::undistortCircle(const cv::Vec3f& c)
 
 bool EKFOdometry::mappingPruneAugment(const std::vector<TrackedCircle>& circles)
 {
-    /*
+    enum LandmarkStock
+    {
+        LMSTOCK_UNDEFINED,
+        LMSTOCK_NEW_LANDMARK,
+        LMSTOCK_OLD_LANDMARK
+    };
+
+    struct LandmarkSelection
+    {
+        LandmarkSelection()
+        {
+            stock = LMSTOCK_UNDEFINED;
+            index = 0;
+        }
+
+        LandmarkStock stock;
+        size_t index;
+    };
+
     std::vector<NewLandmark> new_landmarks;
 
     State& old_state = currentState();
     State& new_state = workingState();
 
-    // count number of landmarks seen.
+    // count number of landmarks seen in current frame.
 
     const size_t num_seen = std::count_if(
         old_state.landmarks.begin(),
         old_state.landmarks.end(),
         [] (const Landmark& lm) { return lm.seen_in_current_frame; } );
 
+    if(num_seen > mMaxLandmarks)
+    {
+        std::cerr << "Internal error!" << std::endl;
+        exit(1);
+    }
+
     // try to triangulate new landmarks.
 
     if( num_seen < circles.size() && num_seen < mMaxLandmarks )
     {
-        std::unique_ptr<ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>> f1
-            (new ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>(new TriangulationFunction(this)));
-
-        std::unique_ptr<ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 4, 3>> f2
-            (new ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 4, 3>(new AugmentationFunction(this)));
-
         for(size_t i=0; num_seen + new_landmarks.size() < mMaxLandmarks && i < circles.size(); i++)
         {
-            Eigen::Vector3d in_camera;
-            Eigen::Matrix3d in_camera_cov;
             NewLandmark new_landmark;
 
-            const bool ok =
+            bool ok =
                 circles[i].has_previous  == false ||
                 mCircleToLandmark[circles[i].previous].has_landmark == false ||
                 old_state.landmarks[ mCircleToLandmark[circles[i].previous].landmark ].seen_in_current_frame == false;
 
             if(ok)
             {
-                // TODO: triangulate landmark.
-                // const bool ok = function->Evaluate( &ceres_variable_ptr, ceres_value, &ceres_jacobian_ptr );
+                ok = triangulateLandmarkInWorldFrame(
+                    old_state.camera_to_world,
+                    old_state.covariance.block<7,7>(0,0),
+                    circles[i],
+                    new_landmark);
             }
 
             if(ok)
             {
-                new_landmarks.pus_back(std::move(new_landmark));
+                new_landmarks.push_back(std::move(new_landmark));
             }
         }
     }
-    */
 
-    // compute new state.
+    // compute new state and new circle to landmark association.
 
-    std::vector<CircleToLandmark> new_circle_to_landmark(circles.size());
+    // Optimization problem is:
+    //
+    //    max num_to_add
+    //
+    //    such that
+    //
+    //    num_to_add + num_seen - num_to_remove <= mMaxLandmarks
+    //    0 <= num_to_add <= new_landmarks.size()
+    //    0 <= num_to_remove <= old_state.landmarks.size()
 
-    for(size_t i=0; i<circles.size(); i++)
+    size_t num_to_add = 0;
+    size_t num_to_remove = 0;
+
+    if( num_seen < mMaxLandmarks )
     {
-        if( circles[i].has_previous && mCircleToLandmark[circles[i].previous].has_landmark)
+        if( num_seen + new_landmarks.size() <= mMaxLandmarks )
         {
-            new_circle_to_landmark[i].has_landmark = true;
-            new_circle_to_landmark[i].landmark = mCircleToLandmark[circles[i].previous].landmark;
+            num_to_add = new_landmarks.size();
         }
         else
         {
-            new_circle_to_landmark[i].has_landmark = false;
-            new_circle_to_landmark[i].landmark = 0;
+            num_to_add = mMaxLandmarks - num_seen;
+        }
+
+        if(old_state.landmarks.size() + num_to_add > mMaxLandmarks)
+        {
+            num_to_remove = old_state.landmarks.size() + num_to_add - mMaxLandmarks;
         }
     }
 
-    mCircleToLandmark = std::move(new_circle_to_landmark);
+    const size_t new_num_landmarks = old_state.landmarks.size() + num_to_add - num_to_remove;
 
-    //switchStates();
+    if( new_num_landmarks > mMaxLandmarks || num_to_add > new_landmarks.size() )
+    {
+        std::cerr << "Internal error" << std::endl;
+        exit(1);
+    }
+
+    // compute new state.
+
+    std::vector<LandmarkSelection> landmark_selection(new_num_landmarks);
+    new_state.landmarks.resize(new_num_landmarks);
+    new_state.covariance.resize(13+3*new_num_landmarks, 13+3*new_num_landmarks);
+    size_t landmark_counter = 0;
+
+    // take from old landmarks.
+
+    for(size_t i=0; i<old_state.landmarks.size(); i++)
+    {
+        const bool take = ( old_state.landmarks[i].seen_in_current_frame || landmark_counter < old_state.landmarks.size()-num_to_remove );
+
+        if(take)
+        {
+            landmark_selection[landmark_counter].stock = LMSTOCK_OLD_LANDMARK;
+            landmark_selection[landmark_counter].index = i;
+            landmark_counter++;
+        }
+    }
+
+    // take new landmarks.
+
+    for(size_t i=0; i<num_to_add; i++)
+    {
+        landmark_selection[landmark_counter].stock = LMSTOCK_NEW_LANDMARK;
+        landmark_selection[landmark_counter].index = i;
+        landmark_counter++;
+    }
+
+    if(landmark_counter != new_num_landmarks)
+    {
+        std::cerr << "Internal error!" << std::endl;
+        exit(1);
+    }
+
+    new_state.covariance.block<13,13>(0,0) = old_state.covariance.block<13,13>(0,0);
+
+    for(size_t i=0; i<new_num_landmarks; i++)
+    {
+        const auto& lms = landmark_selection[i];
+
+        if( lms.stock == LMSTOCK_OLD_LANDMARK )
+        {
+            new_state.landmarks[i] = old_state.landmarks[lms.index];
+
+            new_state.covariance.block<3,3>(13+3*i, 13+3*i) = old_state.covariance.block<3,3>(13+3*lms.index, 13+3*lms.index);
+            new_state.covariance.block<13,3>(0, 13+3*i) = old_state.covariance.block<13,3>(0, 13+3*lms.index);
+            new_state.covariance.block<3,13>(13+3*i, 0) = old_state.covariance.block<3,13>(13+3*lms.index, 0);
+
+            for(size_t j=0; j<i; j++)
+            {
+                const auto& other_lms = landmark_selection[j];
+
+                if(other_lms.stock == LMSTOCK_OLD_LANDMARK)
+                {
+                    new_state.covariance.block<3,3>(13+3*i, 13+3*j) = old_state.covariance.block<3,3>(13+3*lms.index, 13+3*other_lms.index);
+                    new_state.covariance.block<3,3>(13+3*j, 13+3*i) = old_state.covariance.block<3,3>(13+3*other_lms.index, 13+3*lms.index);
+                }
+                else
+                {
+                    new_state.covariance.block<3,3>(13+3*i, 13+3*j).setZero();
+                    new_state.covariance.block<3,3>(13+3*j, 13+3*i).setZero();
+                }
+            }
+        }
+        else if( lms.stock == LMSTOCK_NEW_LANDMARK )
+        {
+            new_state.landmarks[i].position = new_landmarks[lms.index].position;
+            new_state.landmarks[i].seen_count = 1;
+            new_state.landmarks[i].seen_in_current_frame = true;
+
+            new_state.covariance.block<3,3>(13+3*i, 13+3*i) = new_landmarks[lms.index].covariance_landmark_landmark;
+            new_state.covariance.block<13,3>(0, 13+3*i) = new_landmarks[lms.index].covariance_landmark_camera.transpose();
+            new_state.covariance.block<3,13>(13+3*i, 0) = new_landmarks[lms.index].covariance_landmark_camera;
+
+            for(size_t j=0; j<i; j++)
+            {
+                new_state.covariance.block<3,3>(13+3*i, 13+3*j).setZero();
+                new_state.covariance.block<3,3>(13+3*j, 13+3*i).setZero();
+            }
+        }
+        else
+        {
+            std::cerr << "Internal error!" << std::endl;
+            exit(1);
+        }
+    }
+
+    switchStates();
 
     return true;
 }
@@ -842,6 +1014,11 @@ bool EKFOdometry::trackingPrediction(double timestamp)
         new_state.linear_momentum = old_state.linear_momentum;
         new_state.angular_momentum = old_state.angular_momentum;
         new_state.landmarks = std::move(old_state.landmarks);
+
+        for(Landmark& lm : new_state.landmarks)
+        {
+            lm.seen_in_current_frame = false;
+        }
 
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> noise(dim, dim);
         noise.setZero();

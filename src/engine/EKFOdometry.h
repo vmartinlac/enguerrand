@@ -39,7 +39,8 @@ protected:
     struct NewLandmark
     {
         Eigen::Vector3d position;
-        Eigen::Matrix<double,10,10> covariance;
+        Eigen::Matrix<double,3,3> covariance_landmark_landmark;
+        Eigen::Matrix<double,3,13> covariance_landmark_camera;
     };
 
     struct State
@@ -90,10 +91,16 @@ protected:
     * \brief Triangulated landmark is in camera frame.
     * \return true on success false on failure.
     */
-    bool triangulateLandmark(
+    bool triangulateLandmarkInCameraFrame(
         const TrackedCircle& tc,
         Eigen::Vector3d& position,
         Eigen::Matrix3d& covariance);
+
+    bool triangulateLandmarkInWorldFrame(
+        const Sophus::SE3d& camera_to_world,
+        const Eigen::Matrix<double, 7, 7>& pose_covariance,
+        const TrackedCircle& circle,
+        NewLandmark& new_landmark);
 
     cv::Vec3f undistortCircle(const cv::Vec3f& c);
 
