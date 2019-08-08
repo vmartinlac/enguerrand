@@ -23,32 +23,46 @@ protected:
 
     struct Landmark
     {
+        bool visited;
         Eigen::Vector3d position;
+        double ceres_position[3];
         size_t seen_count;
-        size_t reference_count;
     };
 
-    struct Projection
+    using LandmarkPtr = std::shared_ptr<Landmark>;
+
+    struct Observation
     {
-        size_t landmark;
-        cv::Vec3f projection;
+        LandmarkPtr landmark;
+        cv::Vec3f circle;
     };
 
     struct Frame
     {
-        size_t id;
         double timestamp;
         Sophus::SE3d camera_to_world;
         double ceres_camera_to_world_t[3];
         double ceres_camera_to_world_q[4];
-        std::vector<Projection> projections;
+        std::vector<Observation> observations;
     };
 
-    class LandmarkTriangulation;
+    using FramePtr = std::shared_ptr<Frame>;
+
+    class BundleAdjustment;
 
 protected:
 
-    void clear();
+    void initialize(double timestamp, const std::vector<TrackedCircle>& circles);
+
+    bool track(double timestamp, const std::vector<TrackedCircle>& circles);
+
+    LandmarkPtr triangulateInitialLandmark(const cv::Vec3f& circle);
+
+    void triangulationAdjustment();
+
+    void localBundleAdjustment();
+
+    void PnPAdjustment();
 
 protected:
 
@@ -56,8 +70,9 @@ protected:
     double myMaxKeyFrames;
     double myMaxProjections;
     CalibrationDataPtr myCalibration;
-    std::vector<Landmark> myLandmarks;
-    std::vector<size_t> myAvailableLandmarks;
-    std::deque<Frame> myKeyFrames;
+
+    FramePtr myLastFrame;
+    std::deque<FramePtr> myKeyFrames;
+    std::vector<LandmarkPtr> myObservedLandmarks;
 };
 

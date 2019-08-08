@@ -1098,9 +1098,9 @@ Eigen::Matrix<double, 7, 1> EKFOdometry::poseToVector(const Sophus::SE3d& pose)
 {
     Eigen::Matrix<double,7,1> ret;
 
-    ret.head<3> = pose.translation();
+    ret.head<3>() = pose.translation();
     ret.segment<3>(3) = pose.unit_quaternion().vec();
-    ret.tail<1>() = pose.unit_quaternion().w();
+    ret(6) = pose.unit_quaternion().w();
 
     return ret;
 }
@@ -1110,7 +1110,7 @@ Sophus::SE3d EKFOdometry::vectorToPose(const Eigen::Matrix<double, 7, 1>& vector
     Sophus::SE3d ret;
 
     ret.translation() = vector.head<3>();
-    ret.unit_quaternion() = Eigen::Quaterniond( vector(6), vector(3), vector(4), vector(5) ).normalized();
+    ret.setQuaternion( Eigen::Quaterniond( vector(6), vector(3), vector(4), vector(5) ) );
 
     return ret;
 }
