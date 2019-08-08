@@ -415,6 +415,7 @@ bool EKFOdometry::triangulateLandmarkInWorldFrame(
     Eigen::Vector3d in_camera;
     Eigen::Matrix3d in_camera_covariance;
 
+    Eigen::Vector3d in_world;
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian_wrt_incamera;
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian_wrt_camerat;
     Eigen::Matrix<double, 3, 4, Eigen::RowMajor> jacobian_wrt_cameraq;
@@ -435,17 +436,35 @@ bool EKFOdometry::triangulateLandmarkInWorldFrame(
         tmp1.w() = camera_to_world.unit_quaternion().w();
 
         const double* ceres_variable_ptr[3] = { in_camera.data(), tmp0.data(), tmp1.data() };
-        double ceres_value;
+        double* ceres_value = in_world.data();
         double* ceres_jacobian_ptr[3] = { jacobian_wrt_incamera.data(), jacobian_wrt_camerat.data(), jacobian_wrt_cameraq.data() };
 
         std::unique_ptr<ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 3, 4>> function(new ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 3, 4>(new AugmentationFunction(this)));
 
-        ok = function->Evaluate( ceres_variable_ptr, &ceres_value, ceres_jacobian_ptr );
+        ok = function->Evaluate( ceres_variable_ptr, ceres_value, ceres_jacobian_ptr );
     }
 
     if(ok)
     {
-        ok = false; // TODO
+        Eigen::Matrix<double, 10, 10> input_covariance;
+        input_covariance.block<3,3>(0,0) = in_camera_covariance;
+        input_covariance.block<3,7>(0,3).setZero();
+        input_covariance.block<7,3>(3,0).setZero();
+        input_covariance.block<7,7>(3,3) = pose_covariance;
+
+        Eigen::Matrix<double, 10, 10> jacobian;
+        jacobian.block<3,3>(0, 0) = jacobian_wrt_incamera;
+        jacobian.block<3,3>(0, 3) = jacobian_wrt_camerat;
+        jacobian.block<3,4>(0, 6) = jacobian_wrt_cameraq;
+        jacobian.block<7,3>(3, 0).setZero();
+        jacobian.block<7,7>(3, 3).setIdentity();
+
+        const Eigen::Matrix<double, 10, 10> output_covariance = jacobian * input_covariance * jacobian.transpose();
+
+        new_landmark.position = in_world;
+        new_landmark.covariance_landmark_landmark = output_covariance.block<3,3>(0,0);
+        new_landmark.covariance_landmark_camera.block<3,7>(0,0) = output_covariance.block<3,7>(0,3);
+        new_landmark.covariance_landmark_camera.block<3,6>(0,3).setZero();
     }
 
     return ok;
@@ -1063,9 +1082,7 @@ Eigen::VectorXd EKFOdometry::State::toVector()
 {
     Eigen::VectorXd ret(getDimension());
 
-    ret.segment<3>(0) = camera_to_world.translation();
-    ret.segment<3>(3) = camera_to_world.unit_quaternion().vec();
-    ret(6) = camera_to_world.unit_quaternion().w();
+    ret.segment<7>(0) = poseToVector(camera_to_world);
     ret.segment<3>(7) = linear_momentum;
     ret.segment<3>(10) = angular_momentum;
 
@@ -1077,3 +1094,23 @@ Eigen::VectorXd EKFOdometry::State::toVector()
     return ret;
 }
 
+Eigen::Matrix<double, 7, 1> EKFOdometry::poseToVector(const Sophus::SE3d& pose)
+{
+    Eigen::Matrix<double,7,1> ret;
+
+    ret.head<3> = pose.translation();
+    ret.segment<3>(3) = pose.unit_quaternion().vec();
+    ret.tail<1>() = pose.unit_quaternion().w();
+
+    return ret;
+}
+
+Sophus::SE3d EKFOdometry::vectorToPose(const Eigen::Matrix<double, 7, 1>& vector)
+{
+    Sophus::SE3d ret;
+
+    ret.translation() = vector.head<3>();
+    ret.unit_quaternion() = Eigen::Quaterniond( vector(6), vector(3), vector(4), vector(5) ).normalized();
+
+    return ret;
+}

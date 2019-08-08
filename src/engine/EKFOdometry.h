@@ -110,6 +110,10 @@ protected:
 
     State& currentState();
 
+    static Eigen::Matrix<double, 7, 1> poseToVector(const Sophus::SE3d& pose);
+
+    static Sophus::SE3d vectorToPose(const Eigen::Matrix<double, 7, 1>& vector);
+
 protected:
 
     double mLandmarkRadius;
