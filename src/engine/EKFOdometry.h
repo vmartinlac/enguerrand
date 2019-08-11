@@ -102,8 +102,6 @@ protected:
         const TrackedCircle& circle,
         NewLandmark& new_landmark);
 
-    cv::Vec3f undistortCircle(const cv::Vec3f& c);
-
     void switchStates();
 
     State& workingState();
@@ -113,6 +111,8 @@ protected:
     static Eigen::Matrix<double, 7, 1> poseToVector(const Sophus::SE3d& pose);
 
     static Sophus::SE3d vectorToPose(const Eigen::Matrix<double, 7, 1>& vector);
+
+    cv::Vec3f undistortCircle(const cv::Vec3f& c);
 
 protected:
 

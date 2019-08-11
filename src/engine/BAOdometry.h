@@ -24,9 +24,13 @@ protected:
     struct Landmark
     {
         bool visited;
+        size_t local_id;
         Eigen::Vector3d position;
         double ceres_position[3];
         size_t seen_count;
+
+        void preBundleAdjustment();
+        void postBundleAdjustment();
     };
 
     using LandmarkPtr = std::shared_ptr<Landmark>;
@@ -44,11 +48,21 @@ protected:
         double ceres_camera_to_world_t[3];
         double ceres_camera_to_world_q[4];
         std::vector<Observation> observations;
+
+        void preBundleAdjustment();
+        void postBundleAdjustment();
     };
 
     using FramePtr = std::shared_ptr<Frame>;
 
     class BundleAdjustment;
+
+    enum BundleAdjustmentType
+    {
+        BA_TRIANGULATION,
+        BA_PNP, // Perspective N Points
+        BA_LBA // Local Bundle Adjustment
+    };
 
 protected:
 
@@ -58,11 +72,9 @@ protected:
 
     LandmarkPtr triangulateInitialLandmark(const cv::Vec3f& circle);
 
-    void triangulationAdjustment();
+    void performBundleAdjustment(BundleAdjustmentType type);
 
-    void localBundleAdjustment();
-
-    void PnPAdjustment();
+    cv::Vec3f undistortCircle(const cv::Vec3f& c);
 
 protected:
 
@@ -74,5 +86,6 @@ protected:
     FramePtr myLastFrame;
     std::deque<FramePtr> myKeyFrames;
     std::vector<LandmarkPtr> myObservedLandmarks;
+    std::vector<LandmarkPtr> myLocalMap;
 };
 
