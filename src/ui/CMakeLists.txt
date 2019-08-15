@@ -10,6 +10,8 @@ add_library(
     ViewerWidgetBase.h
     ViewerWidget.cpp
     ViewerWidget.h
+    EngineThread.cpp
+    EngineThread.h
 )
 
 target_link_libraries(
@@ -18,6 +20,7 @@ target_link_libraries(
     Qt5::Widgets
     enguerrand_engine
     PkgConfig::OSG
+    opencv_core
 )
 
 target_include_directories(enguerrand_ui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
