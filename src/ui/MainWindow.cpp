@@ -1,4 +1,7 @@
+#include <QFormLayout>
+#include <QLineEdit>
 #include <iostream>
+#include <QTabWidget>
 #include <QKeySequence>
 #include <QMessageBox>
 #include <QApplication>
@@ -21,6 +24,19 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     action_quit->setShortcut(QKeySequence("Ctrl+Q"));
     action_run->setCheckable(true);
 
+    ////
+
+    QFormLayout* form = new QFormLayout();
+    form->addRow("fx", new QLineEdit());
+    form->addRow("fy", new QLineEdit());
+    form->addRow("cx", new QLineEdit());
+    form->addRow("cy", new QLineEdit());
+
+    QWidget* config_widget = new QWidget();
+    config_widget->setLayout(form);
+
+    ////
+
     myVideo = new VideoWidget();
 
     myViewer = new ViewerWidget();
@@ -30,7 +46,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     splitter->addWidget(myVideo);
     splitter->addWidget(myViewer);
 
-    setCentralWidget(splitter);
+    QTabWidget* tab = new QTabWidget();
+    tab->addTab(config_widget, "Configuration");
+    tab->addTab(splitter, "Inspection");
+
+    setCentralWidget(tab);
     setWindowTitle("Enguerrand");
 
     connect(action_about, SIGNAL(triggered()), this, SLOT(about()));
