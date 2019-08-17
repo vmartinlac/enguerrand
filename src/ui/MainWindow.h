@@ -3,6 +3,8 @@
 #include <QMainWindow>
 #include "ViewerWidget.h"
 #include "VideoWidget.h"
+#include "EngineConfig.h"
+#include "EngineThread.h"
 
 class MainWindow : public QMainWindow
 {
@@ -10,7 +12,7 @@ class MainWindow : public QMainWindow
 
 public:
 
-    MainWindow(QWidget* parent=nullptr);
+    MainWindow(EngineConfigPtr config, QWidget* parent=nullptr);
 
 protected slots:
 
@@ -21,5 +23,7 @@ protected:
 
     ViewerWidget* myViewer;
     VideoWidget* myVideo;
+    EngineConfigPtr myConfig;
+    EngineThread* myEngineThread;
 };
 

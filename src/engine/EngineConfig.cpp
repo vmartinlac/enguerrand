@@ -91,6 +91,10 @@ bool EngineConfig::loadFromFile(const std::string& path)
         err = "Could not set odometry code!";
     }
 
+    // set debug.
+
+    debug = root["debug"].toBool(false);
+
     // if fail, reset.
 
     if(ret == false)

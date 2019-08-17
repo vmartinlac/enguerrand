@@ -1,20 +1,10 @@
 #include <iostream>
 #include <QApplication>
-#include "Engine.h"
-
-/// #include "MainWindow.h"
+#include "MainWindow.h"
+#include "EngineConfig.h"
 
 int main(int num_args, char** args)
 {
-    /*
-    QApplication app(num_args, args);
-    auto win = new MainWindow();
-    win->show();
-    app.exec();
-    delete win;
-    return 0;
-    */
-
     if(num_args != 2)
     {
         std::cerr << "Bad command line!" << std::endl;
@@ -29,8 +19,15 @@ int main(int num_args, char** args)
         exit(1);
     }
 
-    Engine engine;
-    engine.exec(config);
+    QApplication app(num_args, args);
+
+    MainWindow* win = new MainWindow(config);
+
+    win->show();
+
+    app.exec();
+
+    delete win;
 
     return 0;
 }
