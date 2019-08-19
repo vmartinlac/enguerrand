@@ -1,4 +1,5 @@
 {
+    "debug":true,
     "video_input":
     {
         "type":"file",
