@@ -4,9 +4,11 @@
 #include <opencv2/highgui.hpp>
 #include <tbb/scalable_allocator.h>
 #include "EngineGraph.h"
+#include "Engine.h"
 
-VideoBody::VideoBody(VideoSourcePtr input)
+VideoBody::VideoBody(Engine* engine, VideoSourcePtr input)
 {
+    mEngine = engine;
     mInput = input;
     mNextFrameId = 0;
 }
@@ -19,7 +21,7 @@ bool VideoBody::operator()(VideoMessagePtr& message)
     mInput->trigger();
     mInput->read(frame);
 
-    if(frame.isValid())
+    if(mEngine->isInterruptionRequested() == false && frame.isValid())
     {
         message = std::allocate_shared<VideoMessage>( tbb::scalable_allocator<VideoMessage>() );
         message->header.available = true;

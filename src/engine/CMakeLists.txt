@@ -28,6 +28,8 @@ add_library(
     Semaphore.h
     TrackedCircle.cpp
     TrackedCircle.h
+    EngineListener.h
+    EngineListener.cpp
 )
 
 target_link_libraries(

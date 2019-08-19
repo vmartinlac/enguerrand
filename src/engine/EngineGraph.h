@@ -13,6 +13,9 @@
 #include "TrackedCircle.h"
 #include "OdometryCode.h"
 
+class Engine;
+class EngineListener;
+
 struct MessageHeader
 {
     MessageHeader()
@@ -70,7 +73,7 @@ class VideoBody
 {
 public:
 
-    VideoBody(VideoSourcePtr input);
+    VideoBody(Engine* engine, VideoSourcePtr input);
 
     bool operator()(VideoMessagePtr& message);
 
@@ -78,6 +81,7 @@ protected:
 
     size_t mNextFrameId;
     VideoSourcePtr mInput;
+    Engine* mEngine;
 };
 
 class EdgeBody
@@ -139,3 +143,4 @@ protected:
     std::vector<Track> mTracks;
     std::default_random_engine mEngine;
 };
+

@@ -1,24 +1,31 @@
+#include <thread>
 #include <iostream>
-#include "VideoSource.h"
 #include "Engine.h"
 #include "EngineGraph.h"
+#include "EngineListener.h"
 
-bool Engine::exec(EngineConfigPtr config)
+Engine::Engine(QObject* parent) : QThread(parent)
 {
-    const char* err = "";
-    bool ok = true;
+    myListener = nullptr;
+}
 
-    if(ok)
-    {
-        ok = config->video_input->open();
-        err = "Could not open video input.";
-    }
+void Engine::setListener(EngineListener* listener)
+{
+    myListener = listener;
+}
 
-    if(ok)
+void Engine::setConfig(EngineConfigPtr config)
+{
+    myConfig = config;
+}
+
+void Engine::run()
+{
+    if( myConfig->video_input->open() )
     {
         tbb::flow::graph g;
 
-        tbb::flow::source_node<VideoMessagePtr> video_node(g, VideoBody(config->video_input));
+        tbb::flow::source_node<VideoMessagePtr> video_node(g, VideoBody(this, myConfig->video_input));
 
         tbb::flow::limiter_node<VideoMessagePtr> limiter_node(g, 4);
 
@@ -26,11 +33,11 @@ bool Engine::exec(EngineConfigPtr config)
 
         tbb::flow::join_node< tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> > join_node(g);
 
-        tbb::flow::function_node< tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr>, CirclesMessagePtr> circles_node(g, 1, CirclesBody(config->balls_histogram));
+        tbb::flow::function_node< tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr>, CirclesMessagePtr> circles_node(g, 1, CirclesBody(myConfig->balls_histogram));
 
         tbb::flow::broadcast_node<CirclesMessagePtr> broadcast_node(g);
 
-        tbb::flow::function_node<CirclesMessagePtr,OdometryMessagePtr> odometry_node(g, 1, OdometryBody(config->odometry_code));
+        tbb::flow::function_node<CirclesMessagePtr,OdometryMessagePtr> odometry_node(g, 1, OdometryBody(myConfig->odometry_code));
 
         tbb::flow::function_node<CirclesMessagePtr> circles_tracer_node(g, 1, CirclesTracerBody());
 
@@ -44,14 +51,23 @@ bool Engine::exec(EngineConfigPtr config)
         make_edge(broadcast_node, circles_tracer_node);
 
         // TMP
+        /*
         tbb::flow::function_node<OdometryMessagePtr,tbb::flow::continue_msg> endnode(g, 1, [] (const OdometryMessagePtr msg) { return tbb::flow::continue_msg(); });
         make_edge(odometry_node, endnode);
         make_edge(endnode, limiter_node.decrement);
+        */
         //
 
         g.wait_for_all();
 
-        config->video_input->close();
+        myConfig->video_input->close();
+    }
+}
+
+/*
+#include <iostream>
+
+bool Engine::exec(EngineConfigPtr config)
     }
 
     if(ok == false)
@@ -62,4 +78,5 @@ bool Engine::exec(EngineConfigPtr config)
 
     return ok;
 }
+*/
 

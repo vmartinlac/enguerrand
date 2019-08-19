@@ -10,8 +10,8 @@ add_library(
     ViewerWidgetBase.h
     ViewerWidget.cpp
     ViewerWidget.h
-    EngineThread.cpp
-    EngineThread.h
+    DefaultEngineListener.cpp
+    DefaultEngineListener.h
 )
 
 target_link_libraries(
