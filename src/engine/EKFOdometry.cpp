@@ -978,7 +978,7 @@ bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
             {
                 new_state.landmarks[i].position = new_state_vector.segment<3>(13+3*i);
                 new_state.landmarks[i].seen_in_current_frame = false;
-                new_state.landmarks[i].seen_count = old_state.landmarks[i].seen_count;
+                //new_state.landmarks[i].seen_count = old_state.landmarks[i].seen_count;
             }
 
             for(size_t i=0; i<observed_landmarks.size(); i++)
