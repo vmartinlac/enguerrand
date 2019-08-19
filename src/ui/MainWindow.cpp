@@ -8,9 +8,10 @@
 #include "MainWindow.h"
 #include "ViewerWidget.h"
 
-MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
+MainWindow::MainWindow(EngineConfigPtr config, QWidget* parent) : QMainWindow(parent)
 {
     myEngine = new Engine(this);
+    myEngine->setConfig(config);
 
     QToolBar* tb = addToolBar("Tools");
     QAction* action_quit = tb->addAction("Quit");

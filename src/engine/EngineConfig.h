@@ -10,6 +10,9 @@ class EngineConfig
 {
 public:
 
+    EngineConfig();
+
+    bool debug;
     HistogramPtr balls_histogram;
     VideoSourcePtr video_input;
     OdometryCodePtr odometry_code;

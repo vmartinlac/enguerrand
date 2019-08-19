@@ -5,6 +5,11 @@
 #include "FileVideoSource.h"
 #include "EngineConfig.h"
 
+EngineConfig::EngineConfig()
+{
+    debug = false;
+}
+
 bool EngineConfig::loadFromFile(const std::string& path)
 {
     QFile file(path.c_str());
@@ -89,6 +94,13 @@ bool EngineConfig::loadFromFile(const std::string& path)
     {
         odometry_code.reset(new EKFOdometry(calibration));
         err = "Could not set odometry code!";
+    }
+
+    // set debug.
+
+    if(ret)
+    {
+        debug = root["debug"].toBool(false);
     }
 
     // if fail, reset.

@@ -12,7 +12,7 @@ class MainWindow : public QMainWindow
 
 public:
 
-    MainWindow(QWidget* parent=nullptr);
+    MainWindow(EngineConfigPtr config, QWidget* parent=nullptr);
     ~MainWindow();
 
 protected slots:
