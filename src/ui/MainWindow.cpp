@@ -10,14 +10,36 @@
 
 MainWindow::MainWindow(EngineConfigPtr config, QWidget* parent) : QMainWindow(parent)
 {
+    myListener.reset(new DefaultEngineListener(this));
+
     myEngine = new Engine(this);
     myEngine->setConfig(config);
+    myEngine->setListener(myListener.get());
 
     QToolBar* tb = addToolBar("Tools");
     QAction* action_quit = tb->addAction("Quit");
+    QAction* action_about = tb->addAction("About");
+    tb->addSeparator();
     QAction* action_start = tb->addAction("Start");
     QAction* action_stop = tb->addAction("Stop");
-    QAction* action_about = tb->addAction("About");
+    tb->addSeparator();
+    QAction* action_show_raw = tb->addAction("Raw");
+    QAction* action_show_edges = tb->addAction("Edges");
+    QAction* action_show_traces = tb->addAction("Traces");
+    QAction* action_show_circles = tb->addAction("Circles");
+    tb->addSeparator();
+    QAction* action_home = tb->addAction("Home");
+
+    QActionGroup* group_image = new QActionGroup(this);
+    group_image->addAction(action_show_raw);
+    group_image->addAction(action_show_edges);
+    group_image->addAction(action_show_traces);
+    group_image->addAction(action_show_circles);
+    action_show_raw->setCheckable(true);
+    action_show_edges->setCheckable(true);
+    action_show_traces->setCheckable(true);
+    action_show_circles->setCheckable(true);
+    action_show_raw->setChecked(true);
 
     myActionStart = action_start;
     myActionStop = action_stop;
@@ -45,6 +67,7 @@ MainWindow::MainWindow(EngineConfigPtr config, QWidget* parent) : QMainWindow(pa
     connect(action_quit, SIGNAL(triggered()), QApplication::instance(), SLOT(quit()));
     connect(myEngine, SIGNAL(started()), this, SLOT(engineStarted()));
     connect(myEngine, SIGNAL(finished()), this, SLOT(engineStopped()));
+    connect(action_home, SIGNAL(triggered()), myViewer, SLOT(home()));
 }
 
 MainWindow::~MainWindow()
@@ -85,5 +108,10 @@ void MainWindow::engineStopped()
 {
     myActionStart->setEnabled(true);
     myActionStop->setEnabled(false);
+}
+
+void MainWindow::handleFrame()
+{
+    std::cout << "Hello" << std::endl;
 }
 

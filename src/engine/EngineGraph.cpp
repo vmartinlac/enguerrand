@@ -6,14 +6,14 @@
 #include "EngineGraph.h"
 #include "Engine.h"
 
-VideoBody::VideoBody(Engine* engine, VideoSourcePtr input)
+EngineGraph::VideoBody::VideoBody(Engine* engine, VideoSourcePtr input)
 {
     mEngine = engine;
     mInput = input;
     mNextFrameId = 0;
 }
 
-bool VideoBody::operator()(VideoMessagePtr& message)
+bool EngineGraph::VideoBody::operator()(EngineGraph::VideoMessagePtr& message)
 {
     VideoFrame frame;
     bool ret = false;
@@ -46,11 +46,11 @@ bool VideoBody::operator()(VideoMessagePtr& message)
     return ret;
 }
 
-EdgeBody::EdgeBody()
+EngineGraph::EdgeBody::EdgeBody()
 {
 }
 
-EdgeMessagePtr EdgeBody::operator()(const VideoMessagePtr video_msg)
+EngineGraph::EdgeMessagePtr EngineGraph::EdgeBody::operator()(const EngineGraph::VideoMessagePtr video_msg)
 {
     EdgeMessagePtr edge_msg;
 
@@ -78,12 +78,12 @@ EdgeMessagePtr EdgeBody::operator()(const VideoMessagePtr video_msg)
     return edge_msg;
 }
 
-CirclesBody::CirclesBody(HistogramPtr reference_histogram)
+EngineGraph::CirclesBody::CirclesBody(HistogramPtr reference_histogram)
 {
     mTracker.setReferenceHistogram(std::move(reference_histogram));
 }
 
-CirclesMessagePtr CirclesBody::operator()(const tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> frame)
+EngineGraph::CirclesMessagePtr EngineGraph::CirclesBody::operator()(const tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> frame)
 {
     const VideoMessagePtr video_frame = tbb::flow::get<0>(frame);
     const EdgeMessagePtr edge_frame = tbb::flow::get<1>(frame);
@@ -122,12 +122,12 @@ CirclesMessagePtr CirclesBody::operator()(const tbb::flow::tuple<VideoMessagePtr
     return circles_frame;
 }
 
-OdometryBody::OdometryBody(OdometryCodePtr odom)
+EngineGraph::OdometryBody::OdometryBody(OdometryCodePtr odom)
 {
     mOdometryCode = odom;
 }
 
-OdometryMessagePtr OdometryBody::operator()(const CirclesMessagePtr circles)
+EngineGraph::OdometryMessagePtr EngineGraph::OdometryBody::operator()(const EngineGraph::CirclesMessagePtr circles)
 {
     OdometryMessagePtr odometry;
 
@@ -162,12 +162,12 @@ OdometryMessagePtr OdometryBody::operator()(const CirclesMessagePtr circles)
     return odometry;
 }
 
-CirclesTracerBody::CirclesTracerBody()
+EngineGraph::CirclesTracerBody::CirclesTracerBody()
 {
     mOutputFileName = "circles_trajectories.png";
 }
 
-tbb::flow::continue_msg CirclesTracerBody::operator()(const CirclesMessagePtr circles)
+tbb::flow::continue_msg EngineGraph::CirclesTracerBody::operator()(const EngineGraph::CirclesMessagePtr circles)
 {
     std::uniform_int_distribution<uint8_t> color_distrib(64,192);
 

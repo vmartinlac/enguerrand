@@ -1,8 +1,10 @@
 #pragma once
 
+#include <memory>
 #include <QAction>
 #include <QMainWindow>
 #include "ViewerWidget.h"
+#include "DefaultEngineListener.h"
 #include "VideoWidget.h"
 #include "Engine.h"
 
@@ -13,6 +15,7 @@ class MainWindow : public QMainWindow
 public:
 
     MainWindow(EngineConfigPtr config, QWidget* parent=nullptr);
+
     ~MainWindow();
 
 protected slots:
@@ -22,12 +25,14 @@ protected slots:
     void engineStarted();
     void engineStopped();
     void about();
+    void handleFrame();
 
 protected:
 
     ViewerWidget* myViewer;
     VideoWidget* myVideo;
     Engine* myEngine;
+    std::unique_ptr<DefaultEngineListener> myListener;
     QAction* myActionStart;
     QAction* myActionStop;
 };
