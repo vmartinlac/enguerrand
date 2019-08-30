@@ -3,9 +3,9 @@
     "video_input":
     {
         "type":"file",
-        "path":"/home/victor/development/enguerrand/enguerrand_data/sample_videos/VID_20190615_180529.mp4"
+        "path":"/home/victor/development/enguerrand/data/sample_videos/VID_20190615_180529.mp4"
     },
-    "balls_histogram":"/home/victor/development/enguerrand/enguerrand_data/balls_histogram.bin",
+    "balls_histogram":"/home/victor/development/enguerrand/data/balls_histogram.bin",
     "slam":
     {
         "type":"ekf"

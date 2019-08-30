@@ -74,6 +74,13 @@ public:
     using OdometryMessagePtr = std::shared_ptr<OdometryMessage>;
 
 
+    using VideoEdgeTuple = tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr>;
+
+    using VideoEdgeCirclesTuple = tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr, CirclesMessagePtr>;
+
+    using VideoEdgeCirclesOdometryTuple = tbb::flow::tuple<VideoMessagePtr, EdgeMessagePtr, CirclesMessagePtr, OdometryMessagePtr>;
+
+
     class VideoBody
     {
     public:
@@ -153,17 +160,16 @@ public:
     {
     public:
 
-        tbb::flow::continue_msg operator()(const OdometryMessagePtr odometry)
-        {
-            return tbb::flow::continue_msg();
-        }
+        TerminalBody(EngineListener* listener);
+
+        tbb::flow::continue_msg operator()(const VideoEdgeCirclesOdometryTuple& items);
+
+    protected:
+
+        EngineListener* myListener;
     };
 
-
-    using VideoEdgeTuple = tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr>;
-
     using VideoNode = tbb::flow::source_node<VideoMessagePtr>;
-
 
     using VideoLimiterNode = tbb::flow::limiter_node<VideoMessagePtr>;
 
@@ -173,18 +179,25 @@ public:
 
     using CircleNode = tbb::flow::function_node<VideoEdgeTuple, CirclesMessagePtr>;
 
-    using CircleBroadcastNode = tbb::flow::broadcast_node<CirclesMessagePtr>;
+    using VideoEdgeCirclesJoinNode = tbb::flow::join_node<VideoEdgeCirclesTuple>;
 
     using OdometryNode = tbb::flow::function_node<CirclesMessagePtr,OdometryMessagePtr>;
 
     using CircleTracerNode = tbb::flow::function_node<CirclesMessagePtr>;
 
-    using TerminalNode = tbb::flow::function_node<OdometryMessagePtr,tbb::flow::continue_msg>;
+    using VideoEdgeCirclesOdometryJoinNode = tbb::flow::join_node<VideoEdgeCirclesOdometryTuple>;
+
+    using TerminalNode = tbb::flow::function_node<VideoEdgeCirclesOdometryTuple,tbb::flow::continue_msg>;
 
 public:
 
     Engine* engine;
     EngineConfigPtr config;
     EngineListener* engine_listener;
+    /*
+    tbb::flow::graph* graph;
+    VideoNode* video_node;
+    VideoLimiterNode* video_limiter_node;
+    */
 };
 

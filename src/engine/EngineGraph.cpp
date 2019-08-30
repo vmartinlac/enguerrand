@@ -231,3 +231,13 @@ tbb::flow::continue_msg EngineGraph::CirclesTracerBody::operator()(const EngineG
     return tbb::flow::continue_msg();
 }
 
+EngineGraph::TerminalBody::TerminalBody(EngineListener* listener)
+{
+    myListener = listener;
+}
+
+tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph::VideoEdgeCirclesOdometryTuple& data)
+{
+    // TODO
+    return tbb::flow::continue_msg();
+}
