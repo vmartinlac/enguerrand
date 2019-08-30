@@ -6,9 +6,9 @@
 #include "EngineGraph.h"
 #include "Engine.h"
 
-EngineGraph::VideoBody::VideoBody(Engine* engine, VideoSourcePtr input)
+EngineGraph::VideoBody::VideoBody(std::function<bool()> exit_predicate, VideoSourcePtr input)
 {
-    mEngine = engine;
+    mExitPredicate = std::move(exit_predicate);
     mInput = input;
     mNextFrameId = 0;
 }
@@ -21,7 +21,7 @@ bool EngineGraph::VideoBody::operator()(EngineGraph::VideoMessagePtr& message)
     mInput->trigger();
     mInput->read(frame);
 
-    if(mEngine->isInterruptionRequested() == false && frame.isValid())
+    if( mExitPredicate() == false && frame.isValid())
     {
         message = std::allocate_shared<VideoMessage>( tbb::scalable_allocator<VideoMessage>() );
         message->header.available = true;
@@ -162,14 +162,16 @@ EngineGraph::OdometryMessagePtr EngineGraph::OdometryBody::operator()(const Engi
     return odometry;
 }
 
-EngineGraph::CirclesTracerBody::CirclesTracerBody()
+EngineGraph::TracesBody::TracesBody()
 {
-    mOutputFileName = "circles_trajectories.png";
+    //mOutputFileName = "circles_trajectories.png";
 }
 
-tbb::flow::continue_msg EngineGraph::CirclesTracerBody::operator()(const EngineGraph::CirclesMessagePtr circles)
+EngineGraph::TracesMessagePtr EngineGraph::TracesBody::operator()(const EngineGraph::CirclesMessagePtr circles)
 {
     std::uniform_int_distribution<uint8_t> color_distrib(64,192);
+
+    TracesMessagePtr ret;
 
     if(circles && circles->header.available)
     {
@@ -224,11 +226,20 @@ tbb::flow::continue_msg EngineGraph::CirclesTracerBody::operator()(const EngineG
                 }
             }
 
-            cv::imwrite(mOutputFileName, output);
+            //cv::imwrite(mOutputFileName, output);
+            ret.reset(new TracesMessage());
+            ret->header.frame_id = circles->header.frame_id;
+            ret->header.available = true;
+            ret->image = output;
         }
     }
 
-    return tbb::flow::continue_msg();
+    if(ret)
+    {
+        std::cout << "TracesBody " << ret->header.frame_id << std::endl;
+    }
+
+    return ret;
 }
 
 EngineGraph::TerminalBody::TerminalBody(EngineListener* listener)
@@ -236,8 +247,43 @@ EngineGraph::TerminalBody::TerminalBody(EngineListener* listener)
     myListener = listener;
 }
 
-tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph::VideoEdgeCirclesOdometryTuple& data)
+tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph::VideoEdgeCirclesOdometryTracesTuple& data)
 {
-    // TODO
+    VideoMessagePtr video = tbb::flow::get<0>(data);
+    EdgeMessagePtr edges = tbb::flow::get<1>(data);
+    CirclesMessagePtr circles = tbb::flow::get<2>(data);
+    OdometryMessagePtr odometry = tbb::flow::get<3>(data);
+    TracesMessagePtr traces = tbb::flow::get<4>(data);
+
+    const bool input_ok =
+        bool(video) &&
+        bool(edges) &&
+        bool(circles) &&
+        bool(odometry) &&
+        bool(traces) &&
+        video->header.frame_id == edges->header.frame_id &&
+        video->header.frame_id == circles->header.frame_id &&
+        video->header.frame_id == odometry->header.frame_id &&
+        video->header.frame_id == traces->header.frame_id;
+
+    if(input_ok == false)
+    {
+        std::cerr << "Internal error!" << std::endl;
+        exit(1);
+    }
+
+    const bool available =
+        video->header.available &&
+        edges->header.available &&
+        circles->header.available &&
+        odometry->header.available &&
+        traces->header.available;
+
+    if(available)
+    {
+        (*myListener)(video->header.frame_id, 0.0);
+    }
+
     return tbb::flow::continue_msg();
 }
+

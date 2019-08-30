@@ -5,8 +5,6 @@
 #include "EngineListener.h"
 #include "EngineConfig.h"
 
-class EngineContext;
-
 class Engine : public QThread
 {
 public:

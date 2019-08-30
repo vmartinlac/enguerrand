@@ -13,14 +13,10 @@
 #include "TrackedCircle.h"
 #include "OdometryCode.h"
 #include "EngineConfig.h"
+#include "EngineListener.h"
 
-class Engine;
-class EngineListener;
-
-class EngineGraph
+namespace EngineGraph
 {
-public:
-
     struct MessageHeader
     {
         MessageHeader()
@@ -74,18 +70,25 @@ public:
     using OdometryMessagePtr = std::shared_ptr<OdometryMessage>;
 
 
+    struct TracesMessage
+    {
+        MessageHeader header;
+        cv::Mat3b image;
+    };
+
+    using TracesMessagePtr = std::shared_ptr<TracesMessage>;
+
+
     using VideoEdgeTuple = tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr>;
 
-    using VideoEdgeCirclesTuple = tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr, CirclesMessagePtr>;
-
-    using VideoEdgeCirclesOdometryTuple = tbb::flow::tuple<VideoMessagePtr, EdgeMessagePtr, CirclesMessagePtr, OdometryMessagePtr>;
+    using VideoEdgeCirclesOdometryTracesTuple = tbb::flow::tuple<VideoMessagePtr, EdgeMessagePtr, CirclesMessagePtr, OdometryMessagePtr, TracesMessagePtr>;
 
 
     class VideoBody
     {
     public:
 
-        VideoBody(Engine* engine, VideoSourcePtr input);
+        VideoBody(std::function<bool()> exit_predicate, VideoSourcePtr input);
 
         bool operator()(VideoMessagePtr& message);
 
@@ -93,7 +96,7 @@ public:
 
         size_t mNextFrameId;
         VideoSourcePtr mInput;
-        Engine* mEngine;
+        std::function<bool()> mExitPredicate;
     };
 
     class EdgeBody
@@ -135,13 +138,13 @@ public:
         OdometryCodePtr mOdometryCode;
     };
 
-    class CirclesTracerBody
+    class TracesBody
     {
     public:
 
-        CirclesTracerBody();
+        TracesBody();
 
-        tbb::flow::continue_msg operator()(const CirclesMessagePtr circles);
+        TracesMessagePtr operator()(const CirclesMessagePtr circles);
 
     protected:
 
@@ -151,7 +154,7 @@ public:
             cv::Vec3b color;
         };
 
-        std::string mOutputFileName;
+        //std::string mOutputFileName;
         std::vector<Track> mTracks;
         std::default_random_engine mEngine;
     };
@@ -162,7 +165,7 @@ public:
 
         TerminalBody(EngineListener* listener);
 
-        tbb::flow::continue_msg operator()(const VideoEdgeCirclesOdometryTuple& items);
+        tbb::flow::continue_msg operator()(const VideoEdgeCirclesOdometryTracesTuple& items);
 
     protected:
 
@@ -179,25 +182,12 @@ public:
 
     using CircleNode = tbb::flow::function_node<VideoEdgeTuple, CirclesMessagePtr>;
 
-    using VideoEdgeCirclesJoinNode = tbb::flow::join_node<VideoEdgeCirclesTuple>;
-
     using OdometryNode = tbb::flow::function_node<CirclesMessagePtr,OdometryMessagePtr>;
 
-    using CircleTracerNode = tbb::flow::function_node<CirclesMessagePtr>;
+    using TracesNode = tbb::flow::function_node<CirclesMessagePtr,TracesMessagePtr>;
 
-    using VideoEdgeCirclesOdometryJoinNode = tbb::flow::join_node<VideoEdgeCirclesOdometryTuple>;
+    using VideoEdgeCirclesOdometryTracesJoinNode = tbb::flow::join_node<VideoEdgeCirclesOdometryTracesTuple>;
 
-    using TerminalNode = tbb::flow::function_node<VideoEdgeCirclesOdometryTuple,tbb::flow::continue_msg>;
-
-public:
-
-    Engine* engine;
-    EngineConfigPtr config;
-    EngineListener* engine_listener;
-    /*
-    tbb::flow::graph* graph;
-    VideoNode* video_node;
-    VideoLimiterNode* video_limiter_node;
-    */
+    using TerminalNode = tbb::flow::function_node<VideoEdgeCirclesOdometryTracesTuple,tbb::flow::continue_msg>;
 };
 
