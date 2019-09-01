@@ -13,7 +13,6 @@
 #include "TrackedCircle.h"
 #include "OdometryCode.h"
 #include "EngineConfig.h"
-#include "EngineListener.h"
 
 namespace EngineGraph
 {
@@ -84,11 +83,15 @@ namespace EngineGraph
     using VideoEdgeCirclesOdometryTracesTuple = tbb::flow::tuple<VideoMessagePtr, EdgeMessagePtr, CirclesMessagePtr, OdometryMessagePtr, TracesMessagePtr>;
 
 
+    using ExitCheckerFunction = std::function<bool()>;
+
+    using FrameListenerFunction = std::function<void()>;
+
     class VideoBody
     {
     public:
 
-        VideoBody(std::function<bool()> exit_predicate, VideoSourcePtr input);
+        VideoBody(ExitCheckerFunction exit_predicate, VideoSourcePtr input);
 
         bool operator()(VideoMessagePtr& message);
 
@@ -96,7 +99,7 @@ namespace EngineGraph
 
         size_t mNextFrameId;
         VideoSourcePtr mInput;
-        std::function<bool()> mExitPredicate;
+        ExitCheckerFunction mExitPredicate;
     };
 
     class EdgeBody
@@ -163,13 +166,13 @@ namespace EngineGraph
     {
     public:
 
-        TerminalBody(EngineListener* listener);
+        TerminalBody(FrameListenerFunction listener);
 
         tbb::flow::continue_msg operator()(const VideoEdgeCirclesOdometryTracesTuple& items);
 
     protected:
 
-        EngineListener* myListener;
+        FrameListenerFunction myListener;
     };
 
     using VideoNode = tbb::flow::source_node<VideoMessagePtr>;

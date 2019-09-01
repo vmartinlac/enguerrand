@@ -4,7 +4,6 @@
 #include <QAction>
 #include <QMainWindow>
 #include "ViewerWidget.h"
-#include "DefaultEngineListener.h"
 #include "VideoWidget.h"
 #include "Engine.h"
 
@@ -32,7 +31,6 @@ protected:
     ViewerWidget* myViewer;
     VideoWidget* myVideo;
     Engine* myEngine;
-    std::unique_ptr<DefaultEngineListener> myListener;
     QAction* myActionStart;
     QAction* myActionStop;
 };

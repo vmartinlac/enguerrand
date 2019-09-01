@@ -2,18 +2,21 @@
 #pragma once
 
 #include <QThread>
-#include "EngineListener.h"
 #include "EngineConfig.h"
 
 class Engine : public QThread
 {
+    Q_OBJECT
+
 public:
 
     Engine(QObject* parent=nullptr);
 
-    void setListener(EngineListener* listener);
-
     void setConfig(EngineConfigPtr config);
+
+signals:
+
+    void newFrame();
 
 private:
 
@@ -21,7 +24,6 @@ private:
 
 private:
 
-    EngineListener* myListener;
     EngineConfigPtr myConfig;
 };
 

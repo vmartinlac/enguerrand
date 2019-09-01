@@ -7,14 +7,14 @@
 #include <QSplitter>
 #include "MainWindow.h"
 #include "ViewerWidget.h"
+#include "ConfigDialog.h"
 
 MainWindow::MainWindow(EngineConfigPtr config, QWidget* parent) : QMainWindow(parent)
 {
-    myListener.reset(new DefaultEngineListener(this));
-
     myEngine = new Engine(this);
-    myEngine->setConfig(config);
-    myEngine->setListener(myListener.get());
+
+    connect(myEngine, SIGNAL(newFrame()), this, SLOT(handleFrame()), Qt::QueuedConnection);
+    //connect(myEngine, SIGNAL(newFrame()), this, SLOT(handleFrame()), Qt::QueuedBlockingConnection);
 
     QToolBar* tb = addToolBar("Tools");
     QAction* action_quit = tb->addAction("Quit");
@@ -86,9 +86,15 @@ void MainWindow::about()
 
 void MainWindow::startEngine()
 {
-    myActionStart->setEnabled(false);
-    myActionStop->setEnabled(false);
-    myEngine->start();
+    EngineConfigPtr config = ConfigDialog::askConfig(this);
+
+    if(config)
+    {
+        myEngine->setConfig(config);
+        myActionStart->setEnabled(false);
+        myActionStop->setEnabled(false);
+        myEngine->start();
+    }
 }
 
 void MainWindow::stopEngine()

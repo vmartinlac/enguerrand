@@ -2,16 +2,9 @@
 #include <iostream>
 #include "Engine.h"
 #include "EngineGraph.h"
-#include "EngineListener.h"
 
 Engine::Engine(QObject* parent) : QThread(parent)
 {
-    myListener = nullptr;
-}
-
-void Engine::setListener(EngineListener* listener)
-{
-    myListener = listener;
 }
 
 void Engine::setConfig(EngineConfigPtr config)
@@ -21,9 +14,14 @@ void Engine::setConfig(EngineConfigPtr config)
 
 void Engine::run()
 {
-    auto exit_pred = [this] ()
+    auto exit_pred = [this] () -> bool
     {
         return isInterruptionRequested();
+    };
+
+    auto terminal_pred = [this] ()
+    {
+        newFrame();
     };
 
     if( myConfig->video_input->open() )
@@ -46,7 +44,7 @@ void Engine::run()
 
         EngineGraph::VideoEdgeCirclesOdometryTracesJoinNode video_edge_circles_odometry_traces_join(g);
 
-        EngineGraph::TerminalNode terminal_node(g, 1, EngineGraph::TerminalBody(myListener));
+        EngineGraph::TerminalNode terminal_node(g, 1, EngineGraph::TerminalBody(terminal_pred));
 
         make_edge(video_node, limiter_node);
 

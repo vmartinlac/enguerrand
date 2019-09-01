@@ -6,7 +6,7 @@
 #include "EngineGraph.h"
 #include "Engine.h"
 
-EngineGraph::VideoBody::VideoBody(std::function<bool()> exit_predicate, VideoSourcePtr input)
+EngineGraph::VideoBody::VideoBody(ExitCheckerFunction exit_predicate, VideoSourcePtr input)
 {
     mExitPredicate = std::move(exit_predicate);
     mInput = input;
@@ -242,9 +242,9 @@ EngineGraph::TracesMessagePtr EngineGraph::TracesBody::operator()(const EngineGr
     return ret;
 }
 
-EngineGraph::TerminalBody::TerminalBody(EngineListener* listener)
+EngineGraph::TerminalBody::TerminalBody(FrameListenerFunction fn)
 {
-    myListener = listener;
+    myListener = std::move(fn);
 }
 
 tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph::VideoEdgeCirclesOdometryTracesTuple& data)
@@ -281,7 +281,7 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
 
     if(available)
     {
-        (*myListener)(video->header.frame_id, 0.0);
+        myListener();
     }
 
     return tbb::flow::continue_msg();

@@ -1,3 +1,4 @@
+
 cmake_minimum_required(VERSION 3.1)
 
 project(enguerrand)
@@ -22,7 +23,9 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-#list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+include("${CMAKE_SOURCE_DIR}/thirdparty/tbb/cmake/TBBBuild.cmake")
+tbb_build(TBB_ROOT "${CMAKE_SOURCE_DIR}/thirdparty/tbb" CONFIG_DIR TBB_DIR)
+find_package(TBB REQUIRED)
 
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
@@ -32,7 +35,6 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(OpenCV REQUIRED)
 find_package(Qt5 COMPONENTS OpenGL Sql Core Widgets Gui Network Test REQUIRED)
 find_package(Sophus REQUIRED)
-find_package(TBB REQUIRED)
 
 pkg_check_modules(OSG REQUIRED IMPORTED_TARGET openscenegraph)
 #pkg_check_modules(LIBUSB REQUIRED IMPORTED_TARGET libusb-1.0)

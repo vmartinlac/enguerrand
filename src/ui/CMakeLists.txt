@@ -10,8 +10,9 @@ add_library(
     ViewerWidgetBase.h
     ViewerWidget.cpp
     ViewerWidget.h
-    DefaultEngineListener.cpp
-    DefaultEngineListener.h
+    ConfigDialog.h
+    ConfigDialog.cpp
+    ConfigDialog.ui
 )
 
 target_link_libraries(
