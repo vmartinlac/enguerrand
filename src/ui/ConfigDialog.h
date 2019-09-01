@@ -16,8 +16,19 @@ public:
 
     static EngineConfigPtr askConfig(QWidget* parent=nullptr);
 
+protected slots:
+
+    void selectVideoInput(int);
+    void editCalibrations();
+    void selectPath();
+
+protected:
+
+    using OdometryCodeFactory = std::function<OdometryCodePtr(CalibrationDataPtr)>;
+
 protected:
 
     Ui::ConfigDialog myUI;
+    std::vector<OdometryCodeFactory> myOdometryCodeFactories;
 };
 
