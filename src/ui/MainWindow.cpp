@@ -9,7 +9,7 @@
 #include "ViewerWidget.h"
 #include "ConfigDialog.h"
 
-MainWindow::MainWindow(EngineConfigPtr config, QWidget* parent) : QMainWindow(parent)
+MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     myEngine = new Engine(this);
 
