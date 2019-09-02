@@ -7,7 +7,7 @@
 
 EngineConfig::EngineConfig()
 {
-    debug = false;
+    //debug = false;
 }
 
 bool EngineConfig::loadFromFile(const std::string& path)
@@ -98,10 +98,12 @@ bool EngineConfig::loadFromFile(const std::string& path)
 
     // set debug.
 
+    /*
     if(ret)
     {
         debug = root["debug"].toBool(false);
     }
+    */
 
     // if fail, reset.
 

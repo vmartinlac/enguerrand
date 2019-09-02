@@ -1,4 +1,6 @@
 #include <QFileDialog>
+#include <QMessageBox>
+#include <QStandardPaths>
 #include <QButtonGroup>
 #include "BAOdometry.h"
 #include "EKFOdometry.h"
@@ -8,11 +10,11 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
 {
     myUI.setupUi(this);
 
-    myOdometryCodeFactories.emplace_back( [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new BAOdometry(calib)); } );
-    myUI.visual_odometry_code->addItem("Bundle adjustment");
+    myOdometryCodeFactories[0] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new BAOdometry(calib)); };
+    myUI.visual_odometry_code->addItem("Bundle adjustment", 0);
 
-    myOdometryCodeFactories.emplace_back( [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new EKFOdometry(calib)); } );
-    myUI.visual_odometry_code->addItem("Extended Kalman Filter");
+    myOdometryCodeFactories[1] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new EKFOdometry(calib)); };
+    myUI.visual_odometry_code->addItem("Extended Kalman Filter", 1);
 
     QButtonGroup* video_group = new QButtonGroup(this);
     video_group->addButton(myUI.video_file, 0);
@@ -62,6 +64,61 @@ void ConfigDialog::selectPath()
     }
 }
 
+void ConfigDialog::accept()
+{
+    EngineConfigPtr ret = std::make_shared<EngineConfig>();
+
+    bool ok = true;
+    const char* err = "";
+
+    if(ok)
+    {
+        ret->balls_histogram.reset(new Histogram());
+
+        const QString path = QStandardPaths::locate(QStandardPaths::DataLocation, "balls_histogram.bin");
+
+        ok = (path.isEmpty() == false) && ret->balls_histogram->load(path.toStdString());
+        err = "Could not load balls histogram! Please check installation!";
+    }
+
+    if(ok)
+    {
+        ret->calibration.reset(new CalibrationData());
+        // TODO: set calibration.
+        ok = false;
+        err = "Incorrect calibration data!";
+    }
+
+    if(ok)
+    {
+        const int item = myUI.visual_odometry_code->currentData().toInt();
+        auto it = myOdometryCodeFactories.find(item);
+        if( it != myOdometryCodeFactories.end() )
+        {
+            ret->odometry_code = it->second(ret->calibration);
+        }
+        err = "Incorrect odometry code!";
+        ok = false;
+    }
+
+    if(ok)
+    {
+        // TODO: set video input.
+        ok = false;
+        err = "Incorrect video input!";
+    }
+
+    if(ok)
+    {
+        myConfig = ret;
+        QDialog::accept();
+    }
+    else
+    {
+        QMessageBox::critical(this, "Error", err);
+    }
+}
+
 EngineConfigPtr ConfigDialog::askConfig(QWidget* parent)
 {
     EngineConfigPtr ret;
@@ -70,11 +127,7 @@ EngineConfigPtr ConfigDialog::askConfig(QWidget* parent)
 
     if(dlg->exec() == QDialog::Accepted)
     {
-        ret = std::make_shared<EngineConfig>();
-
-        // TODO
-        if( ret->loadFromFile("/home/victor/developpement/enguerrand/enguerrand/config/config_faber.json") == false ) ret.reset();
-        //
+        ret = dlg->myConfig;
     }
 
     delete dlg;

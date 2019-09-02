@@ -12,7 +12,7 @@ public:
 
     EngineConfig();
 
-    bool debug;
+    //bool debug;
     HistogramPtr balls_histogram;
     VideoSourcePtr video_input;
     OdometryCodePtr odometry_code;

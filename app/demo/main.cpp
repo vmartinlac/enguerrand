@@ -6,6 +6,7 @@
 int main(int num_args, char** args)
 {
     QApplication app(num_args, args);
+    app.setApplicationName("enguerrand");
 
     MainWindow* win = new MainWindow();
 

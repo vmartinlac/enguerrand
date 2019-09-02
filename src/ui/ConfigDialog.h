@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QDialog>
+#include <map>
 #include "EngineConfig.h"
 #include "ui_ConfigDialog.h"
 
@@ -21,6 +22,7 @@ protected slots:
     void selectVideoInput(int);
     void editCalibrations();
     void selectPath();
+    void accept() override;
 
 protected:
 
@@ -29,6 +31,7 @@ protected:
 protected:
 
     Ui::ConfigDialog myUI;
-    std::vector<OdometryCodeFactory> myOdometryCodeFactories;
+    std::map<int,OdometryCodeFactory> myOdometryCodeFactories;
+    EngineConfigPtr myConfig;
 };
 
