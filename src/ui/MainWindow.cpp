@@ -118,6 +118,6 @@ void MainWindow::engineStopped()
 
 void MainWindow::handleFrame(EngineOutputPtr frame)
 {
-    std::cout << "Hello" << std::endl;
+    std::cout << "HANDLE " << frame->frame_id << std::endl;
 }
 

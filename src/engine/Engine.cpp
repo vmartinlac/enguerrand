@@ -19,10 +19,9 @@ void Engine::run()
         return isInterruptionRequested();
     };
 
-    auto terminal_pred = [this] ()
+    auto terminal_pred = [this] (EngineOutputPtr output)
     {
-        EngineOutputPtr tmp;
-        newFrame(tmp);
+        newFrame(std::move(output));
     };
 
     if( myConfig->video_input->open() )

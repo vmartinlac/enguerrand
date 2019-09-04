@@ -21,12 +21,13 @@ bool EngineGraph::VideoBody::operator()(EngineGraph::VideoMessagePtr& message)
     mInput->trigger();
     mInput->read(frame);
 
-    if( mExitPredicate() == false && frame.isValid())
+    if( mExitPredicate() == false && frame.isValid() )
     {
         message = std::allocate_shared<VideoMessage>( tbb::scalable_allocator<VideoMessage>() );
         message->header.available = true;
         message->header.frame_id = mNextFrameId++;
         message->frame = std::move(frame);
+        message->received_time = ClockType::now();
         ret = true;
         /*
         cv::imshow("rien", message->frame.getView(0));
@@ -281,7 +282,14 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
 
     if(available)
     {
-        myListener();
+        EngineOutputPtr output = EngineOutputPtr::create(
+            video->header.frame_id,
+            video->frame.getTimestamp(),
+            video->frame.getView() );
+
+        output->frame_runtime = std::chrono::duration_cast<std::chrono::microseconds>(ClockType::now() - video->received_time);
+
+        myListener(std::move(output));
     }
 
     return tbb::flow::continue_msg();

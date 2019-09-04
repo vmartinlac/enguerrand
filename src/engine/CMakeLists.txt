@@ -46,6 +46,7 @@ target_link_libraries(
     opencv_highgui
     opencv_calib3d
     Qt5::Core
+    Qt5::Gui
     Threads::Threads
     Eigen3::Eigen
     Sophus::Sophus

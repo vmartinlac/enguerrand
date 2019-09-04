@@ -13,9 +13,12 @@
 #include "TrackedCircle.h"
 #include "OdometryCode.h"
 #include "EngineConfig.h"
+#include "EngineOutput.h"
 
 namespace EngineGraph
 {
+    using ClockType = std::chrono::high_resolution_clock;
+
     struct MessageHeader
     {
         MessageHeader()
@@ -33,6 +36,7 @@ namespace EngineGraph
     {
         MessageHeader header;
         VideoFrame frame;
+        ClockType::time_point received_time;
     };
 
     using VideoMessagePtr = std::shared_ptr<VideoMessage>;
@@ -85,7 +89,7 @@ namespace EngineGraph
 
     using ExitCheckerFunction = std::function<bool()>;
 
-    using FrameListenerFunction = std::function<void()>;
+    using FrameListenerFunction = std::function<void(EngineOutputPtr)>;
 
     class VideoBody
     {
@@ -157,7 +161,6 @@ namespace EngineGraph
             cv::Vec3b color;
         };
 
-        //std::string mOutputFileName;
         std::vector<Track> mTracks;
         std::default_random_engine mEngine;
     };

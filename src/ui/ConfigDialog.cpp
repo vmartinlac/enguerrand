@@ -5,6 +5,7 @@
 #include "BAOdometry.h"
 #include "EKFOdometry.h"
 #include "ConfigDialog.h"
+#include "FileVideoSource.h"
 
 ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
 {
@@ -83,6 +84,25 @@ void ConfigDialog::accept()
 
     if(ok)
     {
+        if(myUI.video_file->isChecked())
+        {
+            FileVideoSourcePtr video = std::make_shared<FileVideoSource>();
+            video->setFileName( myUI.video_file_path->text().toStdString() );
+
+            ret->video_input = video;
+        }
+        else if(myUI.video_realsense->isChecked())
+        {
+        }
+        else
+        {
+            ok = false;
+            err = "Incorrect video input!";
+        }
+    }
+
+    if(ok)
+    {
         ret->calibration.reset(new CalibrationData());
         // TODO: set calibration.
         ok = false;
@@ -99,13 +119,6 @@ void ConfigDialog::accept()
         }
         err = "Incorrect odometry code!";
         ok = false;
-    }
-
-    if(ok)
-    {
-        // TODO: set video input.
-        ok = false;
-        err = "Incorrect video input!";
     }
 
     if(ok)
