@@ -21,7 +21,8 @@ void Engine::run()
 
     auto terminal_pred = [this] ()
     {
-        newFrame();
+        EngineOutputPtr tmp;
+        newFrame(tmp);
     };
 
     if( myConfig->video_input->open() )

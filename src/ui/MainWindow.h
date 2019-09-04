@@ -24,7 +24,7 @@ protected slots:
     void engineStarted();
     void engineStopped();
     void about();
-    void handleFrame();
+    void handleFrame(EngineOutputPtr frame);
 
 protected:
 

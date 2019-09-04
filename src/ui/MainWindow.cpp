@@ -13,7 +13,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     myEngine = new Engine(this);
 
-    connect(myEngine, SIGNAL(newFrame()), this, SLOT(handleFrame()), Qt::QueuedConnection);
+    connect(myEngine, SIGNAL(newFrame(EngineOutputPtr)), this, SLOT(handleFrame(EngineOutputPtr)), Qt::QueuedConnection);
     //connect(myEngine, SIGNAL(newFrame()), this, SLOT(handleFrame()), Qt::QueuedBlockingConnection);
 
     QToolBar* tb = addToolBar("Tools");
@@ -116,7 +116,7 @@ void MainWindow::engineStopped()
     myActionStop->setEnabled(false);
 }
 
-void MainWindow::handleFrame()
+void MainWindow::handleFrame(EngineOutputPtr frame)
 {
     std::cout << "Hello" << std::endl;
 }

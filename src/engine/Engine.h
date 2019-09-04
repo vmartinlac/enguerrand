@@ -3,6 +3,7 @@
 
 #include <QThread>
 #include "EngineConfig.h"
+#include "EngineOutput.h"
 
 class Engine : public QThread
 {
@@ -16,7 +17,7 @@ public:
 
 signals:
 
-    void newFrame();
+    void newFrame(EngineOutputPtr frame);
 
 private:
 
