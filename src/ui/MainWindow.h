@@ -6,6 +6,7 @@
 #include "ViewerWidget.h"
 #include "VideoWidget.h"
 #include "Engine.h"
+#include "CalibrationModel.h"
 
 class MainWindow : public QMainWindow
 {
@@ -33,5 +34,6 @@ protected:
     Engine* myEngine;
     QAction* myActionStart;
     QAction* myActionStop;
+    CalibrationModel* myCalibrationModel;
 };
 

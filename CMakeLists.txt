@@ -33,7 +33,7 @@ find_package(Ceres REQUIRED)
 find_package(realsense2 REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(OpenCV REQUIRED)
-find_package(Qt5 COMPONENTS OpenGL Sql Core Widgets Gui Network Test REQUIRED)
+find_package(Qt5 COMPONENTS OpenGL Sql Core Widgets Gui Test REQUIRED)
 find_package(Sophus REQUIRED)
 
 pkg_check_modules(OSG REQUIRED IMPORTED_TARGET openscenegraph)

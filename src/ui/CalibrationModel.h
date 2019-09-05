@@ -1,18 +1,13 @@
 
 #pragma once
 
-#include <QAbstractListModel>
+#include <QSqlTableModel>
 
-class CalibrationModel : public QAbstractListModel
+class CalibrationModel : public QSqlTableModel
 {
 public:
 
     CalibrationModel(QObject* parent=nullptr);
 
-    int rowCount(const QModelIndex &parent = QModelIndex()) const override;
-
-    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
-
-    QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
 };
 

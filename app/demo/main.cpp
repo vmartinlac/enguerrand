@@ -4,6 +4,7 @@
 */
 
 #include <iostream>
+#include <QSqlDatabase>
 #include <QApplication>
 #include "EngineOutput.h"
 #include "EngineConfig.h"
@@ -24,6 +25,11 @@ int main(int num_args, char** args)
     app.setApplicationName("enguerrand");
 
     qRegisterMetaType<EngineOutputPtr>();
+
+    //QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+
+    //mDB.setDatabaseName(db_path);
+    //ok = mDB.open();
 
     MainWindow* win = new MainWindow();
 

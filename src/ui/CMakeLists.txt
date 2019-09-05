@@ -15,12 +15,14 @@ add_library(
     ConfigDialog.ui
     CalibrationModel.h
     CalibrationModel.cpp
-    CalibrationDialog.ui
+    CalibrationDialog.h
+    CalibrationDialog.cpp
 )
 
 target_link_libraries(
     enguerrand_ui
     PUBLIC
+    Qt5::Sql
     Qt5::Widgets
     enguerrand_engine
     PkgConfig::OSG

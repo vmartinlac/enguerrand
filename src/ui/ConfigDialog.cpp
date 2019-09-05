@@ -7,10 +7,13 @@
 #include "ConfigDialog.h"
 #include "FileVideoSource.h"
 #include "CalibrationModel.h"
+#include "CalibrationDialog.h"
 
-ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
+ConfigDialog::ConfigDialog(CalibrationModel* model, QWidget* parent) : QDialog(parent)
 {
     myUI.setupUi(this);
+
+    myCalibrationModel = model;
 
     myOdometryCodeFactories[0] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new BAOdometry(calib)); };
     myUI.visual_odometry_code->addItem("Bundle adjustment", 0);
@@ -26,8 +29,8 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
     connect(myUI.video_file_select_path, SIGNAL(clicked()), this, SLOT(selectPath()));
     connect(myUI.video_file_edit_calibrations, SIGNAL(clicked()), this, SLOT(editCalibrations()));
 
-    CalibrationModel* model = new CalibrationModel(this);
-    myUI.video_file_calibration->setModel(model);
+    myUI.video_file_calibration->setModel(myCalibrationModel);
+    myUI.video_file_calibration->setModelColumn(0);
 }
 
 void ConfigDialog::selectVideoInput(int btn)
@@ -57,7 +60,9 @@ void ConfigDialog::selectVideoInput(int btn)
 
 void ConfigDialog::editCalibrations()
 {
-    std::cout << "TODO" << std::endl;
+    CalibrationDialog* dlg = new CalibrationDialog(myCalibrationModel);
+    dlg->exec();
+    delete dlg;
 }
 
 void ConfigDialog::selectPath()
@@ -136,11 +141,11 @@ void ConfigDialog::accept()
     }
 }
 
-EngineConfigPtr ConfigDialog::askConfig(QWidget* parent)
+EngineConfigPtr ConfigDialog::askConfig(CalibrationModel* model, QWidget* parent)
 {
     EngineConfigPtr ret;
 
-    ConfigDialog* dlg = new ConfigDialog(parent);
+    ConfigDialog* dlg = new ConfigDialog(model, parent);
 
     if(dlg->exec() == QDialog::Accepted)
     {

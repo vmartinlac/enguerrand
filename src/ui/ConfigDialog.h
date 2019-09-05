@@ -4,6 +4,7 @@
 #include <QDialog>
 #include <map>
 #include "EngineConfig.h"
+#include "CalibrationModel.h"
 #include "ui_ConfigDialog.h"
 
 class ConfigDialog : public QDialog
@@ -13,9 +14,9 @@ Q_OBJECT
 
 public:
 
-    ConfigDialog(QWidget* parent=nullptr);
+    ConfigDialog(CalibrationModel* calibration_model, QWidget* parent=nullptr);
 
-    static EngineConfigPtr askConfig(QWidget* parent=nullptr);
+    static EngineConfigPtr askConfig(CalibrationModel* model, QWidget* parent=nullptr);
 
 protected slots:
 
@@ -33,5 +34,6 @@ protected:
     Ui::ConfigDialog myUI;
     std::map<int,OdometryCodeFactory> myOdometryCodeFactories;
     EngineConfigPtr myConfig;
+    CalibrationModel* myCalibrationModel;
 };
 
