@@ -13,6 +13,9 @@ add_library(
     ConfigDialog.h
     ConfigDialog.cpp
     ConfigDialog.ui
+    CalibrationModel.h
+    CalibrationModel.cpp
+    CalibrationDialog.ui
 )
 
 target_link_libraries(

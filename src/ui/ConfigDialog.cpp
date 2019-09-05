@@ -6,6 +6,7 @@
 #include "EKFOdometry.h"
 #include "ConfigDialog.h"
 #include "FileVideoSource.h"
+#include "CalibrationModel.h"
 
 ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
 {
@@ -24,6 +25,9 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
     connect(video_group, SIGNAL(buttonClicked(int)), this, SLOT(selectVideoInput(int)));
     connect(myUI.video_file_select_path, SIGNAL(clicked()), this, SLOT(selectPath()));
     connect(myUI.video_file_edit_calibrations, SIGNAL(clicked()), this, SLOT(editCalibrations()));
+
+    CalibrationModel* model = new CalibrationModel(this);
+    myUI.video_file_calibration->setModel(model);
 }
 
 void ConfigDialog::selectVideoInput(int btn)
