@@ -2,7 +2,6 @@
 #include <QSettings>
 #include <QMessageBox>
 #include <QStandardPaths>
-#include <QButtonGroup>
 #include "BAOdometry.h"
 #include "EKFOdometry.h"
 #include "ConfigDialog.h"
@@ -18,13 +17,15 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
     myOdometryCodeFactories[1] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new EKFOdometry(calib)); };
     myUI.visual_odometry_code->addItem("Extended Kalman Filter", 1);
 
-    QButtonGroup* video_group = new QButtonGroup(this);
-    video_group->addButton(myUI.video_file, 0);
-    video_group->addButton(myUI.video_realsense, 1);
+    myVideoButtonGroup = new QButtonGroup(this);
+    myVideoButtonGroup->addButton(myUI.video_file, 0);
+    myVideoButtonGroup->addButton(myUI.video_realsense, 1);
 
-    connect(video_group, SIGNAL(buttonClicked(int)), this, SLOT(selectVideoInput(int)));
-    connect(myUI.video_file_select_path, SIGNAL(clicked()), this, SLOT(selectVideoPath()));
-    connect(myUI.video_file_edit_calibrations, SIGNAL(clicked()), this, SLOT(selectCalibrationPath()));
+    connect(myVideoButtonGroup, SIGNAL(buttonClicked(int)), this, SLOT(selectVideoInput(int)));
+    connect(myUI.video_file_select_video, SIGNAL(clicked()), this, SLOT(selectVideoPath()));
+    connect(myUI.video_file_select_calibration, SIGNAL(clicked()), this, SLOT(selectCalibrationPath()));
+
+    selectVideoInput(0);
 }
 
 void ConfigDialog::selectVideoInput(int btn)
@@ -32,17 +33,17 @@ void ConfigDialog::selectVideoInput(int btn)
     if(btn == 0)
     {
         myUI.video_file_path->setEnabled(true);
-        myUI.video_file_select_path->setEnabled(true);
+        myUI.video_file_select_video->setEnabled(true);
         myUI.video_file_calibration->setEnabled(true);
-        myUI.video_file_edit_calibrations->setEnabled(true);
+        myUI.video_file_select_calibration->setEnabled(true);
         myUI.video_realsense_camera->setEnabled(false);
     }
     else if(btn == 1)
     {
         myUI.video_file_path->setEnabled(false);
-        myUI.video_file_select_path->setEnabled(false);
+        myUI.video_file_select_video->setEnabled(false);
         myUI.video_file_calibration->setEnabled(false);
-        myUI.video_file_edit_calibrations->setEnabled(false);
+        myUI.video_file_select_calibration->setEnabled(false);
         myUI.video_realsense_camera->setEnabled(true);
     }
     else
@@ -55,16 +56,17 @@ void ConfigDialog::selectVideoInput(int btn)
 void ConfigDialog::selectCalibrationPath()
 {
     const QString ret = QFileDialog::getOpenFileName(this, "Select calibration file");
+
     if(ret.isEmpty() == false)
     {
-        //myUI.video_file_path->setText(ret);
-        // TODO
+        myUI.video_file_calibration->setText(ret);
     }
 }
 
 void ConfigDialog::selectVideoPath()
 {
     const QString ret = QFileDialog::getOpenFileName(this, "Select video file");
+
     if(ret.isEmpty() == false)
     {
         myUI.video_file_path->setText(ret);
@@ -92,13 +94,22 @@ void ConfigDialog::accept()
     {
         if(myUI.video_file->isChecked())
         {
-            FileVideoSourcePtr video = std::make_shared<FileVideoSource>();
-            video->setFileName( myUI.video_file_path->text().toStdString() );
+            const std::string filename = myUI.video_file_path->text().toStdString();
 
-            ret->video_input = video;
+            ok = ( filename.empty() == false );
+            err = "Please set path to video!";
+
+            if(ok)
+            {
+                FileVideoSourcePtr video = std::make_shared<FileVideoSource>();
+                video->setFileName(filename);
+                ret->video_input = video;
+            }
         }
         else if(myUI.video_realsense->isChecked())
         {
+            ok = false; // TODO
+            err = "Realsense not implemented yet!";
         }
         else
         {
@@ -109,26 +120,48 @@ void ConfigDialog::accept()
 
     if(ok)
     {
-        ret->calibration.reset(new CalibrationData());
-        // TODO: set calibration.
-        ok = false;
-        err = "Incorrect calibration data!";
+        const std::string path = myUI.video_file_calibration->text().toStdString();
+
+        ok = (path.empty() == false);
+        err = "Please set path to calibration data!";
+
+        if(ok)
+        {
+            ret->calibration.reset(new CalibrationData());
+            ok = ret->calibration->loadFromFile(path);
+            err = "Incorrect calibration data!";
+        }
     }
 
     if(ok)
     {
         const int item = myUI.visual_odometry_code->currentData().toInt();
         auto it = myOdometryCodeFactories.find(item);
-        if( it != myOdometryCodeFactories.end() )
+        if( it == myOdometryCodeFactories.end() )
+        {
+            err = "Incorrect odometry code!";
+            ok = false;
+        }
+        else
         {
             ret->odometry_code = it->second(ret->calibration);
         }
-        err = "Incorrect odometry code!";
-        ok = false;
     }
 
     if(ok)
     {
+        QSettings s;
+
+        s.beginGroup("ConfigDialog");
+        s.setValue("video_file_path", myUI.video_file_path->text());
+        s.setValue("video_file_calibration", myUI.video_file_calibration->text());
+        s.setValue("video_realsense_camera", myUI.video_realsense_camera->currentIndex());
+        s.setValue("visual_odometry_code", myUI.visual_odometry_code->currentIndex());
+        s.setValue("video", myVideoButtonGroup->checkedId());
+        s.endGroup();
+
+        s.sync();
+
         myConfig = ret;
         QDialog::accept();
     }
@@ -136,6 +169,22 @@ void ConfigDialog::accept()
     {
         QMessageBox::critical(this, "Error", err);
     }
+}
+
+int ConfigDialog::exec()
+{
+    QSettings s;
+
+    s.beginGroup("ConfigDialog");
+    myUI.video_file_path->setText(s.value("video_file_path", QString()).toString());
+    myUI.video_file_calibration->setText(s.value("video_file_calibration", QString()).toString());
+    myUI.video_realsense_camera->setCurrentIndex(s.value("video_realsense_camera", 0).toInt());
+    myUI.visual_odometry_code->setCurrentIndex(s.value("visual_odometry_code", 0).toInt());
+    QAbstractButton* btn = myVideoButtonGroup->button( s.value("video", 0).toInt() );
+    if(btn) btn->setChecked(true);
+    s.endGroup();
+
+    return QDialog::exec();
 }
 
 EngineConfigPtr ConfigDialog::askConfig(QWidget* parent)

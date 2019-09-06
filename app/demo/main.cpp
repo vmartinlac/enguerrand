@@ -4,8 +4,6 @@
 */
 
 #include <iostream>
-#include <QStandardPaths>
-#include <QSqlDatabase>
 #include <QApplication>
 #include "EngineOutput.h"
 #include "EngineConfig.h"
@@ -26,22 +24,6 @@ int main(int num_args, char** args)
     app.setApplicationName("enguerrand");
 
     qRegisterMetaType<EngineOutputPtr>();
-
-    const QString dbpath = QStandardPaths::locate(QStandardPaths::AppDataLocation, "config.sqlite");
-
-    if(dbpath.isEmpty())
-    {
-        std::cout << "Could not find config file!" << std::endl;
-        exit(1);
-    }
-
-    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
-    db.setDatabaseName(dbpath);
-    if( db.open() == false )
-    {
-        std::cout << "Could not open database!" << std::endl;
-        exit(0);
-    }
 
     MainWindow* win = new MainWindow();
 

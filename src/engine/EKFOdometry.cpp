@@ -325,7 +325,7 @@ EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
     mStates[0].reset(new State());
     mStates[1].reset(new State());
 
-    if(mCalibration->num_cameras == 0)
+    if(mCalibration->cameras.size() == 0)
     {
         std::cerr << "Empty calibration" << std::endl;
         exit(1);

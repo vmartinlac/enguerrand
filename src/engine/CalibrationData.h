@@ -3,10 +3,8 @@
 
 #include <opencv2/core.hpp>
 #include <sophus/se3.hpp>
-#include <array>
+#include <vector>
 #include <memory>
-
-#define CALIBRATIONDATA_MAX_CAMERAS 5
 
 class CameraCalibrationData
 {
@@ -27,8 +25,9 @@ public:
 
     CalibrationData();
 
-    size_t num_cameras;
-    std::array<CameraCalibrationData, CALIBRATIONDATA_MAX_CAMERAS> cameras;
+    bool loadFromFile(const std::string& file);
+
+    std::vector<CameraCalibrationData> cameras;
 };
 
 using CalibrationDataPtr = std::shared_ptr<CalibrationData>;

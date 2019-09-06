@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <QButtonGroup>
 #include <QDialog>
 #include <map>
 #include "EngineConfig.h"
@@ -23,6 +24,7 @@ protected slots:
     void selectVideoPath();
     void selectCalibrationPath();
     void accept() override;
+    int exec() override;
 
 protected:
 
@@ -33,5 +35,6 @@ protected:
     Ui::ConfigDialog myUI;
     std::map<int,OdometryCodeFactory> myOdometryCodeFactories;
     EngineConfigPtr myConfig;
+    QButtonGroup* myVideoButtonGroup;
 };
 

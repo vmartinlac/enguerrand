@@ -30,9 +30,9 @@
      </property>
      <layout class="QGridLayout" name="gridLayout">
       <item row="2" column="2">
-       <widget class="QPushButton" name="video_file_edit_calibrations">
+       <widget class="QPushButton" name="video_file_select_calibration">
         <property name="text">
-         <string>Edit...</string>
+         <string>Select...</string>
         </property>
        </widget>
       </item>
@@ -40,16 +40,6 @@
        <widget class="QLabel" name="cameraLabel">
         <property name="text">
          <string>Camera</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QComboBox" name="video_file_calibration">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
         </property>
        </widget>
       </item>
@@ -78,7 +68,7 @@
        </widget>
       </item>
       <item row="1" column="2">
-       <widget class="QPushButton" name="video_file_select_path">
+       <widget class="QPushButton" name="video_file_select_video">
         <property name="text">
          <string>Select...</string>
         </property>
@@ -90,7 +80,7 @@
       <item row="1" column="0">
        <widget class="QLabel" name="pathLabel">
         <property name="text">
-         <string>Path</string>
+         <string>Video</string>
         </property>
        </widget>
       </item>
@@ -103,6 +93,9 @@
          </sizepolicy>
         </property>
        </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="video_file_calibration"/>
       </item>
      </layout>
     </widget>

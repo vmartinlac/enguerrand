@@ -68,7 +68,7 @@ bool EngineConfig::loadFromFile(const std::string& path)
 
         calibration.reset(new CalibrationData());
 
-        calibration->num_cameras = 1;
+        calibration->cameras.resize(1);
 
         calibration->cameras[0].image_size.width = obj["image_width"].toDouble();
         calibration->cameras[0].image_size.height = obj["image_height"].toDouble();

@@ -38,7 +38,7 @@ void TestOdometry::initTestCase()
     */
 
     myCalibration.reset(new CalibrationData());
-    myCalibration->num_cameras = 1;
+    myCalibration->cameras.resize(1);
     myCalibration->cameras[0].image_size.width = 1920;
     myCalibration->cameras[0].image_size.height = 1080;
     myCalibration->cameras[0].calibration_matrix = { fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0 };
