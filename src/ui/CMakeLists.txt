@@ -13,10 +13,6 @@ add_library(
     ConfigDialog.h
     ConfigDialog.cpp
     ConfigDialog.ui
-    CalibrationModel.h
-    CalibrationModel.cpp
-    CalibrationDialog.h
-    CalibrationDialog.cpp
 )
 
 target_link_libraries(

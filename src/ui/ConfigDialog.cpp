@@ -1,4 +1,5 @@
 #include <QFileDialog>
+#include <QSettings>
 #include <QMessageBox>
 #include <QStandardPaths>
 #include <QButtonGroup>
@@ -6,14 +7,10 @@
 #include "EKFOdometry.h"
 #include "ConfigDialog.h"
 #include "FileVideoSource.h"
-#include "CalibrationModel.h"
-#include "CalibrationDialog.h"
 
-ConfigDialog::ConfigDialog(CalibrationModel* model, QWidget* parent) : QDialog(parent)
+ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
 {
     myUI.setupUi(this);
-
-    myCalibrationModel = model;
 
     myOdometryCodeFactories[0] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new BAOdometry(calib)); };
     myUI.visual_odometry_code->addItem("Bundle adjustment", 0);
@@ -26,11 +23,8 @@ ConfigDialog::ConfigDialog(CalibrationModel* model, QWidget* parent) : QDialog(p
     video_group->addButton(myUI.video_realsense, 1);
 
     connect(video_group, SIGNAL(buttonClicked(int)), this, SLOT(selectVideoInput(int)));
-    connect(myUI.video_file_select_path, SIGNAL(clicked()), this, SLOT(selectPath()));
-    connect(myUI.video_file_edit_calibrations, SIGNAL(clicked()), this, SLOT(editCalibrations()));
-
-    myUI.video_file_calibration->setModel(myCalibrationModel);
-    myUI.video_file_calibration->setModelColumn(0);
+    connect(myUI.video_file_select_path, SIGNAL(clicked()), this, SLOT(selectVideoPath()));
+    connect(myUI.video_file_edit_calibrations, SIGNAL(clicked()), this, SLOT(selectCalibrationPath()));
 }
 
 void ConfigDialog::selectVideoInput(int btn)
@@ -58,16 +52,19 @@ void ConfigDialog::selectVideoInput(int btn)
     }
 }
 
-void ConfigDialog::editCalibrations()
+void ConfigDialog::selectCalibrationPath()
 {
-    CalibrationDialog* dlg = new CalibrationDialog(myCalibrationModel);
-    dlg->exec();
-    delete dlg;
+    const QString ret = QFileDialog::getOpenFileName(this, "Select calibration file");
+    if(ret.isEmpty() == false)
+    {
+        //myUI.video_file_path->setText(ret);
+        // TODO
+    }
 }
 
-void ConfigDialog::selectPath()
+void ConfigDialog::selectVideoPath()
 {
-    QString ret = QFileDialog::getOpenFileName(this, "Select video file");
+    const QString ret = QFileDialog::getOpenFileName(this, "Select video file");
     if(ret.isEmpty() == false)
     {
         myUI.video_file_path->setText(ret);
@@ -141,11 +138,11 @@ void ConfigDialog::accept()
     }
 }
 
-EngineConfigPtr ConfigDialog::askConfig(CalibrationModel* model, QWidget* parent)
+EngineConfigPtr ConfigDialog::askConfig(QWidget* parent)
 {
     EngineConfigPtr ret;
 
-    ConfigDialog* dlg = new ConfigDialog(model, parent);
+    ConfigDialog* dlg = new ConfigDialog(parent);
 
     if(dlg->exec() == QDialog::Accepted)
     {

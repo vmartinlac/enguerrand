@@ -4,7 +4,6 @@
 #include <QDialog>
 #include <map>
 #include "EngineConfig.h"
-#include "CalibrationModel.h"
 #include "ui_ConfigDialog.h"
 
 class ConfigDialog : public QDialog
@@ -14,15 +13,15 @@ Q_OBJECT
 
 public:
 
-    ConfigDialog(CalibrationModel* calibration_model, QWidget* parent=nullptr);
+    ConfigDialog(QWidget* parent=nullptr);
 
-    static EngineConfigPtr askConfig(CalibrationModel* model, QWidget* parent=nullptr);
+    static EngineConfigPtr askConfig(QWidget* parent=nullptr);
 
 protected slots:
 
     void selectVideoInput(int);
-    void editCalibrations();
-    void selectPath();
+    void selectVideoPath();
+    void selectCalibrationPath();
     void accept() override;
 
 protected:
@@ -34,6 +33,5 @@ protected:
     Ui::ConfigDialog myUI;
     std::map<int,OdometryCodeFactory> myOdometryCodeFactories;
     EngineConfigPtr myConfig;
-    CalibrationModel* myCalibrationModel;
 };
 

@@ -13,18 +13,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     myEngine = new Engine(this);
 
-    myCalibrationModel = new CalibrationModel(this);
-    myCalibrationModel->setHeaderData(0, Qt::Horizontal, "Name");
-    myCalibrationModel->setHeaderData(1, Qt::Horizontal, "fx");
-    myCalibrationModel->setHeaderData(2, Qt::Horizontal, "fy");
-    myCalibrationModel->setHeaderData(3, Qt::Horizontal, "cx");
-    myCalibrationModel->setHeaderData(4, Qt::Horizontal, "cy");
-    myCalibrationModel->setHeaderData(5, Qt::Horizontal, "k1");
-    myCalibrationModel->setHeaderData(6, Qt::Horizontal, "k2");
-    myCalibrationModel->setHeaderData(7, Qt::Horizontal, "p1");
-    myCalibrationModel->setHeaderData(8, Qt::Horizontal, "p2");
-    myCalibrationModel->setHeaderData(9, Qt::Horizontal, "k3");
-
     connect(myEngine, SIGNAL(newFrame(EngineOutputPtr)), this, SLOT(handleFrame(EngineOutputPtr)), Qt::QueuedConnection);
     //connect(myEngine, SIGNAL(newFrame()), this, SLOT(handleFrame()), Qt::QueuedBlockingConnection);
 
@@ -98,7 +86,7 @@ void MainWindow::about()
 
 void MainWindow::startEngine()
 {
-    EngineConfigPtr config = ConfigDialog::askConfig(myCalibrationModel, this);
+    EngineConfigPtr config = ConfigDialog::askConfig(this);
 
     if(config)
     {
