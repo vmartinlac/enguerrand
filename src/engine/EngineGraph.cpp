@@ -282,11 +282,14 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
 
     if(available)
     {
-        EngineOutputPtr output = EngineOutputPtr::create(
-            video->header.frame_id,
-            video->frame.getTimestamp(),
-            video->frame.getView() );
+        EngineOutputPtr output = EngineOutputPtr::create();
 
+        //output->frame_id = video->header.frame_id;
+        //output->timestamp = video->frame.getTimestamp();
+        output->input_image = video->frame.getView();
+        output->edges_image = edges->edges;
+        output->traces_image = traces->image;
+        //output->detection_image = circles->
         output->frame_runtime = std::chrono::duration_cast<std::chrono::microseconds>(ClockType::now() - video->received_time);
 
         myListener(std::move(output));

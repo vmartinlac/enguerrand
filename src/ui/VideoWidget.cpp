@@ -4,10 +4,8 @@
 VideoWidget::VideoWidget(QWidget* parent) : QWidget(parent)
 {
     setMinimumSize(320, 200);
-
-    //
-    myImage.create(480, 640);
-    std::fill(myImage.begin(), myImage.end(), cv::Vec3b(0, 255, 0));
+    myDisplaySelection = DISPLAY_INPUT;
+    updateImage();
 }
 
 void VideoWidget::paintEvent(QPaintEvent* ev)
@@ -15,14 +13,9 @@ void VideoWidget::paintEvent(QPaintEvent* ev)
     QPainter painter(this);
     painter.fillRect(painter.viewport(), QColor(Qt::black));
 
-    if( myImage.data )
+    if( myImage.isNull() == false )
     {
-        QImage image(
-            myImage.data,
-            myImage.cols,
-            myImage.rows,
-            myImage.step,
-            QImage::Format_RGB888);
+        QImage& image = myImage;
 
         const int margin = 10;
 
@@ -49,5 +42,84 @@ void VideoWidget::paintEvent(QPaintEvent* ev)
             painter.drawImage(target, image, source);
         }
     }
+}
+
+void VideoWidget::handleFrame(EngineOutputPtr frame)
+{
+    myData = frame;
+    updateImage();
+}
+
+void VideoWidget::displayInputImage()
+{
+    myDisplaySelection = DISPLAY_INPUT;
+    updateImage();
+}
+
+void VideoWidget::displayEdgesImage()
+{
+    myDisplaySelection = DISPLAY_EDGES;
+    updateImage();
+}
+
+void VideoWidget::displayTraceImage()
+{
+    myDisplaySelection = DISPLAY_TRACE;
+    updateImage();
+}
+
+void VideoWidget::displayDetectionImage()
+{
+    myDisplaySelection = DISPLAY_DETECTION;
+    updateImage();
+}
+
+void VideoWidget::updateImage()
+{
+    myImage = QImage();
+
+    if( myData )
+    {
+        if( myDisplaySelection == DISPLAY_INPUT )
+        {
+            cv::Mat3b imagecv = myData->input_image;
+
+            myImage = QImage(
+                imagecv.data,
+                imagecv.cols,
+                imagecv.rows,
+                imagecv.step,
+                QImage::Format_RGB888).rgbSwapped();
+        }
+        else if( myDisplaySelection == DISPLAY_EDGES )
+        {
+            cv::Mat1b imagecv = myData->edges_image;
+
+            myImage = QImage(
+                imagecv.data,
+                imagecv.cols,
+                imagecv.rows,
+                imagecv.step,
+                QImage::Format_Grayscale8).copy();
+        }
+        else if( myDisplaySelection == DISPLAY_TRACE )
+        {
+            cv::Mat3b imagecv = myData->traces_image;
+
+            myImage = QImage(
+                imagecv.data,
+                imagecv.cols,
+                imagecv.rows,
+                imagecv.step,
+                QImage::Format_RGB888).rgbSwapped();
+        }
+        else
+        {
+            std::cerr << "Internal error" << std::endl;
+            exit(1);
+        }
+    }
+
+    update();
 }
 

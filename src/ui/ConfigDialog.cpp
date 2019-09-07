@@ -98,6 +98,7 @@ void ConfigDialog::accept()
 
         if(ok)
         {
+            ret->balls_histogram = std::make_shared<Histogram>();
             ok = ret->balls_histogram->load(path.toStdString());
             err = "Could not load histogram!";
         }

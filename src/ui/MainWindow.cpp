@@ -13,9 +13,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     myEngine = new Engine(this);
 
-    connect(myEngine, SIGNAL(newFrame(EngineOutputPtr)), this, SLOT(handleFrame(EngineOutputPtr)), Qt::QueuedConnection);
-    //connect(myEngine, SIGNAL(newFrame()), this, SLOT(handleFrame()), Qt::QueuedBlockingConnection);
-
     QToolBar* tb = addToolBar("Tools");
     QAction* action_quit = tb->addAction("Quit");
     QAction* action_about = tb->addAction("About");
@@ -23,10 +20,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     QAction* action_start = tb->addAction("Start");
     QAction* action_stop = tb->addAction("Stop");
     tb->addSeparator();
-    QAction* action_show_raw = tb->addAction("Raw");
+    QAction* action_show_raw = tb->addAction("Input");
     QAction* action_show_edges = tb->addAction("Edges");
     QAction* action_show_traces = tb->addAction("Traces");
-    QAction* action_show_circles = tb->addAction("Circles");
+    QAction* action_show_circles = tb->addAction("Detection");
     tb->addSeparator();
     QAction* action_home = tb->addAction("Home");
 
@@ -68,6 +65,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     connect(myEngine, SIGNAL(started()), this, SLOT(engineStarted()));
     connect(myEngine, SIGNAL(finished()), this, SLOT(engineStopped()));
     connect(action_home, SIGNAL(triggered()), myViewer, SLOT(home()));
+    connect(myEngine, SIGNAL(newFrame(EngineOutputPtr)), myVideo, SLOT(handleFrame(EngineOutputPtr)), Qt::QueuedConnection);
+    connect(myEngine, SIGNAL(newFrame(EngineOutputPtr)), myViewer, SLOT(handleFrame(EngineOutputPtr)), Qt::QueuedConnection);
+    connect(action_show_raw, SIGNAL(triggered()), myVideo, SLOT(displayInputImage()));
+    connect(action_show_edges, SIGNAL(triggered()), myVideo, SLOT(displayEdgesImage()));
+    connect(action_show_traces, SIGNAL(triggered()), myVideo, SLOT(displayTraceImage()));
+    connect(action_show_circles, SIGNAL(triggered()), myVideo, SLOT(displayDetectionImage()));
 }
 
 MainWindow::~MainWindow()
@@ -114,10 +117,5 @@ void MainWindow::engineStopped()
 {
     myActionStart->setEnabled(true);
     myActionStop->setEnabled(false);
-}
-
-void MainWindow::handleFrame(EngineOutputPtr frame)
-{
-    std::cout << "HANDLE " << frame->frame_id << std::endl;
 }
 

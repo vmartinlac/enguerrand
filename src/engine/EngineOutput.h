@@ -14,31 +14,28 @@ struct EngineOutputCircle
 
 struct EngineOutputLandmark
 {
-    cv::Vec3f position;
+    Eigen::Vector3d position;
+    Eigen::Matrix3d covariance;
+};
+
+struct EngineOutputKeyFrame
+{
+    size_t frame_id;
+    double timestamp;
+    Sophus::SE3d camera_to_world;
+    std::vector<EngineOutputCircle> circles;
+    Eigen::Matrix<double,6,6> covariance;
 };
 
 struct EngineOutput
 {
-    EngineOutput(
-        size_t frame_id_,
-        double timestamp_,
-        const cv::Mat3b& input_image_) :
-
-        frame_id(frame_id_),
-        timestamp(timestamp_),
-        input_image(input_image_)
-    {
-    }
-
     std::chrono::microseconds frame_runtime;
-    size_t frame_id;
-    double timestamp;
-    const cv::Mat3b input_image;
-    //const cv::Mat3b circles_image;
-    //const cv::Mat3b detection_image;
-    std::vector<EngineOutputCircle> circles;
+    cv::Mat3b input_image;
+    cv::Mat1b edges_image;
+    cv::Mat3b traces_image;
     std::vector<EngineOutputLandmark> landmarks;
-    Sophus::SE3d camera_to_world;
+    std::vector<EngineOutputKeyFrame> keyframes;
+    //Sophus::SE3d camera_to_world;
 };
 
 using EngineOutputPtr = QSharedPointer<EngineOutput>;

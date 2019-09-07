@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include "EngineOutput.h"
 #include "ViewerWidgetBase.h"
 
 class ViewerWidget : public ViewerWidgetBase
@@ -10,5 +11,9 @@ class ViewerWidget : public ViewerWidgetBase
 public:
 
     ViewerWidget(QWidget* parent=nullptr);
+
+public slots:
+
+    void handleFrame(EngineOutputPtr frame);
 };
 
