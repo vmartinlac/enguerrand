@@ -23,6 +23,7 @@ protected slots:
     void selectVideoInput(int);
     void selectVideoPath();
     void selectCalibrationPath();
+    void selectHistogram();
     void accept() override;
     int exec() override;
 

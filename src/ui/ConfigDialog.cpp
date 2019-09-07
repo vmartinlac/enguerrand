@@ -1,7 +1,6 @@
 #include <QFileDialog>
 #include <QSettings>
 #include <QMessageBox>
-#include <QStandardPaths>
 #include "BAOdometry.h"
 #include "EKFOdometry.h"
 #include "ConfigDialog.h"
@@ -24,6 +23,7 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
     connect(myVideoButtonGroup, SIGNAL(buttonClicked(int)), this, SLOT(selectVideoInput(int)));
     connect(myUI.video_file_select_video, SIGNAL(clicked()), this, SLOT(selectVideoPath()));
     connect(myUI.video_file_select_calibration, SIGNAL(clicked()), this, SLOT(selectCalibrationPath()));
+    connect(myUI.histogram_select, SIGNAL(clicked()), this, SLOT(selectHistogram()));
 
     selectVideoInput(0);
 }
@@ -50,6 +50,16 @@ void ConfigDialog::selectVideoInput(int btn)
     {
         std::cerr << "Internal error" << std::endl;
         exit(1);
+    }
+}
+
+void ConfigDialog::selectHistogram()
+{
+    const QString ret = QFileDialog::getOpenFileName(this, "Select histogram file");
+
+    if(ret.isEmpty() == false)
+    {
+        myUI.histogram_path->setText(ret);
     }
 }
 
@@ -82,12 +92,15 @@ void ConfigDialog::accept()
 
     if(ok)
     {
-        ret->balls_histogram.reset(new Histogram());
+        const QString path = myUI.histogram_path->text();
+        ok = ( path.isEmpty() == false );
+        err = "Please set histogram path!";
 
-        const QString path = QStandardPaths::locate(QStandardPaths::DataLocation, "balls_histogram.bin");
-
-        ok = (path.isEmpty() == false) && ret->balls_histogram->load(path.toStdString());
-        err = "Could not load balls histogram! Please check installation!";
+        if(ok)
+        {
+            ok = ret->balls_histogram->load(path.toStdString());
+            err = "Could not load histogram!";
+        }
     }
 
     if(ok)
@@ -156,8 +169,9 @@ void ConfigDialog::accept()
         s.setValue("video_file_path", myUI.video_file_path->text());
         s.setValue("video_file_calibration", myUI.video_file_calibration->text());
         s.setValue("video_realsense_camera", myUI.video_realsense_camera->currentIndex());
-        s.setValue("visual_odometry_code", myUI.visual_odometry_code->currentIndex());
         s.setValue("video", myVideoButtonGroup->checkedId());
+        s.setValue("visual_odometry_code", myUI.visual_odometry_code->currentIndex());
+        s.setValue("histogram_path", myUI.histogram_path->text());
         s.endGroup();
 
         s.sync();
@@ -182,6 +196,7 @@ int ConfigDialog::exec()
     myUI.visual_odometry_code->setCurrentIndex(s.value("visual_odometry_code", 0).toInt());
     QAbstractButton* btn = myVideoButtonGroup->button( s.value("video", 0).toInt() );
     if(btn) btn->setChecked(true);
+    myUI.histogram_path->setText( s.value("histogram_path", QString()).toString() );
     s.endGroup();
 
     return QDialog::exec();
