@@ -16,6 +16,8 @@ add_library(
     VideoSource.h
     ImageVideoSource.cpp
     ImageVideoSource.h
+    RealsenseInterface.cpp
+    RealsenseInterface.h
 )
 
 target_link_libraries(
@@ -23,8 +25,11 @@ target_link_libraries(
     PUBLIC
     opencv_core
     opencv_videoio
+    Qt5::Core
     realsense2::realsense2
 )
 
 target_include_directories(enguerrand_video INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_compile_definitions(enguerrand_video PUBLIC QT_NO_FOREACH)
 

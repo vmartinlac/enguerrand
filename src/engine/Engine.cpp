@@ -30,7 +30,7 @@ void Engine::run()
 
         EngineGraph::VideoNode video_node(g, EngineGraph::VideoBody(exit_pred, myConfig->video_input), false);
 
-        EngineGraph::VideoLimiterNode limiter_node(g, 2);
+        EngineGraph::VideoLimiterNode limiter_node(g, 1);
 
         EngineGraph::EdgeNode edge_node(g, 1, EngineGraph::EdgeBody());
 

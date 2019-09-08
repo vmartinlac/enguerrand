@@ -1,29 +1,19 @@
-/*
-#include <librealsense2/hpp/rs_device.hpp>
-#include <librealsense2/hpp/rs_context.hpp>
-*/
-
 #include <iostream>
 #include <QApplication>
 #include "EngineOutput.h"
+#include "RealsenseInterface.h"
 #include "EngineConfig.h"
 #include "MainWindow.h"
 
 int main(int num_args, char** args)
 {
-/*
-    rs2::context context;
-    rs2::device_list devices = context.query_devices();
-    for(auto item : devices)
-    {
-        std::cout << item.get_info(RS2_CAMERA_INFO_NAME) << std::endl;
-    }
-    return 0;
-*/
     QApplication app(num_args, args);
     app.setApplicationName("enguerrand");
 
     qRegisterMetaType<EngineOutputPtr>();
+
+    RealsenseInterface* realsense_interface = new RealsenseInterface();
+    realsense_interface->discover();
 
     MainWindow* win = new MainWindow();
 
@@ -32,6 +22,8 @@ int main(int num_args, char** args)
     app.exec();
 
     delete win;
+
+    delete realsense_interface;
 
     return 0;
 }
