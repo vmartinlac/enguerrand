@@ -11,14 +11,6 @@ void FileVideoSource::setFileName(const std::string& path)
     mPath = path;
 }
 
-void FileVideoSource::trigger()
-{
-    if(mCap.isOpened())
-    {
-        mCap.grab();
-    }
-}
-
 void FileVideoSource::read(VideoFrame& frame)
 {
     frame.setInvalid();

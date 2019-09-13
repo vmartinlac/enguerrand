@@ -3,7 +3,7 @@
 #include <opencv2/videoio.hpp>
 #include "VideoSource.h"
 
-class FileVideoSource : public VideoSource
+class FileVideoSource : public SynchronousVideoSource
 {
 public:
 
@@ -14,8 +14,6 @@ public:
     bool open() override;
 
     void close() override;
-
-    void trigger() override;
 
     void read(VideoFrame& frame) override;
 
