@@ -25,25 +25,10 @@ void Engine::run()
     };
 
     const VideoSource::SynchronicityType synchronicity = myConfig->video_input->getSynchronicity();
+    SynchronousVideoSourcePtr syncvideo = myConfig->video_input->asSynchronous();
+    AsynchronousVideoSourcePtr asyncvideo = myConfig->video_input->asAsynchronous();
 
-    SynchronousVideoSourcePtr syncvideo;
-    AsynchronousVideoSourcePtr asyncvideo;
-
-    if(synchronicity == VideoSource::SYNCHRONOUS)
-    {
-        syncvideo = myConfig->video_input->asSynchronous();
-    }
-    else if(synchronicity == VideoSource::ASYNCHRONOUS)
-    {
-        asyncvideo = myConfig->video_input->asAsynchronous();
-    }
-    else
-    {
-        std::cerr << "Internal error!" << std::endl;
-        exit(1);
-    }
-
-    if( synchronicity == VideoSource::ASYNCHRONOUS && syncvideo->open() )
+    if( synchronicity == VideoSource::ASYNCHRONOUS || syncvideo->open() )
     {
         tbb::flow::graph g;
 
@@ -86,9 +71,17 @@ void Engine::run()
 
         make_edge(terminal_node, limiter_node.decrement);
 
-        video_node.activate();
+        if(synchronicity == VideoSource::SYNCHRONOUS)
+        {
+            video_node.activate();
+        }
+
         g.wait_for_all();
-        syncvideo->close();
+
+        if(synchronicity == VideoSource::SYNCHRONOUS)
+        {
+            syncvideo->close();
+        }
     }
 }
 

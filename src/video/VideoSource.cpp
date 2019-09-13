@@ -15,7 +15,7 @@ SynchronousVideoSource::SynchronousVideoSource()
 
 AsynchronousVideoSourcePtr AsynchronousVideoSource::asAsynchronous()
 {
-    return AsynchronousVideoSourcePtr(this);
+    return std::static_pointer_cast<AsynchronousVideoSource>(shared_from_this());
 }
 
 SynchronousVideoSourcePtr AsynchronousVideoSource::asSynchronous()
@@ -39,7 +39,7 @@ AsynchronousVideoSourcePtr SynchronousVideoSource::asAsynchronous()
 
 SynchronousVideoSourcePtr SynchronousVideoSource::asSynchronous()
 {
-    return SynchronousVideoSourcePtr(this);
+    return std::static_pointer_cast<SynchronousVideoSource>(shared_from_this());
 }
 
 VideoSource::SynchronicityType SynchronousVideoSource::getSynchronicity()

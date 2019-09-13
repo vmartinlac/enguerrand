@@ -41,9 +41,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     myActionStart = action_start;
     myActionStop = action_stop;
 
-    //action_start->setShortcut(QKeySequence("Ctrl+R"));
+    action_start->setShortcut(QKeySequence("F5"));
+    action_stop->setShortcut(QKeySequence("F6"));
     action_about->setShortcut(QKeySequence("F1"));
-    action_quit->setShortcut(QKeySequence("Ctrl+Q"));
+    action_quit->setShortcut(QKeySequence("Esc"));
     action_stop->setEnabled(false);
 
     myVideo = new VideoWidget();

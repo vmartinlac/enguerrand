@@ -1,3 +1,4 @@
+#include <thread>
 #include <QFileDialog>
 #include <QSettings>
 #include <QMessageBox>
@@ -5,6 +6,7 @@
 #include "EKFOdometry.h"
 #include "ConfigDialog.h"
 #include "FileVideoSource.h"
+#include "RealsenseInterface.h"
 
 ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
 {
@@ -19,6 +21,8 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
     myVideoButtonGroup = new QButtonGroup(this);
     myVideoButtonGroup->addButton(myUI.video_file, 0);
     myVideoButtonGroup->addButton(myUI.video_realsense, 1);
+
+    myUI.video_realsense_camera->setModel(RealsenseInterface::instance());
 
     connect(myVideoButtonGroup, SIGNAL(buttonClicked(int)), this, SLOT(selectVideoInput(int)));
     connect(myUI.video_file_select_video, SIGNAL(clicked()), this, SLOT(selectVideoPath()));
@@ -122,8 +126,26 @@ void ConfigDialog::accept()
         }
         else if(myUI.video_realsense->isChecked())
         {
-            ok = false; // TODO
-            err = "Realsense not implemented yet!";
+            RealsenseInterface* intf = RealsenseInterface::instance();
+            RealsenseVideoSourcePtr video = intf->createVideoSource( intf->index( myUI.video_realsense_camera->currentIndex(), 0) );
+            ok = bool(video);
+            err = "Please select valid realsense camera!";
+
+            if(ok)
+            {
+                ret->video_input = video;
+
+                /*
+                auto proc = [] (VideoFrame&& vf)
+                {
+                    std::cerr << "Frame! " << vf.getTimestamp() << std::endl;
+                };
+                video->setCallback(proc);
+                video->start();
+                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                video->stop();
+                */
+            }
         }
         else
         {
@@ -195,8 +217,10 @@ int ConfigDialog::exec()
     myUI.video_file_calibration->setText(s.value("video_file_calibration", QString()).toString());
     myUI.video_realsense_camera->setCurrentIndex(s.value("video_realsense_camera", 0).toInt());
     myUI.visual_odometry_code->setCurrentIndex(s.value("visual_odometry_code", 0).toInt());
-    QAbstractButton* btn = myVideoButtonGroup->button( s.value("video", 0).toInt() );
-    if(btn) btn->setChecked(true);
+    const int btn = s.value("video", 0).toInt();
+    if(btn == 0 || btn == 1) selectVideoInput(btn);
+    QAbstractButton* btn2 = myVideoButtonGroup->button( s.value("video", 0).toInt() );
+    if(btn2) btn2->setChecked(true);
     myUI.histogram_path->setText( s.value("histogram_path", QString()).toString() );
     s.endGroup();
 
