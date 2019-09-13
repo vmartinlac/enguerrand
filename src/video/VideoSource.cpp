@@ -13,14 +13,14 @@ SynchronousVideoSource::SynchronousVideoSource()
 {
 }
 
-AsynchronousVideoSource* AsynchronousVideoSource::asAsynchronous()
+AsynchronousVideoSourcePtr AsynchronousVideoSource::asAsynchronous()
 {
-    return this;
+    return AsynchronousVideoSourcePtr(this);
 }
 
-SynchronousVideoSource* AsynchronousVideoSource::asSynchronous()
+SynchronousVideoSourcePtr AsynchronousVideoSource::asSynchronous()
 {
-    return nullptr;
+    return SynchronousVideoSourcePtr();
 }
 
 VideoSource::SynchronicityType AsynchronousVideoSource::getSynchronicity()
@@ -32,14 +32,14 @@ AsynchronousVideoSource::AsynchronousVideoSource()
 {
 }
 
-AsynchronousVideoSource* SynchronousVideoSource::asAsynchronous()
+AsynchronousVideoSourcePtr SynchronousVideoSource::asAsynchronous()
 {
-    return nullptr;
+    return AsynchronousVideoSourcePtr();
 }
 
-SynchronousVideoSource* SynchronousVideoSource::asSynchronous()
+SynchronousVideoSourcePtr SynchronousVideoSource::asSynchronous()
 {
-    return this;
+    return SynchronousVideoSourcePtr(this);
 }
 
 VideoSource::SynchronicityType SynchronousVideoSource::getSynchronicity()

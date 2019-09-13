@@ -24,11 +24,30 @@ void Engine::run()
         newFrame(std::move(output));
     };
 
-    if( myConfig->video_input->open() )
+    const VideoSource::SynchronicityType synchronicity = myConfig->video_input->getSynchronicity();
+
+    SynchronousVideoSourcePtr syncvideo;
+    AsynchronousVideoSourcePtr asyncvideo;
+
+    if(synchronicity == VideoSource::SYNCHRONOUS)
+    {
+        syncvideo = myConfig->video_input->asSynchronous();
+    }
+    else if(synchronicity == VideoSource::ASYNCHRONOUS)
+    {
+        asyncvideo = myConfig->video_input->asAsynchronous();
+    }
+    else
+    {
+        std::cerr << "Internal error!" << std::endl;
+        exit(1);
+    }
+
+    if( synchronicity == VideoSource::ASYNCHRONOUS && syncvideo->open() )
     {
         tbb::flow::graph g;
 
-        EngineGraph::VideoNode video_node(g, EngineGraph::VideoBody(exit_pred, myConfig->video_input), false);
+        EngineGraph::VideoNode video_node(g, EngineGraph::VideoBody(exit_pred, syncvideo), false);
 
         EngineGraph::VideoLimiterNode limiter_node(g, 1);
 
@@ -69,7 +88,7 @@ void Engine::run()
 
         video_node.activate();
         g.wait_for_all();
-        myConfig->video_input->close();
+        syncvideo->close();
     }
 }
 

@@ -95,14 +95,14 @@ namespace EngineGraph
     {
     public:
 
-        VideoBody(ExitCheckerFunction exit_predicate, VideoSourcePtr input);
+        VideoBody(ExitCheckerFunction exit_predicate, SynchronousVideoSourcePtr input);
 
         bool operator()(VideoMessagePtr& message);
 
     protected:
 
         size_t mNextFrameId;
-        VideoSourcePtr mInput;
+        SynchronousVideoSourcePtr mInput;
         ExitCheckerFunction mExitPredicate;
     };
 

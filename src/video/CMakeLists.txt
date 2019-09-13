@@ -2,22 +2,18 @@
 add_library(
     enguerrand_video
     SHARED
-    #GenICamInterface.cpp
-    #GenICamInterface.h
-    #GenICamVideoSource.cpp
-    #GenICamVideoSource.h
     FileVideoSource.cpp
     FileVideoSource.h
-    #RealsenseVideoSource.cpp
-    #RealsenseVideoSource.h
+    RealsenseVideoSource.cpp
+    RealsenseVideoSource.h
     VideoFrame.cpp
     VideoFrame.h
     VideoSource.cpp
     VideoSource.h
-    #ImageVideoSource.cpp
-    #ImageVideoSource.h
-    #RealsenseInterface.cpp
-    #RealsenseInterface.h
+    ImageVideoSource.cpp
+    ImageVideoSource.h
+    RealsenseInterface.cpp
+    RealsenseInterface.h
 )
 
 target_link_libraries(

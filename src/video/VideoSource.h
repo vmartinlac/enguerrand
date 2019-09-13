@@ -7,7 +7,10 @@
 class SynchronousVideoSource;
 class AsynchronousVideoSource;
 
-class VideoSource
+using SynchronousVideoSourcePtr = std::shared_ptr<SynchronousVideoSource>;
+using AsynchronousVideoSourcePtr = std::shared_ptr<AsynchronousVideoSource>;
+
+class VideoSource : public std::enable_shared_from_this<VideoSource>
 {
 public:
 
@@ -23,14 +26,14 @@ public:
 
     virtual SynchronicityType getSynchronicity() = 0;
 
-    virtual AsynchronousVideoSource* asAsynchronous() = 0;
+    virtual AsynchronousVideoSourcePtr asAsynchronous() = 0;
 
-    virtual SynchronousVideoSource* asSynchronous() = 0;
+    virtual SynchronousVideoSourcePtr asSynchronous() = 0;
 
     virtual int getNumViews() = 0;
 };
 
-typedef std::shared_ptr<VideoSource> VideoSourcePtr;
+using VideoSourcePtr = std::shared_ptr<VideoSource>;
 
 class AsynchronousVideoSource : public VideoSource
 {
@@ -42,9 +45,9 @@ public:
 
     AsynchronousVideoSource();
 
-    AsynchronousVideoSource* asAsynchronous() final;
+    AsynchronousVideoSourcePtr asAsynchronous() final;
 
-    SynchronousVideoSource* asSynchronous() final;
+    SynchronousVideoSourcePtr asSynchronous() final;
 
     SynchronicityType getSynchronicity() final;
 
@@ -65,17 +68,15 @@ public:
 
     SynchronousVideoSource();
 
-    AsynchronousVideoSource* asAsynchronous() final;
+    AsynchronousVideoSourcePtr asAsynchronous() final;
 
-    SynchronousVideoSource* asSynchronous() final;
+    SynchronousVideoSourcePtr asSynchronous() final;
 
     SynchronicityType getSynchronicity() final;
 
     virtual bool open() = 0;
 
     virtual void close() = 0;
-
-    virtual void trigger() = 0;
 
     virtual void read(VideoFrame& frame) = 0;
 

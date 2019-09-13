@@ -6,7 +6,7 @@
 #include "EngineGraph.h"
 #include "Engine.h"
 
-EngineGraph::VideoBody::VideoBody(ExitCheckerFunction exit_predicate, VideoSourcePtr input)
+EngineGraph::VideoBody::VideoBody(ExitCheckerFunction exit_predicate, SynchronousVideoSourcePtr input)
 {
     mExitPredicate = std::move(exit_predicate);
     mInput = input;
@@ -18,7 +18,6 @@ bool EngineGraph::VideoBody::operator()(EngineGraph::VideoMessagePtr& message)
     VideoFrame frame;
     bool ret = false;
 
-    mInput->trigger();
     mInput->read(frame);
 
     if( mExitPredicate() == false && frame.isValid() )

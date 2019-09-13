@@ -1,2 +1,0 @@
-#include "GenICamVideoSource.h"
-

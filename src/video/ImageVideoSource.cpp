@@ -11,10 +11,6 @@ bool ImageVideoSource::load(const std::string& path)
     return bool(mImage.data);
 }
 
-void ImageVideoSource::trigger()
-{
-}
-
 void ImageVideoSource::read(VideoFrame& frame)
 {
     frame.setInvalid();
