@@ -1,11 +1,11 @@
 
 #pragma once
 
+#include <memory>
 #include <chrono>
 #include <sophus/se3.hpp>
 #include <opencv2/core.hpp>
-#include <QImage>
-#include <QSharedPointer>
+#include <QMetaType>
 
 struct EngineOutputCircle
 {
@@ -38,7 +38,7 @@ struct EngineOutput
     //Sophus::SE3d camera_to_world;
 };
 
-using EngineOutputPtr = QSharedPointer<EngineOutput>;
+using EngineOutputPtr = std::shared_ptr<EngineOutput>;
 
 Q_DECLARE_METATYPE(EngineOutputPtr)
 

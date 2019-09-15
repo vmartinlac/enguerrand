@@ -36,7 +36,10 @@ bool RealsenseVideoSource::start()
             VideoFrame vf;
             vf.setValid(myNextId, timestamp, std::move(image));
 
-            myCallback(std::move(vf));
+            if(myCallback)
+            {
+                myCallback(std::move(vf));
+            }
 
             myNextId++;
         }

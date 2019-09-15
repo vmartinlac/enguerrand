@@ -86,6 +86,18 @@ namespace EngineGraph
 
     using VideoEdgeCirclesOdometryTracesTuple = tbb::flow::tuple<VideoMessagePtr, EdgeMessagePtr, CirclesMessagePtr, OdometryMessagePtr, TracesMessagePtr>;
 
+    class AsyncVideoCallback
+    {
+    public:
+
+        AsyncVideoCallback(tbb::flow::receiver<VideoMessage>& receiver);
+
+        void operator()(VideoFrame&& frame);
+
+    protected:
+
+        tbb::flow::receiver<VideoMessage>& myReceiver;
+    };
 
     using ExitCheckerFunction = std::function<bool()>;
 

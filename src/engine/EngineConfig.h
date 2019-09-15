@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <memory>
+#include <QMetaType>
 #include "Histogram.h"
 #include "VideoSource.h"
 #include "OdometryCode.h"
@@ -26,4 +28,6 @@ public:
 };
 
 using EngineConfigPtr = std::shared_ptr<EngineConfig>;
+
+Q_DECLARE_METATYPE(EngineConfigPtr)
 

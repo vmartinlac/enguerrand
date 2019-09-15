@@ -78,7 +78,7 @@ MainWindow::~MainWindow()
 {
     if( myEngine->isRunning())
     {
-        myEngine->requestInterruption();
+        myEngine->byebye();
         myEngine->wait();
     }
 }
@@ -105,7 +105,7 @@ void MainWindow::stopEngine()
 {
     myActionStart->setEnabled(false);
     myActionStop->setEnabled(false);
-    myEngine->requestInterruption();
+    myEngine->byebye();
 }
 
 void MainWindow::engineStarted()

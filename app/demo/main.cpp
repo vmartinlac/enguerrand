@@ -11,9 +11,10 @@ int main(int num_args, char** args)
     app.setApplicationName("enguerrand");
 
     qRegisterMetaType<EngineOutputPtr>();
+    qRegisterMetaType<EngineConfigPtr>();
 
     RealsenseInterface* realsense_interface = new RealsenseInterface();
-    realsense_interface->discover();
+    //realsense_interface->discover();
 
     MainWindow* win = new MainWindow();
 

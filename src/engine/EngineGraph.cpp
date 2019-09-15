@@ -1,10 +1,10 @@
 #include <iostream>
+#include <chrono>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include <tbb/scalable_allocator.h>
 #include "EngineGraph.h"
-#include "Engine.h"
 
 EngineGraph::VideoBody::VideoBody(ExitCheckerFunction exit_predicate, SynchronousVideoSourcePtr input)
 {
@@ -281,7 +281,7 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
 
     if(available)
     {
-        EngineOutputPtr output = EngineOutputPtr::create();
+        EngineOutputPtr output = std::make_shared<EngineOutput>();
 
         //output->frame_id = video->header.frame_id;
         //output->timestamp = video->frame.getTimestamp();
@@ -296,4 +296,17 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
 
     return tbb::flow::continue_msg();
 }
+
+AsyncVideoCallback
+{
+public:
+
+AsyncVideoCallback::AsyncVideoCallback(tbb::flow::receiver<VideoMessage>& receiver) : myReceiver(receiver)
+{
+}
+
+void AsyncVideoCallback::operator()(VideoFrame&& frame)
+{
+    // TODO
+};
 

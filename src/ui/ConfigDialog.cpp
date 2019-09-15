@@ -22,6 +22,7 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
     myVideoButtonGroup->addButton(myUI.video_file, 0);
     myVideoButtonGroup->addButton(myUI.video_realsense, 1);
 
+    RealsenseInterface::instance()->discover();
     myUI.video_realsense_camera->setModel(RealsenseInterface::instance());
 
     connect(myVideoButtonGroup, SIGNAL(buttonClicked(int)), this, SLOT(selectVideoInput(int)));

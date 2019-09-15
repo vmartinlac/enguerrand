@@ -7,16 +7,14 @@ Engine::Engine(QObject* parent) : QThread(parent)
 {
 }
 
-void Engine::setConfig(EngineConfigPtr config)
+void Engine::startEngine(EngineConfigPtr config)
 {
+    myExitRequested = false;
     myConfig = config;
-}
 
-void Engine::run()
-{
     auto exit_pred = [this] () -> bool
     {
-        return isInterruptionRequested();
+        return myExitRequested;
     };
 
     auto terminal_pred = [this] (EngineOutputPtr output)
@@ -28,60 +26,118 @@ void Engine::run()
     SynchronousVideoSourcePtr syncvideo = myConfig->video_input->asSynchronous();
     AsynchronousVideoSourcePtr asyncvideo = myConfig->video_input->asAsynchronous();
 
-    if( synchronicity == VideoSource::ASYNCHRONOUS || syncvideo->open() )
+    myGraph.reset(new tbb::flow::graph);
+
+    if( synchronicity == VideoSource::SYNCHRONOUS )
     {
-        tbb::flow::graph g;
-
-        EngineGraph::VideoNode video_node(g, EngineGraph::VideoBody(exit_pred, syncvideo), false);
-
-        EngineGraph::VideoLimiterNode limiter_node(g, 1);
-
-        EngineGraph::EdgeNode edge_node(g, 1, EngineGraph::EdgeBody());
-
-        EngineGraph::VideoEdgeJoinNode video_edge_join(g);
-
-        EngineGraph::CircleNode circles_node(g, 1, EngineGraph::CirclesBody(myConfig->balls_histogram));
-
-        EngineGraph::OdometryNode odometry_node(g, 1, EngineGraph::OdometryBody(myConfig->odometry_code));
-
-        EngineGraph::TracesNode traces_node(g, 1, EngineGraph::TracesBody());
-
-        EngineGraph::VideoEdgeCirclesOdometryTracesJoinNode video_edge_circles_odometry_traces_join(g);
-
-        EngineGraph::TerminalNode terminal_node(g, 1, EngineGraph::TerminalBody(terminal_pred));
-
-        make_edge(video_node, limiter_node);
-
-        make_edge(limiter_node, edge_node);
-
-        make_edge(limiter_node, tbb::flow::input_port<0>(video_edge_join) );
-        make_edge(edge_node, tbb::flow::input_port<1>(video_edge_join) );
-        make_edge(video_edge_join, circles_node);
-
-        make_edge(circles_node, odometry_node);
-        make_edge(circles_node, traces_node);
-
-        make_edge(limiter_node, tbb::flow::input_port<0>(video_edge_circles_odometry_traces_join) );
-        make_edge(edge_node, tbb::flow::input_port<1>(video_edge_circles_odometry_traces_join) );
-        make_edge(circles_node, tbb::flow::input_port<2>(video_edge_circles_odometry_traces_join) );
-        make_edge(odometry_node, tbb::flow::input_port<3>(video_edge_circles_odometry_traces_join) );
-        make_edge(traces_node, tbb::flow::input_port<4>(video_edge_circles_odometry_traces_join) );
-
-        make_edge(video_edge_circles_odometry_traces_join, terminal_node);
-
-        make_edge(terminal_node, limiter_node.decrement);
-
-        if(synchronicity == VideoSource::SYNCHRONOUS)
-        {
-            video_node.activate();
-        }
-
-        g.wait_for_all();
-
-        if(synchronicity == VideoSource::SYNCHRONOUS)
-        {
-            syncvideo->close();
-        }
+        myVideoNode.reset(new EngineGraph::VideoNode(*myGraph, EngineGraph::VideoBody(exit_pred, syncvideo), false));
     }
+
+    myVideoLimiterNode.reset(new EngineGraph::VideoLimiterNode(*myGraph, 1));
+
+    myEdgeNode.reset(new EngineGraph::EdgeNode(*myGraph, 1, EngineGraph::EdgeBody()));
+
+    myVideoEdgeJoinNode.reset(new EngineGraph::VideoEdgeJoinNode(*myGraph));
+
+    myCirclesNode.reset(new EngineGraph::CircleNode(*myGraph, 1, EngineGraph::CirclesBody(myConfig->balls_histogram)));
+
+    myOdometryNode.reset(new EngineGraph::OdometryNode(*myGraph, 1, EngineGraph::OdometryBody(myConfig->odometry_code)));
+
+    myTracesNode.reset(new EngineGraph::TracesNode(*myGraph, 1, EngineGraph::TracesBody()));
+
+    myVideoEdgeCirclesOdometryTracesJoinNode.reset(new EngineGraph::VideoEdgeCirclesOdometryTracesJoinNode(*myGraph));
+
+    myTerminalNode.reset(new EngineGraph::TerminalNode(*myGraph, 1, EngineGraph::TerminalBody(terminal_pred)));
+
+    if(synchronicity == VideoSource::SYNCHRONOUS)
+    {
+        make_edge(*myVideoNode, *myVideoLimiterNode);
+    }
+
+    make_edge(*myVideoLimiterNode, *myEdgeNode);
+
+    make_edge(*myVideoLimiterNode, tbb::flow::input_port<0>(*myVideoEdgeJoinNode) );
+    make_edge(*myEdgeNode, tbb::flow::input_port<1>(*myVideoEdgeJoinNode) );
+
+    make_edge(*myVideoEdgeJoinNode, *myCirclesNode);
+
+    make_edge(*myCirclesNode, *myOdometryNode);
+
+    make_edge(*myCirclesNode, *myTracesNode);
+
+    make_edge(*myVideoLimiterNode, tbb::flow::input_port<0>(*myVideoEdgeCirclesOdometryTracesJoinNode) );
+    make_edge(*myEdgeNode, tbb::flow::input_port<1>(*myVideoEdgeCirclesOdometryTracesJoinNode) );
+    make_edge(*myCirclesNode, tbb::flow::input_port<2>(*myVideoEdgeCirclesOdometryTracesJoinNode) );
+    make_edge(*myOdometryNode, tbb::flow::input_port<3>(*myVideoEdgeCirclesOdometryTracesJoinNode) );
+    make_edge(*myTracesNode, tbb::flow::input_port<4>(*myVideoEdgeCirclesOdometryTracesJoinNode) );
+
+    make_edge(*myVideoEdgeCirclesOdometryTracesJoinNode, *myTerminalNode);
+
+    make_edge(*myTerminalNode, myVideoLimiterNode->decrement);
+
+    if(synchronicity == VideoSource::SYNCHRONOUS)
+    {
+        myExitRequested = false;
+        syncvideo->open();
+        myVideoNode->activate();
+    }
+    else if(synchronicity == VideoSource::ASYNCHRONOUS)
+    {
+        // TODO: set callback.
+        myGraph->reserve_wait();
+        asyncvideo->start();
+    }
+    else
+    {
+        std::cerr << "Internal error!" << std::endl;
+        exit(1);
+    }
+
+    std::cout << "Engine started!" << std::endl;
+
+    engineStarted();
+}
+
+void Engine::stopEngine()
+{
+    const VideoSource::SynchronicityType synchronicity = myConfig->video_input->getSynchronicity();
+    SynchronousVideoSourcePtr syncvideo = myConfig->video_input->asSynchronous();
+    AsynchronousVideoSourcePtr asyncvideo = myConfig->video_input->asAsynchronous();
+
+
+    if(synchronicity == VideoSource::SYNCHRONOUS)
+    {
+        myExitRequested = true;
+        myGraph->wait_for_all();
+        syncvideo->close();
+    }
+    else if(synchronicity == VideoSource::ASYNCHRONOUS)
+    {
+        asyncvideo->stop();
+        myGraph->release_wait();
+        myGraph->wait_for_all();
+    }
+    else
+    {
+        std::cerr << "Internal error!" << std::endl;
+        exit(1);
+    }
+
+    myConfig.reset();
+    myExitRequested = false;
+    myVideoNode.reset();
+    myVideoLimiterNode.reset();
+    myEdgeNode.reset();
+    myVideoEdgeJoinNode.reset();
+    myCirclesNode.reset();
+    myOdometryNode.reset();
+    myTracesNode.reset();
+    myVideoEdgeCirclesOdometryTracesJoinNode.reset();
+    myTerminalNode.reset();
+    myGraph.reset();
+
+    std::cout << "Engine stopped!" << std::endl;
+
+    engineStopped();
 }
 
