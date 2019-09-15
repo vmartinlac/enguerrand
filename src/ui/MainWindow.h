@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <QCloseEvent>
 #include <QAction>
 #include <QMainWindow>
 #include "ViewerWidget.h"
@@ -16,6 +17,10 @@ public:
     MainWindow(QWidget* parent=nullptr);
 
     ~MainWindow();
+
+protected:
+
+    void closeEvent(QCloseEvent*) override;
 
 protected slots:
 

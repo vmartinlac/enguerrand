@@ -10,10 +10,7 @@ Engine::Engine(QObject* parent) : QThread(parent)
 
 void Engine::startEngine(EngineConfigPtr config)
 {
-    if( myIsEngineRunning )
-    {
-        stopEngine();
-    }
+    stopEngine();
 
     myExitRequested = false;
     myConfig = config;
@@ -114,7 +111,6 @@ void Engine::stopEngine()
         const VideoSource::SynchronicityType synchronicity = myConfig->video_input->getSynchronicity();
         SynchronousVideoSourcePtr syncvideo = myConfig->video_input->asSynchronous();
         AsynchronousVideoSourcePtr asyncvideo = myConfig->video_input->asAsynchronous();
-
 
         if(synchronicity == VideoSource::SYNCHRONOUS)
         {

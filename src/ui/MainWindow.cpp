@@ -68,7 +68,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     connect(action_about, SIGNAL(triggered()), this, SLOT(about()));
     connect(action_start, SIGNAL(triggered()), this, SLOT(startEngine()));
     connect(action_stop, SIGNAL(triggered()), this, SLOT(stopEngine()));
-    connect(action_quit, SIGNAL(triggered()), QApplication::instance(), SLOT(quit()));
+    connect(action_quit, SIGNAL(triggered()), this, SLOT(close()));
     connect(action_home, SIGNAL(triggered()), myViewer, SLOT(home()));
     connect(action_show_raw, SIGNAL(triggered()), myVideo, SLOT(displayInputImage()));
     connect(action_show_edges, SIGNAL(triggered()), myVideo, SLOT(displayEdgesImage()));
@@ -76,11 +76,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     connect(action_show_circles, SIGNAL(triggered()), myVideo, SLOT(displayDetectionImage()));
 }
 
-MainWindow::~MainWindow()
+void MainWindow::closeEvent(QCloseEvent* ev)
 {
-    QMetaObject::invokeMethod(myEngine, "stopEngine", Qt::BlockingQueuedConnection); // Engine is robust to superfluous calls to stopEngine().
+    myEngine->disconnect();
+    QMetaObject::invokeMethod(myEngine, "stopEngine", Qt::QueuedConnection); // Engine is robust to superfluous calls to stopEngine().
     myEngine->quit();
     myEngine->wait();
+    QMainWindow::closeEvent(ev);
+}
+
+MainWindow::~MainWindow()
+{
 }
 
 void MainWindow::about()
