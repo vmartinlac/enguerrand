@@ -5,7 +5,7 @@
 
 Engine::Engine(QObject* parent) : QThread(parent)
 {
-    bool myIsEngineRunning = false;
+    myIsEngineRunning = false;
 }
 
 void Engine::startEngine(EngineConfigPtr config)
