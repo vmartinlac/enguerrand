@@ -304,20 +304,18 @@ EngineGraph::AsyncVideoCallback::AsyncVideoCallback(tbb::flow::receiver<VideoMes
 
 void EngineGraph::AsyncVideoCallback::operator()(VideoFrame&& frame)
 {
-    std::cout << "hHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhHhH" << std::endl;
-
-    /*
     VideoMessagePtr message = std::allocate_shared<VideoMessage>( tbb::scalable_allocator<VideoMessage>() );
     message->header.available = true;
     message->header.frame_id = myFrameCount++;
     message->frame = std::move(frame);
     message->received_time = ClockType::now();
 
-    //const bool ret = myReceiver.try_put(message);
+    const bool ret = myReceiver.try_put(message);
 
-    //if(ret == false)
+    /*
+    if(ret == false)
     {
-        //std::cerr << "REJECTED FRAME!" << std::endl; // FIXME for debug purpose.
+        std::cerr << "REJECTED FRAME!" << std::endl; // FIXME for debug purpose.
     }
     */
 };
