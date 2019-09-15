@@ -35,12 +35,17 @@ public:
 
 using VideoSourcePtr = std::shared_ptr<VideoSource>;
 
-class AsynchronousVideoSource : public VideoSource
+class AsynchronousVideoCallback
 {
 public:
 
-    using CallbackType = std::function<void(VideoFrame&&)>;
+    AsynchronousVideoCallback();
 
+    virtual void operator()(VideoFrame&&) = 0;
+};
+
+class AsynchronousVideoSource : public VideoSource
+{
 public:
 
     AsynchronousVideoSource();
@@ -51,7 +56,7 @@ public:
 
     SynchronicityType getSynchronicity() final;
 
-    void setCallback(const CallbackType&);
+    void setCallback(AsynchronousVideoCallback* callback);
 
     virtual bool start() = 0;
 
@@ -59,7 +64,7 @@ public:
 
 protected:
 
-    CallbackType myCallback;
+    AsynchronousVideoCallback* myCallback;
 };
 
 class SynchronousVideoSource : public VideoSource

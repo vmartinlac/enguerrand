@@ -12,6 +12,7 @@
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     myEngine = new Engine(this);
+    myEngine->start();
 
     QToolBar* tb = addToolBar("Tools");
     QAction* action_quit = tb->addAction("Quit");
@@ -59,15 +60,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     setCentralWidget(splitter);
     setWindowTitle("Enguerrand");
 
+    connect(myEngine, SIGNAL(engineStarted()), this, SLOT(engineStarted()), Qt::QueuedConnection);
+    connect(myEngine, SIGNAL(engineStopped()), this, SLOT(engineStopped()), Qt::QueuedConnection);
+    connect(myEngine, SIGNAL(newFrame(EngineOutputPtr)), myVideo, SLOT(handleFrame(EngineOutputPtr)), Qt::QueuedConnection);
+    connect(myEngine, SIGNAL(newFrame(EngineOutputPtr)), myViewer, SLOT(handleFrame(EngineOutputPtr)), Qt::QueuedConnection);
+
     connect(action_about, SIGNAL(triggered()), this, SLOT(about()));
     connect(action_start, SIGNAL(triggered()), this, SLOT(startEngine()));
     connect(action_stop, SIGNAL(triggered()), this, SLOT(stopEngine()));
     connect(action_quit, SIGNAL(triggered()), QApplication::instance(), SLOT(quit()));
-    connect(myEngine, SIGNAL(started()), this, SLOT(engineStarted()));
-    connect(myEngine, SIGNAL(finished()), this, SLOT(engineStopped()));
     connect(action_home, SIGNAL(triggered()), myViewer, SLOT(home()));
-    connect(myEngine, SIGNAL(newFrame(EngineOutputPtr)), myVideo, SLOT(handleFrame(EngineOutputPtr)), Qt::QueuedConnection);
-    connect(myEngine, SIGNAL(newFrame(EngineOutputPtr)), myViewer, SLOT(handleFrame(EngineOutputPtr)), Qt::QueuedConnection);
     connect(action_show_raw, SIGNAL(triggered()), myVideo, SLOT(displayInputImage()));
     connect(action_show_edges, SIGNAL(triggered()), myVideo, SLOT(displayEdgesImage()));
     connect(action_show_traces, SIGNAL(triggered()), myVideo, SLOT(displayTraceImage()));
@@ -76,11 +78,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 
 MainWindow::~MainWindow()
 {
-    if( myEngine->isRunning())
-    {
-        myEngine->byebye();
-        myEngine->wait();
-    }
+    QMetaObject::invokeMethod(myEngine, "stopEngine", Qt::BlockingQueuedConnection); // Engine is robust to superfluous calls to stopEngine().
+    myEngine->quit();
+    myEngine->wait();
 }
 
 void MainWindow::about()
@@ -94,10 +94,9 @@ void MainWindow::startEngine()
 
     if(config)
     {
-        myEngine->setConfig(config);
         myActionStart->setEnabled(false);
         myActionStop->setEnabled(false);
-        myEngine->start();
+        QMetaObject::invokeMethod(myEngine, "startEngine", Qt::QueuedConnection, Q_ARG(EngineConfigPtr,config));
     }
 }
 
@@ -105,7 +104,7 @@ void MainWindow::stopEngine()
 {
     myActionStart->setEnabled(false);
     myActionStop->setEnabled(false);
-    myEngine->byebye();
+    QMetaObject::invokeMethod(myEngine, "stopEngine", Qt::QueuedConnection);
 }
 
 void MainWindow::engineStarted()

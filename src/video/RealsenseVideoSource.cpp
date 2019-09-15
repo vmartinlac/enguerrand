@@ -38,7 +38,7 @@ bool RealsenseVideoSource::start()
 
             if(myCallback)
             {
-                myCallback(std::move(vf));
+                (*myCallback)(std::move(vf));
             }
 
             myNextId++;

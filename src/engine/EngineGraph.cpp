@@ -297,16 +297,24 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
     return tbb::flow::continue_msg();
 }
 
-AsyncVideoCallback
+EngineGraph::AsyncVideoCallback::AsyncVideoCallback(tbb::flow::receiver<VideoMessagePtr>& receiver) : myReceiver(receiver)
 {
-public:
-
-AsyncVideoCallback::AsyncVideoCallback(tbb::flow::receiver<VideoMessage>& receiver) : myReceiver(receiver)
-{
+    myFrameCount = 0;
 }
 
-void AsyncVideoCallback::operator()(VideoFrame&& frame)
+void EngineGraph::AsyncVideoCallback::operator()(VideoFrame&& frame)
 {
-    // TODO
+    VideoMessagePtr message = std::allocate_shared<VideoMessage>( tbb::scalable_allocator<VideoMessage>() );
+    message->header.available = true;
+    message->header.frame_id = myFrameCount++;
+    message->frame = std::move(frame);
+    message->received_time = ClockType::now();
+
+    const bool ret = myReceiver.try_put(message);
+
+    if(ret == false)
+    {
+        std::cerr << "REJECTED FRAME!" << std::endl; // FIXME for debug purpose.
+    }
 };
 

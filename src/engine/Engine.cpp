@@ -5,10 +5,16 @@
 
 Engine::Engine(QObject* parent) : QThread(parent)
 {
+    bool myIsEngineRunning = false;
 }
 
 void Engine::startEngine(EngineConfigPtr config)
 {
+    if( myIsEngineRunning )
+    {
+        stopEngine();
+    }
+
     myExitRequested = false;
     myConfig = config;
 
@@ -83,7 +89,8 @@ void Engine::startEngine(EngineConfigPtr config)
     }
     else if(synchronicity == VideoSource::ASYNCHRONOUS)
     {
-        // TODO: set callback.
+        myAsyncVideoCallback.reset(new EngineGraph::AsyncVideoCallback(*myVideoLimiterNode));
+        asyncvideo->setCallback(myAsyncVideoCallback.get());
         myGraph->reserve_wait();
         asyncvideo->start();
     }
@@ -93,6 +100,8 @@ void Engine::startEngine(EngineConfigPtr config)
         exit(1);
     }
 
+    myIsEngineRunning = true;
+
     std::cout << "Engine started!" << std::endl;
 
     engineStarted();
@@ -100,44 +109,50 @@ void Engine::startEngine(EngineConfigPtr config)
 
 void Engine::stopEngine()
 {
-    const VideoSource::SynchronicityType synchronicity = myConfig->video_input->getSynchronicity();
-    SynchronousVideoSourcePtr syncvideo = myConfig->video_input->asSynchronous();
-    AsynchronousVideoSourcePtr asyncvideo = myConfig->video_input->asAsynchronous();
-
-
-    if(synchronicity == VideoSource::SYNCHRONOUS)
+    if( myIsEngineRunning )
     {
-        myExitRequested = true;
-        myGraph->wait_for_all();
-        syncvideo->close();
-    }
-    else if(synchronicity == VideoSource::ASYNCHRONOUS)
-    {
-        asyncvideo->stop();
-        myGraph->release_wait();
-        myGraph->wait_for_all();
-    }
-    else
-    {
-        std::cerr << "Internal error!" << std::endl;
-        exit(1);
-    }
+        const VideoSource::SynchronicityType synchronicity = myConfig->video_input->getSynchronicity();
+        SynchronousVideoSourcePtr syncvideo = myConfig->video_input->asSynchronous();
+        AsynchronousVideoSourcePtr asyncvideo = myConfig->video_input->asAsynchronous();
 
-    myConfig.reset();
-    myExitRequested = false;
-    myVideoNode.reset();
-    myVideoLimiterNode.reset();
-    myEdgeNode.reset();
-    myVideoEdgeJoinNode.reset();
-    myCirclesNode.reset();
-    myOdometryNode.reset();
-    myTracesNode.reset();
-    myVideoEdgeCirclesOdometryTracesJoinNode.reset();
-    myTerminalNode.reset();
-    myGraph.reset();
 
-    std::cout << "Engine stopped!" << std::endl;
+        if(synchronicity == VideoSource::SYNCHRONOUS)
+        {
+            myExitRequested = true;
+            myGraph->wait_for_all();
+            syncvideo->close();
+        }
+        else if(synchronicity == VideoSource::ASYNCHRONOUS)
+        {
+            asyncvideo->stop();
+            myGraph->release_wait();
+            myGraph->wait_for_all();
+        }
+        else
+        {
+            std::cerr << "Internal error!" << std::endl;
+            exit(1);
+        }
 
-    engineStopped();
+        myConfig.reset();
+        myExitRequested = false;
+        myVideoNode.reset();
+        myVideoLimiterNode.reset();
+        myEdgeNode.reset();
+        myVideoEdgeJoinNode.reset();
+        myCirclesNode.reset();
+        myOdometryNode.reset();
+        myTracesNode.reset();
+        myVideoEdgeCirclesOdometryTracesJoinNode.reset();
+        myTerminalNode.reset();
+        myGraph.reset();
+        myAsyncVideoCallback.reset();
+
+        myIsEngineRunning = false;
+
+        std::cout << "Engine stopped!" << std::endl;
+
+        engineStopped();
+    }
 }
 

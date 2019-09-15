@@ -28,7 +28,9 @@ signals:
 private:
 
     EngineConfigPtr myConfig;
+    bool myIsEngineRunning;
     std::atomic<bool> myExitRequested;
+    std::unique_ptr<EngineGraph::AsyncVideoCallback> myAsyncVideoCallback;
     std::unique_ptr<tbb::flow::graph> myGraph;
     std::unique_ptr<EngineGraph::VideoNode> myVideoNode;
     std::unique_ptr<EngineGraph::VideoLimiterNode> myVideoLimiterNode;

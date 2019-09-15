@@ -1,10 +1,14 @@
 #include "VideoSource.h"
 
+AsynchronousVideoCallback::AsynchronousVideoCallback()
+{
+}
+
 VideoSource::VideoSource()
 {
 }
 
-void AsynchronousVideoSource::setCallback(const CallbackType& callback)
+void AsynchronousVideoSource::setCallback(AsynchronousVideoCallback* callback)
 {
     myCallback = callback;
 }
@@ -30,6 +34,7 @@ VideoSource::SynchronicityType AsynchronousVideoSource::getSynchronicity()
 
 AsynchronousVideoSource::AsynchronousVideoSource()
 {
+    myCallback = nullptr;
 }
 
 AsynchronousVideoSourcePtr SynchronousVideoSource::asAsynchronous()
