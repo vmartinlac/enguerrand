@@ -173,8 +173,7 @@ BAOdometry::BAOdometry(CalibrationDataPtr calibration)
 bool BAOdometry::track(
     double timestamp,
     const std::vector<TrackedCircle>& circles,
-    Sophus::SE3d& camera_to_world,
-    bool& aligned_wrt_previous)
+    OdometryFrame& output)
 {
     bool successful_alignment = false;
     bool ret = true;
@@ -188,14 +187,20 @@ bool BAOdometry::track(
 
     if(myLastFrame)
     {
-        aligned_wrt_previous = successful_alignment;
-        camera_to_world = myLastFrame->camera_to_world;
+        output.timestamp = timestamp;
+        output.aligned_wrt_previous = successful_alignment;
+        output.camera_to_world = myLastFrame->camera_to_world;
+        //output.landmarks.resize(myLocalMap.size())
+        output.landmarks.clear();
+        // TODO: export landmarks!
         ret = true;
     }
     else
     {
-        aligned_wrt_previous = false;
-        camera_to_world = Sophus::SE3d();
+        output.timestamp = timestamp;
+        output.aligned_wrt_previous = false;
+        output.camera_to_world = Sophus::SE3d();
+        output.landmarks.clear();
         ret = false;
     }
 

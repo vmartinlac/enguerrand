@@ -133,14 +133,12 @@ EngineGraph::OdometryMessagePtr EngineGraph::OdometryBody::operator()(const Engi
 
     if( circles && circles->header.available )
     {
-        Sophus::SE3d camera_to_world;
-        bool aligned_wrt_previous;
+        OdometryFrame odoframe;
 
         const bool ret = mOdometryCode->track(
             circles->timestamp,
             circles->circles,
-            camera_to_world,
-            aligned_wrt_previous);
+            odoframe);
 
         if(ret)
         {
@@ -148,9 +146,7 @@ EngineGraph::OdometryMessagePtr EngineGraph::OdometryBody::operator()(const Engi
 
             odometry->header.available = true;
             odometry->header.frame_id = circles->header.frame_id;
-
-            odometry->camera_to_world = camera_to_world;
-            odometry->aligned_wrt_previous = aligned_wrt_previous;
+            odometry->frame = std::move(odoframe);
         }
     }
 

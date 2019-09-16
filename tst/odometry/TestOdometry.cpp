@@ -132,9 +132,6 @@ void TestOdometry::testOdometry(OdometryCodePtr code)
 
     for(size_t i=0; i<N; i++)
     {
-        Sophus::SE3d estimated_camera_to_world;
-        bool aligned;
-
 #ifdef TESTODOMETRY_EXPORT_IMAGES
         cv::Mat1b image(myCalibration->cameras[0].image_size);
         std::fill(image.begin(), image.end(), 0);
@@ -147,19 +144,19 @@ void TestOdometry::testOdometry(OdometryCodePtr code)
         cv::imwrite(s.str(), image);
 #endif
 
+        OdometryFrame odoframe;
         const bool ok = code->track(
             myTimestamps[i],
             myCircles[i],
-            estimated_camera_to_world,
-            aligned);
+            odoframe);
 
         QVERIFY(ok);
-        QVERIFY(i == 0 || aligned);
+        QVERIFY(i == 0 || odoframe.aligned_wrt_previous);
 
         //std::cout << "G-T = " << myCameraToWorldTrajectory[i].translation().transpose() << std::endl;
         //std::cout << "Est = " << estimated_camera_to_world.translation().transpose() << std::endl;
 
-        const Sophus::SE3d::Tangent err = ( myCameraToWorldTrajectory[i].inverse() * estimated_camera_to_world ).log();
+        const Sophus::SE3d::Tangent err = ( myCameraToWorldTrajectory[i].inverse() * odoframe.camera_to_world ).log();
         std::cout << "[ " << i << " ] translation error: " << err.head<3>().transpose() << std::endl;
         std::cout << "[ " << i << " ] rotation error (deg): " << err.tail<3>().transpose()*180.0/M_PI << std::endl;
 

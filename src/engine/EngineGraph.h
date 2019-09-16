@@ -66,8 +66,7 @@ namespace EngineGraph
     struct OdometryMessage
     {
         MessageHeader header;
-        bool aligned_wrt_previous;
-        Sophus::SE3d camera_to_world;
+        OdometryFrame frame;
     };
 
     using OdometryMessagePtr = std::shared_ptr<OdometryMessage>;

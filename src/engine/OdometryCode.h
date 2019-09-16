@@ -5,6 +5,23 @@
 #include <sophus/se3.hpp>
 #include "TrackedCircle.h"
 
+struct OdometryFrameLandmark
+{
+    bool first_seen;
+    size_t id;
+    bool seen_in_current_frame;
+    Eigen::Vector3d position;
+    Eigen::Matrix3d covariance;
+};
+
+struct OdometryFrame
+{
+    double timestamp;
+    bool aligned_wrt_previous;
+    Sophus::SE3d camera_to_world;
+    std::vector<OdometryFrameLandmark> landmarks;
+};
+
 class OdometryCode
 {
 public:
@@ -14,8 +31,7 @@ public:
     virtual bool track(
         double timestamp,
         const std::vector<TrackedCircle>& circles,
-        Sophus::SE3d& camera_to_world,
-        bool& aligned_wrt_previous) = 0;
+        OdometryFrame& output) = 0;
 
     virtual void reset() = 0;
 };

@@ -335,8 +335,7 @@ EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
 bool EKFOdometry::track(
     double timestamp,
     const std::vector<TrackedCircle>& circles,
-    Sophus::SE3d& camera_to_world,
-    bool& aligned_wrt_previous)
+    OdometryFrame& output)
 {
     bool successful_tracking = false;
 
@@ -362,8 +361,10 @@ bool EKFOdometry::track(
         initialize(timestamp, circles);
     }
 
-    camera_to_world = currentState().camera_to_world;
-    aligned_wrt_previous = successful_tracking;
+    output.timestamp = timestamp;
+    output.camera_to_world = currentState().camera_to_world;
+    output.aligned_wrt_previous = successful_tracking;
+    output.landmarks.clear(); // TODO export landmarks!
 
     //std::cout << "TRACKING STATUS: " << aligned_wrt_previous << std::endl;
 
