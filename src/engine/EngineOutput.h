@@ -33,6 +33,7 @@ struct EngineOutput
     cv::Mat3b input_image;
     cv::Mat1b edges_image;
     cv::Mat3b traces_image;
+    cv::Mat3b detection_image;
     std::vector<EngineOutputLandmark> landmarks;
     std::vector<EngineOutputKeyFrame> keyframes;
     //Sophus::SE3d camera_to_world;

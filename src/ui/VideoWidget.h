@@ -2,6 +2,9 @@
 #pragma once
 
 #include <QWidget>
+#include <QMouseEvent>
+#include <QResizeEvent>
+#include <QWheelEvent>
 #include <QPaintEvent>
 #include "EngineOutput.h"
 
@@ -20,11 +23,15 @@ public slots:
     void displayEdgesImage();
     void displayDetectionImage();
     void handleFrame(EngineOutputPtr frame);
+    void home();
 
 protected:
 
     void paintEvent(QPaintEvent* ev) override;
-    void updateImage();
+    void resizeEvent(QResizeEvent* ev) override;
+    void mousePressEvent(QMouseEvent* ev) override;
+    void mouseMoveEvent(QMouseEvent* ev) override;
+    void wheelEvent(QWheelEvent* ev) override;
 
 protected:
 
@@ -40,6 +47,11 @@ protected:
 
     EngineOutputPtr myData;
     DisplaySelection myDisplaySelection;
-    QImage myImage;
+    double myZoom;
+    double myFocusX;
+    double myFocusY;
+    cv::Size myLastSize;
+    QPoint myLastPos;
+    int myMargin;
 };
 

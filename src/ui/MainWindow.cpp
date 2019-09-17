@@ -70,6 +70,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     connect(action_stop, SIGNAL(triggered()), this, SLOT(stopEngine()));
     connect(action_quit, SIGNAL(triggered()), this, SLOT(close()));
     connect(action_home, SIGNAL(triggered()), myViewer, SLOT(home()));
+    connect(action_home, SIGNAL(triggered()), myVideo, SLOT(home()));
     connect(action_show_raw, SIGNAL(triggered()), myVideo, SLOT(displayInputImage()));
     connect(action_show_edges, SIGNAL(triggered()), myVideo, SLOT(displayEdgesImage()));
     connect(action_show_traces, SIGNAL(triggered()), myVideo, SLOT(displayTraceImage()));

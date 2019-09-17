@@ -281,10 +281,10 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
 
         //output->frame_id = video->header.frame_id;
         //output->timestamp = video->frame.getTimestamp();
-        output->input_image = video->frame.getView();
+        cv::cvtColor(video->frame.getView(), output->input_image, cv::COLOR_BGR2RGB);
         output->edges_image = edges->edges;
-        output->traces_image = traces->image;
-        //output->detection_image = circles->
+        cv::cvtColor(traces->image, output->traces_image, cv::COLOR_BGR2RGB);
+        cv::cvtColor(video->frame.getView(), output->detection_image, cv::COLOR_BGR2RGB);
         output->frame_runtime = std::chrono::duration_cast<std::chrono::microseconds>(ClockType::now() - video->received_time);
 
         myListener(std::move(output));
