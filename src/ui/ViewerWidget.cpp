@@ -7,6 +7,12 @@ ViewerWidget::ViewerWidget(QWidget* parent) : ViewerWidgetBase(parent)
 
 void ViewerWidget::handleFrame(EngineOutputPtr frame)
 {
+    myResult = frame;
     std::cout << "ViewerWidget => handleFrame" << std::endl;
+}
+
+void ViewerWidget::initialize()
+{
+    ;
 }
 

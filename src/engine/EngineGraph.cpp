@@ -281,11 +281,34 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
 
         //output->frame_id = video->header.frame_id;
         //output->timestamp = video->frame.getTimestamp();
+        output->frame_runtime = std::chrono::duration_cast<std::chrono::microseconds>(ClockType::now() - video->received_time);
         cv::cvtColor(video->frame.getView(), output->input_image, cv::COLOR_BGR2RGB);
         output->edges_image = edges->edges;
         cv::cvtColor(traces->image, output->traces_image, cv::COLOR_BGR2RGB);
         cv::cvtColor(video->frame.getView(), output->detection_image, cv::COLOR_BGR2RGB);
-        output->frame_runtime = std::chrono::duration_cast<std::chrono::microseconds>(ClockType::now() - video->received_time);
+
+        output->landmarks.resize(odometry->frame.landmarks.size());
+        for(size_t i=0; i<odometry->frame.landmarks.size(); i++)
+        {
+            const auto& input_landmark = odometry->frame.landmarks[i];
+            auto& output_landmark = output->landmarks[i];
+
+            output_landmark.position = input_landmark.position;
+            output_landmark.covariance = input_landmark.covariance;
+        }
+
+        output->current_frame.timestamp = video->frame.getTimestamp();
+        output->current_frame.camera_to_world = odometry->frame.camera_to_world;
+        output->current_frame.pose_covariance = odometry->frame.pose_covariance;
+
+        output->current_frame.circles.resize( circles->circles.size() );
+
+        for(size_t i=0; i<circles->circles.size(); i++)
+        {
+            const auto& input_circle = circles->circles[i];
+            auto& output_circle = output->current_frame.circles[i];
+            output_circle.circle = input_circle.circle;
+        }
 
         myListener(std::move(output));
     }

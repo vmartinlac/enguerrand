@@ -191,8 +191,8 @@ bool BAOdometry::track(
         output.aligned_wrt_previous = successful_alignment;
         output.camera_to_world = myLastFrame->camera_to_world;
         //output.landmarks.resize(myLocalMap.size())
-        output.landmarks.clear();
-        // TODO: export landmarks!
+        output.pose_covariance.setIdentity(); // TODO set corrent pose covariance.
+        output.landmarks.clear(); // TODO: export landmarks!
         ret = true;
     }
     else

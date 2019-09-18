@@ -19,6 +19,7 @@ struct OdometryFrame
     double timestamp;
     bool aligned_wrt_previous;
     Sophus::SE3d camera_to_world;
+    Eigen::Matrix<double, 6, 6> pose_covariance;
     std::vector<OdometryFrameLandmark> landmarks;
 };
 

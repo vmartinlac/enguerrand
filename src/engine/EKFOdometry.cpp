@@ -364,6 +364,7 @@ bool EKFOdometry::track(
     output.timestamp = timestamp;
     output.camera_to_world = currentState().camera_to_world;
     output.aligned_wrt_previous = successful_tracking;
+    output.pose_covariance.setIdentity(); // TODO set corrent pose covariance.
     output.landmarks.clear(); // TODO export landmarks!
 
     //std::cout << "TRACKING STATUS: " << aligned_wrt_previous << std::endl;

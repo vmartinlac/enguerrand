@@ -18,13 +18,12 @@ struct EngineOutputLandmark
     Eigen::Matrix3d covariance;
 };
 
-struct EngineOutputKeyFrame
+struct EngineOutputFrame
 {
-    size_t frame_id;
     double timestamp;
     Sophus::SE3d camera_to_world;
+    Eigen::Matrix<double,6,6> pose_covariance;
     std::vector<EngineOutputCircle> circles;
-    Eigen::Matrix<double,6,6> covariance;
 };
 
 struct EngineOutput
@@ -35,8 +34,7 @@ struct EngineOutput
     cv::Mat3b traces_image;
     cv::Mat3b detection_image;
     std::vector<EngineOutputLandmark> landmarks;
-    std::vector<EngineOutputKeyFrame> keyframes;
-    //Sophus::SE3d camera_to_world;
+    EngineOutputFrame current_frame;
 };
 
 using EngineOutputPtr = std::shared_ptr<EngineOutput>;
