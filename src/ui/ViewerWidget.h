@@ -1,10 +1,8 @@
 
 #pragma once
 
+#include <vector>
 #include <osg/Group>
-#include <osg/ShapeDrawable>
-#include <osg/Geometry>
-#include <osg/Geode>
 #include <osg/PositionAttitudeTransform>
 #include "EngineOutput.h"
 #include "ViewerWidgetBase.h"
@@ -17,7 +15,11 @@ public:
 
     ViewerWidget(QWidget* parent=nullptr);
 
-    void initialize();
+protected:
+
+    static osg::Vec3d vectorEigen2osg(const Eigen::Vector3d& x);
+
+    static osg::Quat quaternionEigen2osg(const Eigen::Quaterniond& q);
 
 public slots:
 
@@ -25,16 +27,10 @@ public slots:
 
 protected:
 
-    struct Landmark
-    {
-        osg::ref_ptr<osg::PositionAttitudeTransform> node;
-    };
-
-protected:
-
-    osg::ref_ptr<osg::ShapeDrawable> myLandmarkDrawable;
-    osg::ref_ptr<osg::Geometry> myCameraNode;
-    osg::ref_ptr<osg::Group> myRootNode;
+    osg::ref_ptr<osg::Node> myLandmarkNode;
+    osg::ref_ptr<osg::PositionAttitudeTransform> myCameraPAT;
+    osg::ref_ptr<osg::Group> myLandmarksGroup;
+    std::vector< osg::ref_ptr<osg::PositionAttitudeTransform> > myLandmarksPool;
     EngineOutputPtr myResult;
 };
 
