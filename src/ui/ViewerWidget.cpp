@@ -1,4 +1,5 @@
 #include <osg/ShapeDrawable>
+#include <osg/PrimitiveSet>
 #include <osg/Shape>
 #include <osg/Geode>
 #include "ViewerWidget.h"
@@ -41,7 +42,13 @@ ViewerWidget::ViewerWidget(QWidget* parent) : ViewerWidgetBase(parent)
     {
         // TODO: load node from resources.
 
+        osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
+        osg::ref_ptr<osg::Vec3Array> colors = new osg::Vec3Array();
+
         osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
+        geometry->setVertexArray(vertices);
+        geometry->setColorArray(colors, osg::Array::BIND_OVERALL);
+        geometry->addPrimitiveSet(new osg::DrawArrays(osg::DrawArrays::QUADS, 0, 4));
 
         osg::ref_ptr<osg::Geode> geode = new osg::Geode();
         geode->addDrawable(geometry);
