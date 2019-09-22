@@ -43,7 +43,13 @@ ViewerWidget::ViewerWidget(QWidget* parent) : ViewerWidgetBase(parent)
         // TODO: load node from resources.
 
         osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
+        vertices->push_back(osg::Vec3d(0.0, 0.0, 0.0));
+        vertices->push_back(osg::Vec3d(1.0, 0.0, 0.0));
+        vertices->push_back(osg::Vec3d(1.0, 1.0, 0.0));
+        vertices->push_back(osg::Vec3d(0.0, 1.0, 0.0));
+
         osg::ref_ptr<osg::Vec3Array> colors = new osg::Vec3Array();
+        colors->push_back(osg::Vec3d(1.0, 0.0, 0.0));
 
         osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
         geometry->setVertexArray(vertices);
@@ -70,6 +76,8 @@ ViewerWidget::ViewerWidget(QWidget* parent) : ViewerWidgetBase(parent)
 void ViewerWidget::handleFrame(EngineOutputPtr frame)
 {
     myResult = frame;
+    std::cout << frame->current_frame.camera_to_world.translation() << std::endl;
+    std::cout << frame->aligned_wrt_previous << std::endl;
 
     while(myResult->landmarks.size() >= myLandmarksPool.size() )
     {
@@ -82,7 +90,7 @@ void ViewerWidget::handleFrame(EngineOutputPtr frame)
 
     myLandmarksGroup->removeChildren(0, myLandmarksGroup->getNumChildren());
 
-    for(size_t i=0; i<myLandmarksPool.size(); i++)
+    for(size_t i=0; i<myResult->landmarks.size(); i++)
     {
         myLandmarksPool[i]->setPosition( vectorEigen2osg(myResult->landmarks[i].position) );
         myLandmarksGroup->addChild(myLandmarksPool[i]);

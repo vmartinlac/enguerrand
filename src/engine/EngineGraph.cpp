@@ -279,6 +279,8 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
     {
         EngineOutputPtr output = std::make_shared<EngineOutput>();
 
+        output->aligned_wrt_previous = odometry->frame.aligned_wrt_previous;
+
         //output->frame_id = video->header.frame_id;
         //output->timestamp = video->frame.getTimestamp();
         output->frame_runtime = std::chrono::duration_cast<std::chrono::microseconds>(ClockType::now() - video->received_time);

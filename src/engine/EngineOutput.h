@@ -34,6 +34,7 @@ struct EngineOutput
     cv::Mat3b traces_image;
     cv::Mat3b detection_image;
     std::vector<EngineOutputLandmark> landmarks;
+    bool aligned_wrt_previous;
     EngineOutputFrame current_frame;
 };
 
