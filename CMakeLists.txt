@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.1)
 project(enguerrand)
 
 option(WITH_CUDA "Whether CUDA is available." OFF)
+option(BUILD_TEST "Whether to build unit tests." OFF)
 
 enable_language(CXX)
 
@@ -41,5 +42,7 @@ pkg_check_modules(OSG REQUIRED IMPORTED_TARGET openscenegraph)
 
 add_subdirectory(app)
 add_subdirectory(src)
-add_subdirectory(tst)
+if(${BUILD_TEST})
+    add_subdirectory(tst)
+endif()
 

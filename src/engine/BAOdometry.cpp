@@ -265,7 +265,6 @@ void BAOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
     reset();
 
     FramePtr new_frame = std::make_shared<Frame>();
-    myKeyFrames.push_back(new_frame);
 
     new_frame->timestamp = timestamp;
     new_frame->camera_to_world = Sophus::SE3d(); // identity.
@@ -282,6 +281,9 @@ void BAOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
             new_frame->observations.back().circle = circles[i].circle;
         }
     }
+
+    myKeyFrames.push_back(new_frame);
+    myLastFrame = new_frame;
 
     performBundleAdjustment(BA_TRIANGULATION);
 }
