@@ -47,6 +47,7 @@ protected:
         double ceres_camera_to_world_t[3];
         double ceres_camera_to_world_q[4];
         std::vector<Observation> observations;
+        bool keyframe;
 
         void preBundleAdjustment();
         void postBundleAdjustment();
@@ -54,7 +55,7 @@ protected:
 
     using FramePtr = std::shared_ptr<Frame>;
 
-    class BundleAdjustment;
+    struct BundleAdjustment;
 
     enum BundleAdjustmentType
     {
@@ -75,16 +76,15 @@ protected:
 
     cv::Vec3f undistortCircle(const cv::Vec3f& c);
 
+    template<typename FramePtrContainer>
+    size_t buildLocalMap(FramePtrContainer& frames, std::vector<LandmarkPtr>& local_map);
+
 protected:
 
     double myLandmarkRadius;
-    double myMaxKeyFrames;
-    double myMaxProjections;
+    size_t myMaxKeyFrames;
     CalibrationDataPtr myCalibration;
 
-    FramePtr myLastFrame;
-    std::deque<FramePtr> myKeyFrames;
-    std::vector<LandmarkPtr> myObservedLandmarks;
-    std::vector<LandmarkPtr> myLocalMap;
+    std::deque<FramePtr> myFrames;
 };
 

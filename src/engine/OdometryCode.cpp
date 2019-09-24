@@ -4,3 +4,6 @@ OdometryCode::OdometryCode()
 {
 }
 
+OdometryCode::~OdometryCode()
+{
+}

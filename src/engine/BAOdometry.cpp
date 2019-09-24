@@ -4,6 +4,39 @@
 #include <ceres/rotation.h>
 #include "BAOdometry.h"
 
+template<typename FramePtrContainer>
+size_t BAOdometry::buildLocalMap(FramePtrContainer& frames, std::vector<LandmarkPtr>& local_map)
+{
+    for(FramePtr frame : frames)
+    {
+        for(Observation& obs : frame->observations)
+        {
+            obs.landmark->visited = false;
+        }
+    }
+
+    size_t observation_count = 0;
+
+    local_map.clear();
+
+    for(FramePtr frame : frames)
+    {
+        for(Observation& obs : frame->observations)
+        {
+            observation_count++;
+
+            if(obs.landmark->visited == false)
+            {
+                obs.landmark->visited = true;
+                obs.landmark->local_id = local_map.size();
+                local_map.push_back(obs.landmark);
+            }
+        }
+    }
+
+    return observation_count;
+}
+
 struct BAOdometry::BundleAdjustment
 {
     BAOdometry* myParent;
@@ -167,7 +200,6 @@ BAOdometry::BAOdometry(CalibrationDataPtr calibration)
     myCalibration = calibration;
     myLandmarkRadius = 1.0;
     myMaxKeyFrames = 10;
-    myMaxProjections = 50;
 }
 
 bool BAOdometry::track(
@@ -175,36 +207,27 @@ bool BAOdometry::track(
     const std::vector<TrackedCircle>& circles,
     OdometryFrame& output)
 {
-    bool successful_alignment = false;
-    bool ret = true;
-
-    successful_alignment = track(timestamp, circles);
+    bool successful_alignment = track(timestamp, circles);
 
     if(successful_alignment == false)
     {
         initialize(timestamp, circles);
     }
 
-    if(myLastFrame)
+    if(myFrames.empty())
     {
-        output.timestamp = timestamp;
-        output.aligned_wrt_previous = successful_alignment;
-        output.camera_to_world = myLastFrame->camera_to_world;
-        //output.landmarks.resize(myLocalMap.size())
-        output.pose_covariance.setIdentity(); // TODO set corrent pose covariance.
-        output.landmarks.clear(); // TODO: export landmarks!
-        ret = true;
-    }
-    else
-    {
-        output.timestamp = timestamp;
-        output.aligned_wrt_previous = false;
-        output.camera_to_world = Sophus::SE3d();
-        output.landmarks.clear();
-        ret = false;
+        std::cerr << "Internal error" << std::endl;
+        exit(1);
     }
 
-    return ret;
+    output.timestamp = timestamp;
+    output.aligned_wrt_previous = successful_alignment;
+    output.camera_to_world = myFrames.back()->camera_to_world;
+    //output.landmarks.resize(myLocalMap.size())
+    output.pose_covariance.setIdentity(); // TODO set corrent pose covariance.
+    output.landmarks.clear(); // TODO: export landmarks!
+
+    return true;
 
     /*
     create a new frame and fill it with observations.
@@ -229,32 +252,94 @@ bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
 {
     bool ret = false;
 
-    if(myLastFrame)
+    if(myFrames.empty() == false)
     {
-        if(myKeyFrames.empty())
+        /*
+        FramePtr current_frame;
+
+        if( myFrames.back()->keyframe )
         {
-            std::cerr << "Internal error!" << std::endl;
-            exit(1);
+            current_frame = std::make_shared<Frame>();
+
+        }
+        else
+        {
+            current_frame = myFrames.back();
         }
 
+        current_frame->timestamp = timestamp;
+        current_frame->camera_to_world = myFrames->camera_to_world;
+
+        std::vector<Observation> new_observations(circles.size());
+
+        int num_tracked_landmarks = 0;
+
+        for(size_t i=0; i<circles.size(); i++)
+        {
+            if( circles[i].has_previous && current_frame.observations.at(i) )
+            {
+                new_observations[i].landmark = current_frame.observations.at(i);
+                num_tracked_landmarks++;
+            }
+
+            new_observations[i].circle = circles[i].circle;
+        }
+
+        current_frame->observations.swap(new_observations);
+
+        if( num_tracked_landmarks > 3 )
+        {
+            performBundleAdjustment(BA_PNP);
+
+            int num_new_landmarks = 0;
+
+            for(size_t i=0; i<circles.size(); i++)
+            {
+                if( !current_frame.observations[i].landmark )
+                {
+                    current_frame.observations[i].landmark = triangulateInitialLandmark(circles[i].circle); // TODO: transform from frame to world!
+
+                    if(current_frame.observations[i].landmark)
+                    {
+                        num_new_landmarks++;
+                    }
+                }
+            }
+
+            if(
+            else
+            {
+                performBundleAdjustment(BA_PNP);
+            }
+
+            if(myFrames.size() > myMaxKeyFrames)
+            {
+                myFrames.pop_front();
+            }
+
+            ret = true;
+        }
+        */
+
+        /*
         FramePtr newframe = std::make_shared<Frame>();
         newframe->timestamp = timestamp;
         newframe->camera_to_world = myLastFrame->camera_to_world;
 
-        const Sophus::SE3d::Tangent distance = ( myLastFrame->camera_to_world.inverse() * myKeyFrames.back()->camera_to_world ).log();
+        const Sophus::SE3d::Tangent distance = ( myLastFrame->camera_to_world.inverse() * myFrames.back()->camera_to_world ).log();
 
         bool iskeyframe = false;
 
         if( iskeyframe )
         {
-            myKeyFrames.push_back(newframe);
+            myFrames.push_back(newframe);
         }
-        else
-        {
-        }
+        */
+    }
 
-        myLastFrame = newframe;
-        ret = true;
+    if(ret == false)
+    {
+        reset();
     }
 
     return ret;
@@ -268,30 +353,24 @@ void BAOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
     new_frame->timestamp = timestamp;
     new_frame->camera_to_world = Sophus::SE3d(); // identity.
+    new_frame->keyframe = true;
 
-    myObservedLandmarks.resize(circles.size());
+    new_frame->observations.resize(circles.size());
+
     for(size_t i=0; i<circles.size(); i++)
     {
-        myObservedLandmarks[i] = triangulateInitialLandmark(circles[i].circle);
-
-        if(myObservedLandmarks[i])
-        {
-            new_frame->observations.emplace_back();
-            new_frame->observations.back().landmark = myObservedLandmarks[i];
-            new_frame->observations.back().circle = circles[i].circle;
-        }
+        new_frame->observations[i].landmark = triangulateInitialLandmark(circles[i].circle);
+        new_frame->observations[i].circle = circles[i].circle;
     }
 
-    myKeyFrames.push_back(new_frame);
-    myLastFrame = new_frame;
+    myFrames.assign({new_frame});
 
     performBundleAdjustment(BA_TRIANGULATION);
 }
 
 void BAOdometry::reset()
 {
-    myObservedLandmarks.clear();
-    myKeyFrames.clear();
+    myFrames.clear();
 }
 
 BAOdometry::LandmarkPtr BAOdometry::triangulateInitialLandmark(const cv::Vec3f& circle)
@@ -354,45 +433,23 @@ void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
     std::vector<FramePtr>& frames = fn->myFrames;
     size_t num_observations = 0;
 
+    std::vector<LandmarkPtr> local_map;
+
     switch(type)
     {
     case BA_TRIANGULATION:
     case BA_PNP:
-        //frames.push_back( myKeyFrames.back() );
-        frames.push_back( myLastFrame );
+        frames.assign({ myFrames.back() });
         break;
     case BA_LBA:
-        frames.reserve( myKeyFrames.size() );
-        std::copy( myKeyFrames.begin(), myKeyFrames.end(), std::back_inserter(frames) );
+        frames.assign(myFrames.begin(), myFrames.end());
         break;
     default:
         std::cerr << "Internal error" << std::endl;
         exit(1);
     }
 
-    myLocalMap.clear();
-
-    for(FramePtr frame : frames)
-    {
-        for(Observation& o : frame->observations)
-        {
-            o.landmark->visited = false;
-        }
-    }
-
-    for(FramePtr frame : frames)
-    {
-        for(Observation& o : frame->observations)
-        {
-            num_observations++;
-
-            if(o.landmark->visited == false)
-            {
-                o.landmark->visited = true;
-                myLocalMap.push_back(o.landmark);
-            }
-        }
-    }
+    num_observations = buildLocalMap(frames, local_map);
 
     for(FramePtr frame : frames)
     {
@@ -400,9 +457,8 @@ void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
         wrapper->AddParameterBlock(4);
     }
 
-    for(size_t i=0; i<myLocalMap.size(); i++)
+    for(size_t i=0; i<local_map.size(); i++)
     {
-        myLocalMap[i]->local_id = i;
         wrapper->AddParameterBlock(3);
     }
 
@@ -413,25 +469,37 @@ void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
 
     ceres::Problem problem;
 
-    bool first = true;
     for(FramePtr frame : frames)
     {
         frame->preBundleAdjustment();
         problem.AddParameterBlock(frame->ceres_camera_to_world_t, 3);
         problem.AddParameterBlock(frame->ceres_camera_to_world_q, 4, quaternion_parameterization);
-
-        if(first)
-        {
-            problem.SetParameterBlockConstant(frame->ceres_camera_to_world_t);
-            problem.SetParameterBlockConstant(frame->ceres_camera_to_world_q);
-            first = false;
-        }
     }
 
-    for(size_t i=0; i<myLocalMap.size(); i++)
+    for(size_t i=0; i<local_map.size(); i++)
     {
-        myLocalMap[i]->preBundleAdjustment();
-        problem.AddParameterBlock( myLocalMap[i]->ceres_position, 3 );
+        local_map[i]->preBundleAdjustment();
+        problem.AddParameterBlock( local_map[i]->ceres_position, 3 );
+    }
+
+    // set fixed parameters.
+
+    if(type == BA_LBA || type == BA_TRIANGULATION)
+    {
+        problem.SetParameterBlockConstant(frames.front()->ceres_camera_to_world_t);
+        problem.SetParameterBlockConstant(frames.front()->ceres_camera_to_world_q);
+    }
+    else if(type == BA_PNP)
+    {
+        for(LandmarkPtr lm : local_map)
+        {
+            problem.SetParameterBlockConstant(lm->ceres_position);
+        }
+    }
+    else
+    {
+        std::cerr << "Internal error" << std::endl;
+        exit(1);
     }
 
     ceres::Solver::Options options;
@@ -445,9 +513,9 @@ void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
         frame->postBundleAdjustment();
     }
 
-    for(size_t i=0; i<myLocalMap.size(); i++)
+    for(LandmarkPtr lm : local_map)
     {
-        myLocalMap[i]->postBundleAdjustment();
+        lm->postBundleAdjustment();
     }
 }
 

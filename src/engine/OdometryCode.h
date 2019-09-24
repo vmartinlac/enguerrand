@@ -28,6 +28,7 @@ class OdometryCode
 public:
 
     OdometryCode();
+    virtual ~OdometryCode();
 
     virtual bool track(
         double timestamp,

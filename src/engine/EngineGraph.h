@@ -55,8 +55,8 @@ namespace EngineGraph
     struct CirclesMessage
     {
         MessageHeader header;
-        std::vector<TrackedCircle> circles;
         double timestamp;
+        std::vector<TrackedCircle> circles;
         cv::Size image_size;
     };
 
