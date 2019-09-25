@@ -38,6 +38,7 @@ protected:
     {
         LandmarkPtr landmark;
         cv::Vec3f circle;
+        cv::Vec3f undistorted_circle;
     };
 
     struct Frame
@@ -70,7 +71,7 @@ protected:
 
     bool track(double timestamp, const std::vector<TrackedCircle>& circles);
 
-    LandmarkPtr triangulateInitialLandmark(const cv::Vec3f& circle);
+    LandmarkPtr triangulateInitialLandmark(const Sophus::SE3d& camera_to_world, const cv::Vec3f& circle);
 
     void performBundleAdjustment(BundleAdjustmentType type);
 

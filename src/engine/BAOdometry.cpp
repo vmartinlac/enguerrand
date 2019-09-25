@@ -171,12 +171,11 @@ struct BAOdometry::BundleAdjustment
 
                 T* landmark_residual = residuals + 3*projection_index;
 
-
                 if( project(camera_to_world_t, camera_to_world_q, landmark_in_world, projection) )
                 {
-                    landmark_residual[0] = (projection[0] - T(o.circle[0])) / T(mySigmaCenter);
-                    landmark_residual[1] = (projection[1] - T(o.circle[1])) / T(mySigmaCenter);
-                    landmark_residual[2] = (projection[2] - T(o.circle[2])) / T(mySigmaRadius);
+                    landmark_residual[0] = (projection[0] - T(o.undistorted_circle[0])) / T(mySigmaCenter);
+                    landmark_residual[1] = (projection[1] - T(o.undistorted_circle[1])) / T(mySigmaCenter);
+                    landmark_residual[2] = (projection[2] - T(o.undistorted_circle[2])) / T(mySigmaRadius);
                 }
                 else
                 {
@@ -228,24 +227,6 @@ bool BAOdometry::track(
     output.landmarks.clear(); // TODO: export landmarks!
 
     return true;
-
-    /*
-    create a new frame and fill it with observations.
-    update observedlandmarks array.
-    if first frame
-        keep as keyframe
-        bundle adjustment
-    else
-        new_keyframe = there is new landmark || previous keyframe travalled too much
-        if new_keyframe
-            bundle adjustment
-            keep as keyframe
-        else
-            perspective-n-Points
-            new_keyframe_requested = travelled 
-        endif
-    endif
-    */
 }
 
 bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles)
@@ -254,87 +235,82 @@ bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
 
     if(myFrames.empty() == false)
     {
-        /*
+        FramePtr previous_frame = myFrames.back();
+
         FramePtr current_frame;
 
-        if( myFrames.back()->keyframe )
+        if( previous_frame->keyframe )
         {
             current_frame = std::make_shared<Frame>();
+            current_frame->camera_to_world = previous_frame->camera_to_world;
 
-        }
-        else
-        {
-            current_frame = myFrames.back();
-        }
-
-        current_frame->timestamp = timestamp;
-        current_frame->camera_to_world = myFrames->camera_to_world;
-
-        std::vector<Observation> new_observations(circles.size());
-
-        int num_tracked_landmarks = 0;
-
-        for(size_t i=0; i<circles.size(); i++)
-        {
-            if( circles[i].has_previous && current_frame.observations.at(i) )
-            {
-                new_observations[i].landmark = current_frame.observations.at(i);
-                num_tracked_landmarks++;
-            }
-
-            new_observations[i].circle = circles[i].circle;
-        }
-
-        current_frame->observations.swap(new_observations);
-
-        if( num_tracked_landmarks > 3 )
-        {
-            performBundleAdjustment(BA_PNP);
-
-            int num_new_landmarks = 0;
-
-            for(size_t i=0; i<circles.size(); i++)
-            {
-                if( !current_frame.observations[i].landmark )
-                {
-                    current_frame.observations[i].landmark = triangulateInitialLandmark(circles[i].circle); // TODO: transform from frame to world!
-
-                    if(current_frame.observations[i].landmark)
-                    {
-                        num_new_landmarks++;
-                    }
-                }
-            }
-
-            if(
-            else
-            {
-                performBundleAdjustment(BA_PNP);
-            }
+            myFrames.push_back(current_frame);
 
             if(myFrames.size() > myMaxKeyFrames)
             {
                 myFrames.pop_front();
             }
+        }
+        else
+        {
+            current_frame = previous_frame;
+        }
+
+        current_frame->timestamp = timestamp;
+
+        std::vector<Observation> new_observations(circles.size());
+
+        int num_tracked_landmarks = 0;
+        int num_new_landmarks = 0;
+
+        for(size_t i=0; i<circles.size(); i++)
+        {
+            new_observations[i].circle = circles[i].circle;
+            new_observations[i].undistorted_circle = undistortCircle(circles[i].circle);
+
+            if( circles[i].has_previous && bool(previous_frame->observations[i].landmark) )
+            {
+                new_observations[i].landmark = previous_frame->observations[i].landmark;
+                num_tracked_landmarks++;
+            }
+            else
+            {
+                new_observations[i].landmark = triangulateInitialLandmark(current_frame->camera_to_world, new_observations[i].undistorted_circle);
+
+                if( new_observations[i].landmark )
+                {
+                    num_new_landmarks++;
+                }
+            }
+
+        }
+
+        current_frame->observations.swap(new_observations);
+
+        if( num_tracked_landmarks >= 3 )
+        {
+            if(num_new_landmarks > 0)
+            {
+                performBundleAdjustment(BA_LBA);
+            }
+            else
+            {
+                performBundleAdjustment(BA_PNP);
+            }
+
+            FramePtr last_keyframe = myFrames[myFrames.size()-2];
+            if(last_keyframe->keyframe == false)
+            {
+                std::cerr << "Internal error!" << std::endl;
+                exit(1);
+            }
+
+            const Sophus::SE3d::Tangent distance = ( last_keyframe->camera_to_world.inverse() * current_frame->camera_to_world ).log();
+
+            current_frame->keyframe = (distance.head<3>().norm() > myLandmarkRadius*2.0) || ( distance.tail<3>().norm() > M_PI*0.2 );
 
             ret = true;
         }
-        */
-
-        /*
-        FramePtr newframe = std::make_shared<Frame>();
-        newframe->timestamp = timestamp;
-        newframe->camera_to_world = myLastFrame->camera_to_world;
-
-        const Sophus::SE3d::Tangent distance = ( myLastFrame->camera_to_world.inverse() * myFrames.back()->camera_to_world ).log();
-
-        bool iskeyframe = false;
-
-        if( iskeyframe )
-        {
-            myFrames.push_back(newframe);
-        }
-        */
     }
 
     if(ret == false)
@@ -359,8 +335,9 @@ void BAOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
     for(size_t i=0; i<circles.size(); i++)
     {
-        new_frame->observations[i].landmark = triangulateInitialLandmark(circles[i].circle);
         new_frame->observations[i].circle = circles[i].circle;
+        new_frame->observations[i].undistorted_circle = undistortCircle(circles[i].circle);
+        new_frame->observations[i].landmark = triangulateInitialLandmark(new_frame->camera_to_world, new_frame->observations[i].undistorted_circle);
     }
 
     myFrames.assign({new_frame});
@@ -373,11 +350,12 @@ void BAOdometry::reset()
     myFrames.clear();
 }
 
-BAOdometry::LandmarkPtr BAOdometry::triangulateInitialLandmark(const cv::Vec3f& circle)
+BAOdometry::LandmarkPtr BAOdometry::triangulateInitialLandmark(const Sophus::SE3d& camera_to_world, const cv::Vec3f& undistorted_circle)
 {
     LandmarkPtr ret;
 
-    const cv::Vec3f undistorted = undistortCircle(circle);
+    //const cv::Vec3f undistorted = undistortCircle(circle);
+    const cv::Vec3f undistorted = undistorted_circle;
 
     const double cx = undistorted[0];
     const double cy = undistorted[1];
@@ -420,6 +398,8 @@ BAOdometry::LandmarkPtr BAOdometry::triangulateInitialLandmark(const cv::Vec3f& 
         ret->position.x() = distance*dir[0]/norm;
         ret->position.y() = distance*dir[1]/norm;
         ret->position.z() = distance*dir[2]/norm;
+
+        ret->position = camera_to_world * ret->position;
     }
 
     return ret;
