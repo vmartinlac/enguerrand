@@ -54,17 +54,23 @@ struct BAOdometry::BundleAdjustment
     template<typename T>
     bool project(
         const T* camera_to_world_t,
-        const T* camera_to_world_q,
+        const T* camera_to_world_q_eigen,
         const T* landmark_in_world,
         T* projection) const
     {
         bool ok = true;
 
+        T camera_to_world_q[4];
+        camera_to_world_q[0] = camera_to_world_q_eigen[3];
+        camera_to_world_q[1] = camera_to_world_q_eigen[0];
+        camera_to_world_q[2] = camera_to_world_q_eigen[1];
+        camera_to_world_q[3] = camera_to_world_q_eigen[2];
+
         T world_to_camera_q [4];
-        world_to_camera_q[0] = camera_to_world_q[6];
-        world_to_camera_q[1] = -camera_to_world_q[3];
-        world_to_camera_q[2] = -camera_to_world_q[4];
-        world_to_camera_q[3] = -camera_to_world_q[5];
+        world_to_camera_q[0] = camera_to_world_q[0];
+        world_to_camera_q[1] = -camera_to_world_q[1];
+        world_to_camera_q[2] = -camera_to_world_q[2];
+        world_to_camera_q[3] = -camera_to_world_q[3];
 
         T tmp[3];
         tmp[0] = landmark_in_world[0] - camera_to_world_t[0];
@@ -164,14 +170,14 @@ struct BAOdometry::BundleAdjustment
                 const size_t landmark_index = o.landmark->local_id;
 
                 const T* camera_to_world_t = parameters[2*frame_index+0];
-                const T* camera_to_world_q = parameters[2*frame_index+1];
+                const T* camera_to_world_q_eigen = parameters[2*frame_index+1];
                 const T* landmark_in_world = parameters[2*num_frames + landmark_index];
 
                 T projection[3];
 
                 T* landmark_residual = residuals + 3*projection_index;
 
-                if( project(camera_to_world_t, camera_to_world_q, landmark_in_world, projection) )
+                if( project(camera_to_world_t, camera_to_world_q_eigen, landmark_in_world, projection) )
                 {
                     landmark_residual[0] = (projection[0] - T(o.undistorted_circle[0])) / T(mySigmaCenter);
                     landmark_residual[1] = (projection[1] - T(o.undistorted_circle[1])) / T(mySigmaCenter);
@@ -225,6 +231,16 @@ bool BAOdometry::track(
     //output.landmarks.resize(myLocalMap.size())
     output.pose_covariance.setIdentity(); // TODO set corrent pose covariance.
     output.landmarks.clear(); // TODO: export landmarks!
+    {
+        std::vector<LandmarkPtr> landmarks;
+        buildLocalMap(myFrames, landmarks);
+
+        output.landmarks.resize(landmarks.size());
+        for(size_t i=0; i<landmarks.size(); i++)
+        {
+            output.landmarks[i].position = landmarks[i]->position;
+        }
+    }
 
     return true;
 }
@@ -243,6 +259,7 @@ bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
         {
             current_frame = std::make_shared<Frame>();
             current_frame->camera_to_world = previous_frame->camera_to_world;
+            current_frame->keyframe = false;
 
             myFrames.push_back(current_frame);
 
@@ -415,6 +432,8 @@ void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
 
     std::vector<LandmarkPtr> local_map;
 
+    std::vector<double*> parameters;
+
     switch(type)
     {
     case BA_TRIANGULATION:
@@ -431,49 +450,54 @@ void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
 
     num_observations = buildLocalMap(frames, local_map);
 
+    parameters.reserve(2*frames.size() + local_map.size());
+
     for(FramePtr frame : frames)
     {
         wrapper->AddParameterBlock(3);
         wrapper->AddParameterBlock(4);
+
+        parameters.push_back( frame->camera_to_world.data()+4 );
+        parameters.push_back( frame->camera_to_world.data() );
     }
 
     for(size_t i=0; i<local_map.size(); i++)
     {
         wrapper->AddParameterBlock(3);
+
+        parameters.push_back( local_map[i]->position.data() );
     }
 
     wrapper->SetNumResiduals(3*num_observations);
 
-    // TODO check who takes ownership of this object.
-    auto quaternion_parameterization = new ceres::QuaternionParameterization();
+    ceres::EigenQuaternionParameterization* quaternion_parameterization = new ceres::EigenQuaternionParameterization();
 
     ceres::Problem problem;
+    problem.AddResidualBlock(wrapper, nullptr, parameters);
 
     for(FramePtr frame : frames)
     {
-        frame->preBundleAdjustment();
-        problem.AddParameterBlock(frame->ceres_camera_to_world_t, 3);
-        problem.AddParameterBlock(frame->ceres_camera_to_world_q, 4, quaternion_parameterization);
+        problem.AddParameterBlock(frame->camera_to_world.data()+4, 3);
+        problem.AddParameterBlock(frame->camera_to_world.data(), 4, quaternion_parameterization);
     }
 
     for(size_t i=0; i<local_map.size(); i++)
     {
-        local_map[i]->preBundleAdjustment();
-        problem.AddParameterBlock( local_map[i]->ceres_position, 3 );
+        problem.AddParameterBlock( local_map[i]->position.data(), 3 );
     }
 
     // set fixed parameters.
 
     if(type == BA_LBA || type == BA_TRIANGULATION)
     {
-        problem.SetParameterBlockConstant(frames.front()->ceres_camera_to_world_t);
-        problem.SetParameterBlockConstant(frames.front()->ceres_camera_to_world_q);
+        problem.SetParameterBlockConstant(frames.front()->camera_to_world.data()+4);
+        problem.SetParameterBlockConstant(frames.front()->camera_to_world.data());
     }
     else if(type == BA_PNP)
     {
         for(LandmarkPtr lm : local_map)
         {
-            problem.SetParameterBlockConstant(lm->ceres_position);
+            problem.SetParameterBlockConstant(lm->position.data());
         }
     }
     else
@@ -487,41 +511,6 @@ void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
 
     ceres::Solver solver;
     solver.Solve(options, &problem, &summary);
-
-    for(FramePtr frame : frames)
-    {
-        frame->postBundleAdjustment();
-    }
-
-    for(LandmarkPtr lm : local_map)
-    {
-        lm->postBundleAdjustment();
-    }
-}
-
-void BAOdometry::Frame::preBundleAdjustment()
-{
-    std::copy( camera_to_world.data()+4, camera_to_world.data()+7, ceres_camera_to_world_t );
-    std::copy( camera_to_world.data(), camera_to_world.data()+4, ceres_camera_to_world_q );
-    std::swap( ceres_camera_to_world_q[0], ceres_camera_to_world_q[3] );
-}
-
-void BAOdometry::Frame::postBundleAdjustment()
-{
-    std::copy( ceres_camera_to_world_t, ceres_camera_to_world_t+3, camera_to_world.data()+4 );
-    std::swap( ceres_camera_to_world_q[0], ceres_camera_to_world_q[3] );
-    std::copy( ceres_camera_to_world_q, ceres_camera_to_world_q+4, camera_to_world.data() );
-    camera_to_world.normalize();
-}
-
-void BAOdometry::Landmark::preBundleAdjustment()
-{
-    std::copy( position.data(), position.data()+3, ceres_position );
-}
-
-void BAOdometry::Landmark::postBundleAdjustment()
-{
-    std::copy( ceres_position, ceres_position+3, position.data() );
 }
 
 cv::Vec3f BAOdometry::undistortCircle(const cv::Vec3f& c)

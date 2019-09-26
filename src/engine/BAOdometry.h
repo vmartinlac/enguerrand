@@ -25,11 +25,6 @@ protected:
         bool visited;
         size_t local_id;
         Eigen::Vector3d position;
-        double ceres_position[3];
-        size_t seen_count;
-
-        void preBundleAdjustment();
-        void postBundleAdjustment();
     };
 
     using LandmarkPtr = std::shared_ptr<Landmark>;
@@ -45,13 +40,8 @@ protected:
     {
         double timestamp;
         Sophus::SE3d camera_to_world;
-        double ceres_camera_to_world_t[3];
-        double ceres_camera_to_world_q[4];
         std::vector<Observation> observations;
         bool keyframe;
-
-        void preBundleAdjustment();
-        void postBundleAdjustment();
     };
 
     using FramePtr = std::shared_ptr<Frame>;
