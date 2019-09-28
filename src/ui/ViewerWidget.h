@@ -27,6 +27,7 @@ public slots:
 
 protected:
 
+    double myLandmarkRadius;
     osg::ref_ptr<osg::Node> myLandmarkNode;
     osg::ref_ptr<osg::PositionAttitudeTransform> myCameraPAT;
     osg::ref_ptr<osg::Group> myLandmarksGroup;

@@ -38,6 +38,7 @@ protected:
 
     struct Frame
     {
+        size_t odometry_frame_id;
         double timestamp;
         Sophus::SE3d camera_to_world;
         std::vector<Observation> observations;
@@ -75,6 +76,8 @@ protected:
 protected:
 
     double myLandmarkRadius;
+    double myKeyFrameSelectionTranslationThreshold;
+    double myKeyFrameSelectionRotationThreshold;
     size_t myMaxKeyFrames;
     CalibrationDataPtr myCalibration;
 

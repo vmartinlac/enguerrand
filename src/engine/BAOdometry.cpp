@@ -186,8 +186,12 @@ struct BAOdometry::BundleAdjustment
 BAOdometry::BAOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
+
     myLandmarkRadius = 1.0;
     myMaxKeyFrames = 10;
+
+    myKeyFrameSelectionTranslationThreshold = myLandmarkRadius * 5.0;
+    myKeyFrameSelectionRotationThreshold = 0.2*M_PI;
 }
 
 bool BAOdometry::track(
@@ -211,17 +215,14 @@ bool BAOdometry::track(
     output.timestamp = timestamp;
     output.aligned_wrt_previous = successful_alignment;
     output.camera_to_world = myFrames.back()->camera_to_world;
-    //output.landmarks.resize(myLocalMap.size())
-    output.pose_covariance.setIdentity(); // TODO set corrent pose covariance.
-    output.landmarks.clear(); // TODO: export landmarks!
+    output.pose_covariance.setIdentity(); // TODO set correct pose covariance.
+    output.landmarks.clear();
+    for(Observation& obs : myFrames.back()->observations)
     {
-        std::vector<LandmarkPtr> landmarks;
-        buildLocalMap(myFrames, landmarks);
-
-        output.landmarks.resize(landmarks.size());
-        for(size_t i=0; i<landmarks.size(); i++)
+        if(obs.landmark)
         {
-            output.landmarks[i].position = landmarks[i]->position;
+            output.landmarks.emplace_back();
+            output.landmarks.back().position = obs.landmark->position;
         }
     }
 
@@ -256,6 +257,7 @@ bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
             current_frame = previous_frame;
         }
 
+        current_frame->odometry_frame_id = previous_frame->odometry_frame_id+1;
         current_frame->timestamp = timestamp;
 
         std::vector<Observation> new_observations(circles.size());
@@ -310,7 +312,7 @@ bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
 
                 const Sophus::SE3d::Tangent distance = ( last_keyframe->camera_to_world.inverse() * current_frame->camera_to_world ).log();
 
-                current_frame->keyframe = (distance.head<3>().norm() > myLandmarkRadius*2.0) || ( distance.tail<3>().norm() > M_PI*0.2 );
+                current_frame->keyframe = (distance.head<3>().norm() > myKeyFrameSelectionTranslationThreshold) || ( distance.tail<3>().norm() > myKeyFrameSelectionRotationThreshold );
             }
         }
     }
@@ -329,6 +331,7 @@ void BAOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
     FramePtr new_frame = std::make_shared<Frame>();
 
+    new_frame->odometry_frame_id = 0;
     new_frame->timestamp = timestamp;
     new_frame->camera_to_world = Sophus::SE3d(); // identity.
     new_frame->keyframe = true;
@@ -411,16 +414,10 @@ BAOdometry::LandmarkPtr BAOdometry::triangulateInitialLandmark(const Sophus::SE3
 
 bool BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
 {
-    auto cost0 = new BundleAdjustment(this);
+    bool ret = true;
 
-    auto cost1 = new ceres::DynamicAutoDiffCostFunction<BundleAdjustment>(cost0);
-
-    std::vector<FramePtr>& frames = cost0->myFrames;
-    size_t num_observations = 0;
-
+    std::vector<FramePtr> frames;
     std::vector<LandmarkPtr> local_map;
-
-    std::vector<double*> parameters;
 
     switch(type)
     {
@@ -436,81 +433,94 @@ bool BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
         exit(1);
     }
 
-    num_observations = buildLocalMap(frames, local_map);
+    const size_t num_observations = buildLocalMap(frames, local_map);
 
-    parameters.reserve(2*frames.size() + local_map.size());
-
-    for(FramePtr frame : frames)
+    if(num_observations == 0)
     {
-        cost1->AddParameterBlock(Sophus::SE3d::num_parameters);
-        parameters.push_back( frame->camera_to_world.data() );
-    }
-
-    for(size_t i=0; i<local_map.size(); i++)
-    {
-        cost1->AddParameterBlock(3);
-        parameters.push_back( local_map[i]->position.data() );
-    }
-
-    cost1->SetNumResiduals(3*num_observations);
-
-    //ceres::EigenQuaternionParameterization* quaternion_parameterization = new ceres::EigenQuaternionParameterization();
-    ceres::LocalParameterization* se3_parameterization = new SE3Parameterization();
-
-    ceres::Problem problem;
-    problem.AddResidualBlock(cost1, nullptr, parameters);
-
-    for(FramePtr frame : frames)
-    {
-        problem.AddParameterBlock(frame->camera_to_world.data(), Sophus::SE3d::num_parameters, se3_parameterization);
-    }
-
-    for(size_t i=0; i<local_map.size(); i++)
-    {
-        problem.AddParameterBlock(local_map[i]->position.data(), 3 );
-    }
-
-    // set fixed parameters.
-
-    if(type == BA_LBA || type == BA_TRIANGULATION)
-    {
-        problem.SetParameterBlockConstant(frames.front()->camera_to_world.data());
-    }
-    else if(type == BA_PNP)
-    {
-        for(LandmarkPtr lm : local_map)
-        {
-            problem.SetParameterBlockConstant(lm->position.data());
-        }
+        ret = true;
     }
     else
     {
-        std::cerr << "Internal error" << std::endl;
-        exit(1);
+        BundleAdjustment* cost0 = new BundleAdjustment(this);
+
+        ceres::DynamicCostFunction* cost1 = new ceres::DynamicAutoDiffCostFunction<BundleAdjustment>(cost0);
+
+        std::vector<double*> parameters;
+        parameters.reserve(2*frames.size() + local_map.size());
+
+        for(FramePtr frame : frames)
+        {
+            cost1->AddParameterBlock(Sophus::SE3d::num_parameters);
+            parameters.push_back( frame->camera_to_world.data() );
+        }
+
+        for(size_t i=0; i<local_map.size(); i++)
+        {
+            cost1->AddParameterBlock(3);
+            parameters.push_back( local_map[i]->position.data() );
+        }
+
+        cost1->SetNumResiduals(3*num_observations);
+
+        ceres::LocalParameterization* se3_parameterization = new SE3Parameterization();
+
+        ceres::Problem problem;
+        problem.AddResidualBlock(cost1, nullptr, parameters);
+
+        for(FramePtr frame : frames)
+        {
+            problem.AddParameterBlock(frame->camera_to_world.data(), Sophus::SE3d::num_parameters, se3_parameterization);
+        }
+
+        for(size_t i=0; i<local_map.size(); i++)
+        {
+            problem.AddParameterBlock(local_map[i]->position.data(), 3 );
+        }
+
+        // set fixed parameters.
+
+        if(type == BA_LBA || type == BA_TRIANGULATION)
+        {
+            problem.SetParameterBlockConstant(frames.front()->camera_to_world.data());
+        }
+        else if(type == BA_PNP)
+        {
+            for(LandmarkPtr lm : local_map)
+            {
+                problem.SetParameterBlockConstant(lm->position.data());
+            }
+        }
+        else
+        {
+            std::cerr << "Internal error" << std::endl;
+            exit(1);
+        }
+
+        /*
+        if(myFrames.size() >= 2)
+        {
+            Eigen::VectorXd resid(num_observations*3);
+            const bool ok = cost0->operator()<double>(parameters.data(), resid.data());
+            std::cout << ok << std::endl;
+            std::cout << resid.format(Eigen::FullPrecision) << std::endl;
+        }
+        */
+
+        cost0->myFrames.swap(frames);
+
+        ceres::Solver::Options options;
+        ceres::Solver::Summary summary;
+
+        ceres::Solver solver;
+        solver.Solve(options, &problem, &summary);
+
+        ret = summary.IsSolutionUsable();
     }
 
-    /*
-    if(myFrames.size() >= 2)
-    {
-        Eigen::VectorXd resid(num_observations*3);
-        const bool ok = cost0->operator()<double>(parameters.data(), resid.data());
-        std::cout << ok << std::endl;
-        std::cout << resid.format(Eigen::FullPrecision) << std::endl;
-    }
-    */
+    // std::cout << summary.BriefReport() << std::endl;
+    // dump();
 
-    ceres::Solver::Options options;
-    ceres::Solver::Summary summary;
-
-    ceres::Solver solver;
-    solver.Solve(options, &problem, &summary);
-
-    const bool ok = summary.IsSolutionUsable();
-
-    std::cout << summary.BriefReport() << std::endl;
-    dump();
-
-    return ok;
+    return ret;
 }
 
 void BAOdometry::dump()

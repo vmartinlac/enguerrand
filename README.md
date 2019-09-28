@@ -31,6 +31,7 @@ TODO
 * write 3d visualization.
 * write GPU implementation of landmark detection.
 * improve performances of CPU implementation of landmark detection.
-* use { bool first\_seen; size\_t id; } or { bool first\_seen; size\_t last\_index; }.
+* use { bool first\_seen; size\_t id; } or { bool first\_seen; size\_t last\_index; } and track on multiple frames.
+* check histogram with neural network instead of using distance to reference histogram.
 * test everything.
 
