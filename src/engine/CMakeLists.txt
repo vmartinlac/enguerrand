@@ -2,6 +2,8 @@
 add_library(
     enguerrand_engine
     SHARED
+    SE3Parameterization.h
+    SE3Parameterization.cpp
     BAOdometry.cpp
     BAOdometry.h
     BAOdometry2.cpp

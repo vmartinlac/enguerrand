@@ -3,6 +3,7 @@
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
 #include "BAOdometry.h"
+#include "SE3Parameterization.h"
 
 template<typename FramePtrContainer>
 size_t BAOdometry::buildLocalMap(FramePtrContainer& frames, std::vector<LandmarkPtr>& local_map)
@@ -52,76 +53,59 @@ struct BAOdometry::BundleAdjustment
     }
 
     template<typename T>
+    using Vector3 = Eigen::Matrix<T,3,1>;
+
+    template<typename T>
     bool project(
-        const T* camera_to_world_t,
-        const T* camera_to_world_q_eigen,
-        const T* landmark_in_world,
+        const T* camera_to_world_,
+        const T* landmark_in_world_,
         T* projection) const
     {
+        Eigen::Map< const Sophus::SE3<T> > camera_to_world(camera_to_world_);
+        Eigen::Map< const Vector3<T> > landmark_in_world(landmark_in_world_);
+
         bool ok = true;
 
-        T camera_to_world_q[4];
-        camera_to_world_q[0] = camera_to_world_q_eigen[3];
-        camera_to_world_q[1] = camera_to_world_q_eigen[0];
-        camera_to_world_q[2] = camera_to_world_q_eigen[1];
-        camera_to_world_q[3] = camera_to_world_q_eigen[2];
+        Vector3<T> landmark_in_camera = camera_to_world.inverse() * landmark_in_world;
 
-        T world_to_camera_q [4];
-        world_to_camera_q[0] = camera_to_world_q[0];
-        world_to_camera_q[1] = -camera_to_world_q[1];
-        world_to_camera_q[2] = -camera_to_world_q[2];
-        world_to_camera_q[3] = -camera_to_world_q[3];
+        const T fx(myParent->myCalibration->cameras[0].calibration_matrix(0,0));
+        const T fy(myParent->myCalibration->cameras[0].calibration_matrix(1,1));
+        const T cx(myParent->myCalibration->cameras[0].calibration_matrix(0,2));
+        const T cy(myParent->myCalibration->cameras[0].calibration_matrix(1,2));
 
-        T tmp[3];
-        tmp[0] = landmark_in_world[0] - camera_to_world_t[0];
-        tmp[1] = landmark_in_world[1] - camera_to_world_t[1];
-        tmp[2] = landmark_in_world[2] - camera_to_world_t[2];
-
-        T landmark_in_camera[3];
-        ceres::QuaternionRotatePoint(world_to_camera_q, tmp, landmark_in_camera);
-
-        T fx(myParent->myCalibration->cameras[0].calibration_matrix(0,0));
-        T fy(myParent->myCalibration->cameras[0].calibration_matrix(1,1));
-        T cx(myParent->myCalibration->cameras[0].calibration_matrix(0,2));
-        T cy(myParent->myCalibration->cameras[0].calibration_matrix(1,2));
-
-        if( landmark_in_camera[2] < myParent->myLandmarkRadius*0.1 )
+        if( landmark_in_camera.z() < myParent->myLandmarkRadius*0.1 )
         {
             ok = false;
         }
         else
         {
-            T distance = ceres::sqrt(
-                landmark_in_camera[0]*landmark_in_camera[0] +
-                landmark_in_camera[1]*landmark_in_camera[1] +
-                landmark_in_camera[2]*landmark_in_camera[2] );
+            const T distance = landmark_in_camera.norm();
 
-            T alpha = ceres::asin( T(myParent->myLandmarkRadius) / distance );
+            const T alpha = ceres::asin( T(myParent->myLandmarkRadius) / distance );
 
             T center_los[2];
             center_los[0] = landmark_in_camera[0] / landmark_in_camera[2];
             center_los[1] = landmark_in_camera[1] / landmark_in_camera[2];
 
             T beta[2];
-            beta[0] = ceres::acos( center_los[0] );
-            beta[1] = ceres::acos( center_los[1] );
-
+            beta[0] = ceres::atan( center_los[0] );
+            beta[1] = ceres::atan( center_los[1] );
 
             T tangentlos0[2];
-            tangentlos0[0] = ceres::cos( beta[0] - alpha );
+            tangentlos0[0] = ceres::tan( beta[0] - alpha );
             tangentlos0[1] = center_los[1];
 
             T tangentlos1[2];
-            tangentlos1[0] = ceres::cos( beta[0] + alpha );
+            tangentlos1[0] = ceres::tan( beta[0] + alpha );
             tangentlos1[1] = center_los[1];
 
             T tangentlos2[2];
             tangentlos2[0] = center_los[0];
-            tangentlos2[1] = ceres::cos( beta[1] - alpha );
+            tangentlos2[1] = ceres::tan( beta[1] - alpha );
 
             T tangentlos3[2];
             tangentlos3[0] = center_los[0];
-            tangentlos3[1] = ceres::cos( beta[1] + alpha );
+            tangentlos3[1] = ceres::tan( beta[1] + alpha );
 
 
             T tanpoint0[2];
@@ -165,29 +149,27 @@ struct BAOdometry::BundleAdjustment
 
         for(FramePtr f : myFrames)
         {
+            const T* camera_to_world = parameters[frame_index];
+
             for(Observation& o : f->observations)
             {
-                const size_t landmark_index = o.landmark->local_id;
+                const T* landmark_in_world =  parameters[num_frames + o.landmark->local_id];
 
-                const T* camera_to_world_t = parameters[2*frame_index+0];
-                const T* camera_to_world_q_eigen = parameters[2*frame_index+1];
-                const T* landmark_in_world = parameters[2*num_frames + landmark_index];
+                T* projection_residual = residuals + 3*projection_index;
 
                 T projection[3];
 
-                T* landmark_residual = residuals + 3*projection_index;
-
-                if( project(camera_to_world_t, camera_to_world_q_eigen, landmark_in_world, projection) )
+                if( project(camera_to_world, landmark_in_world, projection) )
                 {
-                    landmark_residual[0] = (projection[0] - T(o.undistorted_circle[0])) / T(mySigmaCenter);
-                    landmark_residual[1] = (projection[1] - T(o.undistorted_circle[1])) / T(mySigmaCenter);
-                    landmark_residual[2] = (projection[2] - T(o.undistorted_circle[2])) / T(mySigmaRadius);
+                    projection_residual[0] = (projection[0] - T(o.undistorted_circle[0])) / T(mySigmaCenter);
+                    projection_residual[1] = (projection[1] - T(o.undistorted_circle[1])) / T(mySigmaCenter);
+                    projection_residual[2] = (projection[2] - T(o.undistorted_circle[2])) / T(mySigmaRadius);
                 }
                 else
                 {
-                    landmark_residual[0] = T(0.0);
-                    landmark_residual[1] = T(0.0);
-                    landmark_residual[2] = T(0.0);
+                    projection_residual[0] = T(0.0);
+                    projection_residual[1] = T(0.0);
+                    projection_residual[2] = T(0.0);
                 }
 
                 projection_index++;
@@ -424,10 +406,11 @@ BAOdometry::LandmarkPtr BAOdometry::triangulateInitialLandmark(const Sophus::SE3
 
 void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
 {
-    auto fn = new BundleAdjustment(this);
-    auto wrapper = new ceres::DynamicAutoDiffCostFunction<BundleAdjustment>(fn);
+    auto cost0 = new BundleAdjustment(this);
 
-    std::vector<FramePtr>& frames = fn->myFrames;
+    auto cost1 = new ceres::DynamicAutoDiffCostFunction<BundleAdjustment>(cost0);
+
+    std::vector<FramePtr>& frames = cost0->myFrames;
     size_t num_observations = 0;
 
     std::vector<LandmarkPtr> local_map;
@@ -454,43 +437,38 @@ void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
 
     for(FramePtr frame : frames)
     {
-        wrapper->AddParameterBlock(3);
-        wrapper->AddParameterBlock(4);
-
-        parameters.push_back( frame->camera_to_world.data()+4 );
+        cost1->AddParameterBlock(Sophus::SE3d::num_parameters);
         parameters.push_back( frame->camera_to_world.data() );
     }
 
     for(size_t i=0; i<local_map.size(); i++)
     {
-        wrapper->AddParameterBlock(3);
-
+        cost1->AddParameterBlock(3);
         parameters.push_back( local_map[i]->position.data() );
     }
 
-    wrapper->SetNumResiduals(3*num_observations);
+    cost1->SetNumResiduals(3*num_observations);
 
-    ceres::EigenQuaternionParameterization* quaternion_parameterization = new ceres::EigenQuaternionParameterization();
+    //ceres::EigenQuaternionParameterization* quaternion_parameterization = new ceres::EigenQuaternionParameterization();
+    ceres::LocalParameterization* se3_parameterization = new SE3Parameterization();
 
     ceres::Problem problem;
-    problem.AddResidualBlock(wrapper, nullptr, parameters);
+    problem.AddResidualBlock(cost1, nullptr, parameters);
 
     for(FramePtr frame : frames)
     {
-        problem.AddParameterBlock(frame->camera_to_world.data()+4, 3);
-        problem.AddParameterBlock(frame->camera_to_world.data(), 4, quaternion_parameterization);
+        problem.AddParameterBlock(frame->camera_to_world.data(), Sophus::SE3d::num_parameters, se3_parameterization);
     }
 
     for(size_t i=0; i<local_map.size(); i++)
     {
-        problem.AddParameterBlock( local_map[i]->position.data(), 3 );
+        problem.AddParameterBlock(local_map[i]->position.data(), 3 );
     }
 
     // set fixed parameters.
 
     if(type == BA_LBA || type == BA_TRIANGULATION)
     {
-        problem.SetParameterBlockConstant(frames.front()->camera_to_world.data()+4);
         problem.SetParameterBlockConstant(frames.front()->camera_to_world.data());
     }
     else if(type == BA_PNP)

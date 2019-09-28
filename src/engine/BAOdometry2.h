@@ -5,11 +5,11 @@
 #include "OdometryCode.h"
 #include "CalibrationData.h"
 
-class BAOdometry : public OdometryCode
+class BAOdometry2 : public OdometryCode
 {
 public:
 
-    BAOdometry(CalibrationDataPtr calibration);
+    BAOdometry2(CalibrationDataPtr calibration);
 
     bool track(
         double timestamp,

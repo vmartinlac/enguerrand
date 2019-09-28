@@ -2,10 +2,11 @@
 #include <opencv2/imgproc.hpp>
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
-#include "BAOdometry.h"
+#include "BAOdometry2.h"
 
+/*
 template<typename FramePtrContainer>
-size_t BAOdometry::buildLocalMap(FramePtrContainer& frames, std::vector<LandmarkPtr>& local_map)
+size_t BAOdometry2::buildLocalMap(FramePtrContainer& frames, std::vector<LandmarkPtr>& local_map)
 {
     for(FramePtr frame : frames)
     {
@@ -37,12 +38,12 @@ size_t BAOdometry::buildLocalMap(FramePtrContainer& frames, std::vector<Landmark
     return observation_count;
 }
 
-struct BAOdometry::BundleAdjustment
+struct BAOdometry2::BundleAdjustment
 {
-    BAOdometry* myParent;
+    BAOdometry2* myParent;
     std::vector<FramePtr> myFrames;
 
-    BundleAdjustment(BAOdometry* parent)
+    BundleAdjustment(BAOdometry2* parent)
     {
         myParent = parent;
     }
@@ -54,14 +55,14 @@ struct BAOdometry::BundleAdjustment
     }
 };
 
-BAOdometry::BAOdometry(CalibrationDataPtr calibration)
+BAOdometry2::BAOdometry2(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
     myLandmarkRadius = 1.0;
     myMaxKeyFrames = 10;
 }
 
-bool BAOdometry::track(
+bool BAOdometry2::track(
     double timestamp,
     const std::vector<TrackedCircle>& circles,
     OdometryFrame& output)
@@ -99,7 +100,7 @@ bool BAOdometry::track(
     return true;
 }
 
-void BAOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& circles)
+void BAOdometry2::initialize(double timestamp, const std::vector<TrackedCircle>& circles)
 {
     reset();
 
@@ -125,7 +126,7 @@ void BAOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
     myFrames.assign({new_frame});
 }
 
-bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles)
+bool BAOdometry2::track(double timestamp, const std::vector<TrackedCircle>& circles)
 {
     bool ret = false;
 
@@ -218,12 +219,12 @@ bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
     return ret;
 }
 
-void BAOdometry::reset()
+void BAOdometry2::reset()
 {
     myFrames.clear();
 }
 
-void BAOdometry::triangulateObservation(Observation& observation)
+void BAOdometry2::triangulateObservation(Observation& observation)
 {
     observation.triangulated = false;
 
@@ -272,7 +273,7 @@ void BAOdometry::triangulateObservation(Observation& observation)
     }
 }
 
-void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
+void BAOdometry2::performBundleAdjustment(BundleAdjustmentType type)
 {
     auto fn = new BundleAdjustment(this);
     auto wrapper = new ceres::DynamicAutoDiffCostFunction<BundleAdjustment>(fn);
@@ -363,7 +364,7 @@ void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
     solver.Solve(options, &problem, &summary);
 }
 
-cv::Vec3f BAOdometry::undistortCircle(const cv::Vec3f& c)
+cv::Vec3f BAOdometry2::undistortCircle(const cv::Vec3f& c)
 {
     std::vector<cv::Vec2d> distorted(4);
     std::vector<cv::Vec2d> undistorted(4);
@@ -403,3 +404,5 @@ cv::Vec3f BAOdometry::undistortCircle(const cv::Vec3f& c)
 
     return ret;
 }
+*/
+

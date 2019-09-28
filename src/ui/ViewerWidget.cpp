@@ -76,8 +76,6 @@ ViewerWidget::ViewerWidget(QWidget* parent) : ViewerWidgetBase(parent)
 void ViewerWidget::handleFrame(EngineOutputPtr frame)
 {
     myResult = frame;
-    std::cout << frame->current_frame.camera_to_world.translation() << std::endl;
-    std::cout << frame->aligned_wrt_previous << std::endl;
 
     while(myResult->landmarks.size() >= myLandmarksPool.size() )
     {
