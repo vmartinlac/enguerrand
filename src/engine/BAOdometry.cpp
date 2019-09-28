@@ -1,3 +1,4 @@
+#include <iostream>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <ceres/ceres.h>
@@ -61,12 +62,12 @@ struct BAOdometry::BundleAdjustment
         const T* landmark_in_world_,
         T* projection) const
     {
-        Eigen::Map< const Sophus::SE3<T> > camera_to_world(camera_to_world_);
-        Eigen::Map< const Vector3<T> > landmark_in_world(landmark_in_world_);
+        const Eigen::Map< const Sophus::SE3<T> > camera_to_world(camera_to_world_);
+        const Eigen::Map< const Vector3<T> > landmark_in_world(landmark_in_world_);
 
         bool ok = true;
 
-        Vector3<T> landmark_in_camera = camera_to_world.inverse() * landmark_in_world;
+        const Vector3<T> landmark_in_camera = camera_to_world.inverse() * landmark_in_world;
 
         const T fx(myParent->myCalibration->cameras[0].calibration_matrix(0,0));
         const T fy(myParent->myCalibration->cameras[0].calibration_matrix(1,1));
@@ -267,9 +268,9 @@ bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
             new_observations[i].circle = circles[i].circle;
             new_observations[i].undistorted_circle = undistortCircle(circles[i].circle);
 
-            if( circles[i].has_previous && bool(previous_frame->observations[i].landmark) )
+            if( circles[i].has_previous && bool(previous_frame->observations[circles[i].previous].landmark) )
             {
-                new_observations[i].landmark = previous_frame->observations[i].landmark;
+                new_observations[i].landmark = previous_frame->observations[circles[i].previous].landmark;
                 num_tracked_landmarks++;
             }
             else
@@ -290,25 +291,27 @@ bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
         {
             if(num_new_landmarks > 0)
             {
-                performBundleAdjustment(BA_LBA);
+                ret = performBundleAdjustment(BA_LBA);
             }
             else
             {
-                performBundleAdjustment(BA_PNP);
+                ret = performBundleAdjustment(BA_PNP);
             }
 
-            FramePtr last_keyframe = myFrames[myFrames.size()-2];
-            if(last_keyframe->keyframe == false)
+            if(ret)
             {
-                std::cerr << "Internal error!" << std::endl;
-                exit(1);
+                FramePtr last_keyframe = myFrames[myFrames.size()-2];
+
+                if(last_keyframe->keyframe == false)
+                {
+                    std::cerr << "Internal error!" << std::endl;
+                    exit(1);
+                }
+
+                const Sophus::SE3d::Tangent distance = ( last_keyframe->camera_to_world.inverse() * current_frame->camera_to_world ).log();
+
+                current_frame->keyframe = (distance.head<3>().norm() > myLandmarkRadius*2.0) || ( distance.tail<3>().norm() > M_PI*0.2 );
             }
-
-            const Sophus::SE3d::Tangent distance = ( last_keyframe->camera_to_world.inverse() * current_frame->camera_to_world ).log();
-
-            current_frame->keyframe = (distance.head<3>().norm() > myLandmarkRadius*2.0) || ( distance.tail<3>().norm() > M_PI*0.2 );
-
-            ret = true;
         }
     }
 
@@ -341,6 +344,8 @@ void BAOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
     myFrames.assign({new_frame});
 
+    // We dont check return value.
+    // We assume nothing went wrong.
     performBundleAdjustment(BA_TRIANGULATION);
 }
 
@@ -404,7 +409,7 @@ BAOdometry::LandmarkPtr BAOdometry::triangulateInitialLandmark(const Sophus::SE3
     return ret;
 }
 
-void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
+bool BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
 {
     auto cost0 = new BundleAdjustment(this);
 
@@ -484,11 +489,55 @@ void BAOdometry::performBundleAdjustment(BundleAdjustmentType type)
         exit(1);
     }
 
+    /*
+    if(myFrames.size() >= 2)
+    {
+        Eigen::VectorXd resid(num_observations*3);
+        const bool ok = cost0->operator()<double>(parameters.data(), resid.data());
+        std::cout << ok << std::endl;
+        std::cout << resid.format(Eigen::FullPrecision) << std::endl;
+    }
+    */
+
     ceres::Solver::Options options;
     ceres::Solver::Summary summary;
 
     ceres::Solver solver;
     solver.Solve(options, &problem, &summary);
+
+    const bool ok = summary.IsSolutionUsable();
+
+    std::cout << summary.BriefReport() << std::endl;
+    dump();
+
+    return ok;
+}
+
+void BAOdometry::dump()
+{
+    std::vector<LandmarkPtr> landmarks;
+    buildLocalMap(myFrames, landmarks);
+
+    std::cout << "== BAOdometry dump ==" << std::endl;
+
+    int i = 0;
+
+    i = 0;
+    for(FramePtr f : myFrames)
+    {
+        std::cout << "Frame " << i << std::endl;
+        std::cout << "   camera_to_world_t = " << f->camera_to_world.translation().transpose() << std::endl;
+        std::cout << "   camera_to_world_q = " << f->camera_to_world.unit_quaternion().coeffs().transpose() << std::endl;
+        i++;
+    }
+
+    i = 0;
+    for(LandmarkPtr lm : landmarks)
+    {
+        std::cout << "Landmark " << i << std::endl;
+        std::cout << "   position = " << lm->position.transpose() << std::endl;
+        i++;
+    }
 }
 
 cv::Vec3f BAOdometry::undistortCircle(const cv::Vec3f& c)

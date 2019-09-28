@@ -63,12 +63,14 @@ protected:
 
     LandmarkPtr triangulateInitialLandmark(const Sophus::SE3d& camera_to_world, const cv::Vec3f& circle);
 
-    void performBundleAdjustment(BundleAdjustmentType type);
+    bool performBundleAdjustment(BundleAdjustmentType type);
 
     cv::Vec3f undistortCircle(const cv::Vec3f& c);
 
     template<typename FramePtrContainer>
     size_t buildLocalMap(FramePtrContainer& frames, std::vector<LandmarkPtr>& local_map);
+
+    void dump();
 
 protected:
 
