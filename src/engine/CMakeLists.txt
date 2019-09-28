@@ -4,6 +4,8 @@ add_library(
     SHARED
     BAOdometry.cpp
     BAOdometry.h
+    BAOdometry2.cpp
+    BAOdometry2.h
     CalibrationData.cpp
     CalibrationData.h
     CircleFitter.cpp
