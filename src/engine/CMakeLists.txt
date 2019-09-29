@@ -8,8 +8,6 @@ add_library(
     BAOdometry.h
     BAOdometry2.cpp
     BAOdometry2.h
-    CalibrationData.cpp
-    CalibrationData.h
     CircleFitter.cpp
     CircleFitter.h
     CirclesTracker.cpp
@@ -52,8 +50,6 @@ target_link_libraries(
     Qt5::Core
     Qt5::Gui
     Threads::Threads
-    Eigen3::Eigen
-    Sophus::Sophus
     enguerrand_video
     enguerrand_stuff
 )

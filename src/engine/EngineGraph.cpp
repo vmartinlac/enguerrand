@@ -284,10 +284,21 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
         //output->frame_id = video->header.frame_id;
         //output->timestamp = video->frame.getTimestamp();
         output->frame_runtime = std::chrono::duration_cast<std::chrono::microseconds>(ClockType::now() - video->received_time);
+
         cv::cvtColor(video->frame.getView(), output->input_image, cv::COLOR_BGR2RGB);
+
         output->edges_image = edges->edges;
+
         cv::cvtColor(traces->image, output->traces_image, cv::COLOR_BGR2RGB);
+
         cv::cvtColor(video->frame.getView(), output->detection_image, cv::COLOR_BGR2RGB);
+        for(TrackedCircle& c : circles->circles)
+        {
+            const cv::Point center(c.circle[0], c.circle[1]);
+            const int radius = c.circle[2];
+            const int thickness = 2;
+            cv::circle(output->detection_image, center, radius, cv::Vec3b(0, 255, 0), thickness);
+        }
 
         output->landmarks.resize(odometry->frame.landmarks.size());
         for(size_t i=0; i<odometry->frame.landmarks.size(); i++)

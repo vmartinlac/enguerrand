@@ -10,12 +10,14 @@ VideoWidget::VideoWidget(QWidget* parent) : QWidget(parent)
     myFocusX = 0.0;
     myFocusY = 0.0;
     myLastSize = cv::Size(0,0);
+    myBackground = QPixmap(":/background.png");
 }
 
 void VideoWidget::paintEvent(QPaintEvent* ev)
 {
     QPainter painter(this);
-    painter.fillRect(painter.viewport(), QColor(Qt::black));
+    painter.setBackground(QBrush(myBackground));
+    painter.eraseRect(painter.viewport());
 
     if( myData && painter.viewport().width() > 2*myMargin && painter.viewport().height() > 2*myMargin )
     {

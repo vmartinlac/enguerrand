@@ -2,6 +2,8 @@
 add_library(
     enguerrand_video
     SHARED
+    CalibrationData.h
+    CalibrationData.cpp
     FileVideoSource.cpp
     FileVideoSource.h
     RealsenseVideoSource.cpp
@@ -23,6 +25,8 @@ target_link_libraries(
     opencv_videoio
     Qt5::Core
     realsense2::realsense2
+    Sophus::Sophus
+    Eigen3::Eigen
 )
 
 target_include_directories(enguerrand_video INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

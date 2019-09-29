@@ -2,6 +2,7 @@
 add_library(
     enguerrand_ui
     SHARED
+    ressources.qrc
     MainWindow.cpp
     MainWindow.h
     VideoWidget.cpp

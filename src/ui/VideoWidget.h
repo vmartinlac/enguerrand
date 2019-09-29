@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <QPixmap>
 #include <QWidget>
 #include <QMouseEvent>
 #include <QResizeEvent>
@@ -53,5 +54,6 @@ protected:
     cv::Size myLastSize;
     QPoint myLastPos;
     int myMargin;
+    QPixmap myBackground;
 };
 

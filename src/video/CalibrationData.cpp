@@ -72,14 +72,14 @@ bool CalibrationData::loadFromFile(const std::string& path)
                     if(ok)
                     {
                         QJsonArray arr = obj["camera_to_robot"].toArray();
-                        ok = (arr.size() == 16);
+                        ok = (arr.size() == 3*4);
 
                         if(ok)
                         {
                             Eigen::Matrix4d H;
                             H.setIdentity();
 
-                            for(int i=0; i<4; i++)
+                            for(int i=0; i<3; i++)
                             {
                                 for(int j=0; j<4; j++)
                                 {

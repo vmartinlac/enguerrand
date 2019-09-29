@@ -1,4 +1,5 @@
 #include <iostream>
+#include <QIcon>
 #include <QKeySequence>
 #include <QMessageBox>
 #include <QApplication>
@@ -15,6 +16,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     myEngine->start();
 
     QToolBar* tb = addToolBar("Tools");
+    tb->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+
     QAction* action_quit = tb->addAction("Quit");
     QAction* action_about = tb->addAction("About");
     tb->addSeparator();
@@ -27,6 +30,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     QAction* action_show_circles = tb->addAction("Detection");
     tb->addSeparator();
     QAction* action_home = tb->addAction("Home");
+
+    action_quit->setIcon(QIcon(":/close.png"));
+    action_about->setIcon(QIcon(":/about.png"));
+    action_home->setIcon(QIcon(":/home.png"));
+    action_start->setIcon(QIcon(":/play.png"));
+    action_stop->setIcon(QIcon(":/stop.png"));
+    action_show_raw->setIcon(QIcon(":/video_raw.png"));
+    action_show_edges->setIcon(QIcon(":/video_edges.png"));
+    action_show_traces->setIcon(QIcon(":/video_traces.png"));
+    action_show_circles->setIcon(QIcon(":/video_circles.png"));
 
     QActionGroup* group_image = new QActionGroup(this);
     group_image->addAction(action_show_raw);
@@ -92,7 +105,8 @@ MainWindow::~MainWindow()
 
 void MainWindow::about()
 {
-    QMessageBox::information(this, "About", "Victor MARTIN-LAC 2019");
+    // TODO: make better about dialog with compilation information.
+    QMessageBox::information(this, "About", "Written by Victor MARTIN-LAC in 2019. Icons set is from https://icons8.com/.");
 }
 
 void MainWindow::startEngine()
