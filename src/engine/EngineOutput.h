@@ -15,14 +15,14 @@ struct EngineOutputCircle
 struct EngineOutputLandmark
 {
     Eigen::Vector3d position;
-    Eigen::Matrix3d covariance;
+    //Eigen::Matrix3d covariance;
 };
 
 struct EngineOutputFrame
 {
     double timestamp;
     Sophus::SE3d camera_to_world;
-    Eigen::Matrix<double,6,6> pose_covariance;
+    //Eigen::Matrix<double,6,6> pose_covariance;
     std::vector<EngineOutputCircle> circles;
 };
 

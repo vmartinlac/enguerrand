@@ -215,7 +215,7 @@ bool BAOdometry::track(
     output.timestamp = timestamp;
     output.aligned_wrt_previous = successful_alignment;
     output.camera_to_world = myFrames.back()->camera_to_world;
-    output.pose_covariance.setIdentity(); // TODO set correct pose covariance.
+    //output.pose_covariance.setIdentity(); // TODO set correct pose covariance.
     output.landmarks.clear();
     for(Observation& obs : myFrames.back()->observations)
     {

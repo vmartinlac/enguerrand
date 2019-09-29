@@ -307,12 +307,12 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
             auto& output_landmark = output->landmarks[i];
 
             output_landmark.position = input_landmark.position;
-            output_landmark.covariance = input_landmark.covariance;
+            //output_landmark.covariance = input_landmark.covariance;
         }
 
         output->current_frame.timestamp = video->frame.getTimestamp();
         output->current_frame.camera_to_world = odometry->frame.camera_to_world;
-        output->current_frame.pose_covariance = odometry->frame.pose_covariance;
+        //output->current_frame.pose_covariance = odometry->frame.pose_covariance;
 
         output->current_frame.circles.resize( circles->circles.size() );
 

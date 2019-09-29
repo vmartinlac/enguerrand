@@ -1,8 +1,8 @@
 
 #pragma once
 
-//#include <random>
 #include <ceres/ceres.h>
+#include <ceres/autodiff_cost_function.h>
 #include "OdometryCode.h"
 #include "CalibrationData.h"
 
@@ -26,6 +26,11 @@ protected:
     struct ObservationFunction;
     struct AugmentationFunction;
 
+    using CeresTriangulationFunction = ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>;
+    using CeresPredictionFunction = ceres::DynamicAutoDiffCostFunction<PredictionFunction>;
+    using CeresObservationFunction = ceres::DynamicAutoDiffCostFunction<ObservationFunction>;
+    using CeresAugmentationFunction = ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 3, 4>;
+
     struct Landmark
     {
         Landmark();
@@ -35,7 +40,7 @@ protected:
         bool seen_in_current_frame;
     };
 
-    struct NewLandmark
+    struct TriangulatedLandmark
     {
         Eigen::Vector3d position;
         Eigen::Matrix<double,3,3> covariance_landmark_landmark;
@@ -46,17 +51,20 @@ protected:
     {
         State();
 
-        size_t getDimension();
+        size_t getDimension() const;
 
-        Eigen::VectorXd toVector();
+        Eigen::VectorXd toVector() const;
+
+        //void fromVector(const Eigen::VectorXd& x);
 
         void dump();
 
         double timestamp;
+
         Sophus::SE3d camera_to_world;
-        Eigen::Vector3d linear_momentum;
-        Eigen::Vector3d angular_momentum;
+        Sophus::SE3d::Tangent momentum;
         std::vector<Landmark> landmarks;
+
         Eigen::MatrixXd covariance; //* \brief Dimension of covariance matrix is 12 + 3*num_landmarks.
     };
 
@@ -86,20 +94,10 @@ protected:
 
     bool mappingPruneAugment(const std::vector<TrackedCircle>& circles);
 
-    /**
-    * \brief Triangulated landmark is in camera frame.
-    * \return true on success false on failure.
-    */
-    bool triangulateLandmarkInCameraFrame(
-        const TrackedCircle& tc,
-        Eigen::Vector3d& position,
-        Eigen::Matrix3d& covariance);
-
-    bool triangulateLandmarkInWorldFrame(
+    bool triangulateLandmark(
+        const cv::Vec3f& circle,
         const Sophus::SE3d& camera_to_world,
-        const Eigen::Matrix<double, 7, 7>& pose_covariance,
-        const TrackedCircle& circle,
-        NewLandmark& new_landmark);
+        TriangulatedLandmark& triangulated_landmark);
 
     void switchStates();
 
@@ -107,40 +105,21 @@ protected:
 
     State& currentState();
 
-    static Eigen::Matrix<double, 7, 1> poseToVector(const Sophus::SE3d& pose);
-
-    static Sophus::SE3d vectorToPose(const Eigen::Matrix<double, 7, 1>& vector);
-
     cv::Vec3f undistortCircle(const cv::Vec3f& c);
 
 protected:
 
-    double mLandmarkRadius;
-    size_t mMaxLandmarks;
-    double mPredictionLinearMomentumSigmaRate;
-    double mPredictionAngularMomentumSigmaRate;
-    double mObservationRadiusSigma;
-    double mObservationPositionSigma;
-    double mLandmarkMinDistanceToCamera;
-    CalibrationDataPtr mCalibration;
+    double myLandmarkRadius;
+    size_t myMaxLandmarks;
+    double myPredictionLinearMomentumSigmaRate;
+    double myPredictionAngularMomentumSigmaRate;
+    double myObservationRadiusSigma;
+    double myObservationPositionSigma;
+    double myLandmarkMinDistanceToCamera;
+    CalibrationDataPtr myCalibration;
 
-    bool mInitialized;
-    std::unique_ptr<State> mStates[2];
-    std::vector<CircleToLandmark> mCircleToLandmark;
+    bool myInitialized;
+    std::unique_ptr<State> myStates[2];
+    std::vector<CircleToLandmark> myCircleToLandmark;
 };
-
-inline void EKFOdometry::switchStates()
-{
-    std::swap(mStates[0], mStates[1]);
-}
-
-inline EKFOdometry::State& EKFOdometry::currentState()
-{
-    return *mStates[0];
-}
-
-inline EKFOdometry::State& EKFOdometry::workingState()
-{
-    return *mStates[1];
-}
 

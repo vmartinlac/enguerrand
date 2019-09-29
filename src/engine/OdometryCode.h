@@ -7,11 +7,8 @@
 
 struct OdometryFrameLandmark
 {
-    bool first_seen;
-    size_t id;
-    bool seen_in_current_frame;
     Eigen::Vector3d position;
-    Eigen::Matrix3d covariance;
+    //Eigen::Matrix3d covariance;
 };
 
 struct OdometryFrame
@@ -19,7 +16,7 @@ struct OdometryFrame
     double timestamp;
     bool aligned_wrt_previous;
     Sophus::SE3d camera_to_world;
-    Eigen::Matrix<double, 6, 6> pose_covariance;
+    //Eigen::Matrix<double, 6, 6> pose_covariance;
     std::vector<OdometryFrameLandmark> landmarks;
 };
 
