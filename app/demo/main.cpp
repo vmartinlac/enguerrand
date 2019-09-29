@@ -18,6 +18,7 @@ int main(int num_args, char** args)
 
     MainWindow* win = new MainWindow();
 
+    win->showMaximized();
     win->show();
 
     app.exec();

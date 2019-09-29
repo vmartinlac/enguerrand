@@ -27,6 +27,8 @@ public:
 
     bool loadFromFile(const std::string& file);
 
+    void dump() const;
+
     std::vector<CameraCalibrationData> cameras;
 };
 

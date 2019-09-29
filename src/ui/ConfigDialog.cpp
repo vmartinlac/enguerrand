@@ -123,6 +123,18 @@ void ConfigDialog::accept()
                 FileVideoSourcePtr video = std::make_shared<FileVideoSource>();
                 video->setFileName(filename);
                 ret->video_input = video;
+
+                const std::string path = myUI.video_file_calibration->text().toStdString();
+
+                ok = (path.empty() == false);
+                err = "Please set path to calibration data!";
+
+                if(ok)
+                {
+                    ret->calibration.reset(new CalibrationData());
+                    ok = ret->calibration->loadFromFile(path);
+                    err = "Incorrect calibration data!";
+                }
             }
         }
         else if(myUI.video_realsense->isChecked())
@@ -146,27 +158,16 @@ void ConfigDialog::accept()
                 std::this_thread::sleep_for(std::chrono::milliseconds(5000));
                 video->stop();
                 */
+
+                ret->calibration = video->getCalibrationData();
+                ok = bool(ret->calibration);
+                err = "Could not retrieve calibration data from camera!";
             }
         }
         else
         {
             ok = false;
             err = "Incorrect video input!";
-        }
-    }
-
-    if(ok)
-    {
-        const std::string path = myUI.video_file_calibration->text().toStdString();
-
-        ok = (path.empty() == false);
-        err = "Please set path to calibration data!";
-
-        if(ok)
-        {
-            ret->calibration.reset(new CalibrationData());
-            ok = ret->calibration->loadFromFile(path);
-            err = "Incorrect calibration data!";
         }
     }
 
@@ -187,6 +188,8 @@ void ConfigDialog::accept()
 
     if(ok)
     {
+        //ret->calibration->dump();
+
         QSettings s;
 
         s.beginGroup("ConfigDialog");

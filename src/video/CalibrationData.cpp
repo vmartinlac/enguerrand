@@ -98,3 +98,30 @@ bool CalibrationData::loadFromFile(const std::string& path)
     return ok;
 }
 
+void CalibrationData::dump() const
+{
+    std::cout << "== Calibration data ==" << std::endl;
+
+    int cam_id = 0;
+    for(const CameraCalibrationData& cam : cameras)
+    {
+        std::cout << "Camera " << cam_id << std::endl;
+        std::cout << "   image_width = " << cam.image_size.width << std::endl;
+        std::cout << "   image_height = " << cam.image_size.height << std::endl;
+        std::cout << "   fx = " << cam.calibration_matrix(0,0) << std::endl;
+        std::cout << "   fy = " << cam.calibration_matrix(1,1) << std::endl;
+        std::cout << "   cx = " << cam.calibration_matrix(0,2) << std::endl;
+        std::cout << "   cy = " << cam.calibration_matrix(1,2) << std::endl;
+        std::cout << "   distortion_coefficients = { ";
+        for(double value : cam.distortion_coefficients)
+        {
+            std::cout << value << " ";
+        }
+        std::cout << "}" << std::endl;
+        std::cout << "   camera_to_robot_t = " << cam.camera_to_robot.translation().transpose() << std::endl;
+        std::cout << "   camera_to_robot_q = " << cam.camera_to_robot.unit_quaternion().coeffs().transpose() << std::endl;
+
+        cam_id++;
+    }
+}
+

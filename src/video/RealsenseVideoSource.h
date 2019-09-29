@@ -5,6 +5,7 @@
 #include <librealsense2/hpp/rs_sensor.hpp>
 #include <opencv2/videoio.hpp>
 #include "VideoSource.h"
+#include "CalibrationData.h"
 
 class RealsenseVideoSource : public AsynchronousVideoSource
 {
@@ -17,6 +18,8 @@ public:
     void stop() override;
 
     int getNumViews() override;
+
+    CalibrationDataPtr getCalibrationData();
 
 protected:
 
