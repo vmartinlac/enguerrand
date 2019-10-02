@@ -40,12 +40,14 @@ protected:
         bool seen_in_current_frame;
     };
 
+    /*
     struct TriangulatedLandmark
     {
         Eigen::Vector3d position;
         Eigen::Matrix<double,3,3> covariance_landmark_landmark;
         Eigen::Matrix<double,3,13> covariance_landmark_camera;
     };
+    */
 
     struct State
     {
@@ -94,10 +96,17 @@ protected:
 
     bool mappingPruneAugment(const std::vector<TrackedCircle>& circles);
 
-    bool triangulateLandmark(
+    bool triangulateLandmarkInCameraFrame(
+        const cv::Vec3f& circle,
+        Eigen::Vector3d& position,
+        Eigen::Matrix3d& covariance);
+
+    /*
+    bool triangulateLandmarkInWorldFrame(
         const cv::Vec3f& circle,
         const Sophus::SE3d& camera_to_world,
         TriangulatedLandmark& triangulated_landmark);
+    */
 
     void switchStates();
 

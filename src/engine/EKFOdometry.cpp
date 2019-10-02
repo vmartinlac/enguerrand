@@ -411,12 +411,12 @@ void EKFOdometry::reset()
     myInitialized = false;
 }
 
+/*
 bool EKFOdometry::triangulateLandmark(
     const cv::Vec3f& circle,
     const Sophus::SE3d& camera_to_world,
     TriangulatedLandmark& new_landmark)
 {
-    /*
     Eigen::Vector3d in_camera;
     Eigen::Matrix3d in_camera_covariance;
 
@@ -474,16 +474,15 @@ bool EKFOdometry::triangulateLandmark(
     }
 
     return ok;
-    */
-    return false;
 }
+*/
 
-/*
 bool EKFOdometry::triangulateLandmarkInCameraFrame(
-    const TrackedCircle& tc,
+    const cv::Vec3f& circle,
     Eigen::Vector3d& position,
     Eigen::Matrix3d& covariance)
 {
+    /*
     double ceres_variable[3];
     double ceres_value[3];
     double ceres_jacobian[9];
@@ -525,8 +524,10 @@ bool EKFOdometry::triangulateLandmarkInCameraFrame(
     }
 
     return ok;
+    */
+
+    return false;
 }
-*/
 
 void EKFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& circles)
 {
@@ -545,57 +546,14 @@ void EKFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>&
 
     // triangulate circles into landmarks.
 
-    size_t num_triangulated = 0;
 
     for(size_t i=0; i<num_circles; i++)
     {
-        myCircleToLandmark[i].has_landmark = false; // TODO
-        /*
-        myCircleToLandmark[i].has_landmark = triangulateLandmar(
-            circles[i],
+        myCircleToLandmark[i].has_landmark = triangulateLandmarkInCameraFrame(
+            circles[i].circle,
             landmark_positions[i],
             landmark_covariances[i]);
-        */
 
-        if( myCircleToLandmark[i].has_landmark )
-        {
-            num_triangulated++;
-        }
-    }
-
-    // take only myMaxLandmarks landmarks (those with less variance).
-
-    if( num_triangulated > myMaxLandmarks )
-    {
-        std::vector<size_t> sorted;
-        sorted.reserve(num_triangulated);
-
-        for(size_t i=0; i<num_circles; i++)
-        {
-            if(myCircleToLandmark[i].has_landmark)
-            {
-                sorted.push_back(i);
-                myCircleToLandmark[i].has_landmark = false;
-            }
-        }
-
-        auto pred = [&landmark_covariances] (size_t a, size_t b) -> bool
-        {
-            const double var_a = landmark_covariances[a].trace();
-            const double var_b = landmark_covariances[b].trace();
-            return var_a <= var_b;
-        };
-
-        std::sort(sorted.begin(), sorted.end(), pred);
-
-        for(size_t i=0; i<myMaxLandmarks; i++)
-        {
-            myCircleToLandmark[ sorted[i] ].has_landmark = true;
-        }
-    }
-
-    for(size_t i=0; i<num_circles; i++)
-    {
         if( myCircleToLandmark[i].has_landmark )
         {
             myCircleToLandmark[i].landmark = state.landmarks.size();
@@ -611,21 +569,10 @@ void EKFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>&
     }
 
     const size_t num_landmarks = state.landmarks.size();
+    const size_t dim = state.getDimension();
 
-    state.covariance.resize(13+3*num_landmarks, 13+3*num_landmarks);
+    state.covariance.resize(dim, dim);
     state.covariance.setZero();
-
-    /*
-    const double initial_sigma_position = 1.0e-3;
-    const double initial_sigma_attitude = 1.0e-3;
-    const double initial_sigma_linear_momentum = 1.0e-3;
-    const double initial_sigma_angular_momentum = 1.0e-3;
-
-    state.covariance.block<3,3>(0,0).diagonal().fill(initial_sigma_position*initial_sigma_position);
-    state.covariance.block<4,4>(3,3).diagonal().fill(initial_sigma_attitude*initial_sigma_attitude);
-    state.covariance.block<3,3>(7,7).diagonal().fill(initial_sigma_linear_momentum*initial_sigma_linear_momentum);
-    state.covariance.block<3,3>(10,10).diagonal().fill(initial_sigma_angular_momentum*initial_sigma_angular_momentum);
-    */
 
     for(size_t i=0; i<num_circles; i++)
     {
