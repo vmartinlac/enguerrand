@@ -87,17 +87,17 @@ struct EKFOdometry::PredictionFunction
     {
         size_t offset = 0;
 
-        Eigen::Map< Sophus::SE3<T> > old_pose( old_state_arr[0] + offset );
+        const Eigen::Map< const Sophus::SE3<T> > old_pose( old_state_arr[0] + offset );
         Eigen::Map< Sophus::SE3<T> > new_pose( new_state + offset );
         offset += Sophus::SE3<T>::num_parameters;
 
-        Eigen::Map< typename Sophus::SE3<T>::Tangent > old_momentum( old_state_arr[0] + offset );
+        const Eigen::Map< const typename Sophus::SE3<T>::Tangent > old_momentum( old_state_arr[0] + offset );
         Eigen::Map< typename Sophus::SE3<T>::Tangent > new_momentum( new_state + offset );
         offset += Sophus::SE3<T>::DoF;
 
         for(size_t i=0; i<mNumLandmarks; i++)
         {
-            Eigen::Map< Eigen::Matrix<T,3,1> > old_landmark( old_state_arr[0] + offset );
+            const Eigen::Map< const Eigen::Matrix<T,3,1> > old_landmark( old_state_arr[0] + offset );
             Eigen::Map< Eigen::Matrix<T,3,1> > new_landmark( new_state + offset );
             offset += 3;
 
@@ -115,13 +115,12 @@ struct EKFOdometry::PredictionFunction
     }
 };
 
-/*
 struct EKFOdometry::ObservationFunction
 {
     EKFOdometry* mParent;
-    std::vector<ObservedLandmark>& mVisibleLandmarks;
+    const std::vector<ObservedLandmark>& mVisibleLandmarks;
 
-    ObservationFunction(std::vector<ObservedLandmark>& visible_landmarks, EKFOdometry* parent) :
+    ObservationFunction(const std::vector<ObservedLandmark>& visible_landmarks, EKFOdometry* parent) :
         mVisibleLandmarks(visible_landmarks)
     {
         mParent = parent;
@@ -130,60 +129,39 @@ struct EKFOdometry::ObservationFunction
     template<typename T>
     bool operator()(T const* const* state_arr, T* prediction) const
     {
-        const T* state = *state_arr;
-
         bool ok = true;
 
-        T camera_to_world_t[3];
-        camera_to_world_t[0] = state[0];
-        camera_to_world_t[1] = state[1];
-        camera_to_world_t[2] = state[2];
-
-        T world_to_camera_q [4];
-        world_to_camera_q[0] = state[6];
-        world_to_camera_q[1] = -state[3];
-        world_to_camera_q[2] = -state[4];
-        world_to_camera_q[3] = -state[5];
+        const Eigen::Map< const Sophus::SE3<T> > camera_to_world(state_arr[0]);
 
         for(size_t i=0; ok && i<mVisibleLandmarks.size(); i++)
         {
             const size_t j = mVisibleLandmarks[i].landmark;
 
-            T landmark_in_world[3];
-            landmark_in_world[0] = state[13+3*j+0];
-            landmark_in_world[1] = state[13+3*j+1];
-            landmark_in_world[2] = state[13+3*j+2];
+            const size_t offset = state_arr[0] + Sophus::SE3<T>::num_parameters + Sophus::SE3<T>::DoF + 3*j;
 
-            T tmp[3];
-            tmp[0] = landmark_in_world[0] - camera_to_world_t[0];
-            tmp[1] = landmark_in_world[1] - camera_to_world_t[1];
-            tmp[2] = landmark_in_world[2] - camera_to_world_t[2];
+            const Eigen::Map< const Eigen::Matrix<T,3,1> > landmark_in_world(offset);
 
-            T landmark_in_camera[3];
-            ceres::QuaternionRotatePoint(world_to_camera_q, tmp, landmark_in_camera);
+            const Eigen::Matrix<T,3,1> landmark_in_camera = camera_to_world.inverse() * landmark_in_world;
 
-            T fx(mParent->myCalibration->cameras[0].calibration_matrix(0,0));
-            T fy(mParent->myCalibration->cameras[0].calibration_matrix(1,1));
-            T cx(mParent->myCalibration->cameras[0].calibration_matrix(0,2));
-            T cy(mParent->myCalibration->cameras[0].calibration_matrix(1,2));
+            const T fx(mParent->myCalibration->cameras[0].calibration_matrix(0,0));
+            const T fy(mParent->myCalibration->cameras[0].calibration_matrix(1,1));
+            const T cx(mParent->myCalibration->cameras[0].calibration_matrix(0,2));
+            const T cy(mParent->myCalibration->cameras[0].calibration_matrix(1,2));
 
-            if( landmark_in_camera[2] < mParent->myLandmarkRadius*0.1 )
+            if( landmark_in_camera.z() < mParent->myLandmarkRadius*0.1 )
             {
                 ok = false;
             }
             else
             {
-                T distance = ceres::sqrt(
-                    landmark_in_camera[0]*landmark_in_camera[0] +
-                    landmark_in_camera[1]*landmark_in_camera[1] +
-                    landmark_in_camera[2]*landmark_in_camera[2] );
+                const T distance = landmark_in_camera.norm();
 
-                T alpha = ceres::asin( T(mParent->myLandmarkRadius) / distance );
+                const T alpha = ceres::asin( T(mParent->myLandmarkRadius) / distance );
 
-                T center_los[2];
-                center_los[0] = landmark_in_camera[0] / landmark_in_camera[2];
-                center_los[1] = landmark_in_camera[1] / landmark_in_camera[2];
+                //const Eigen::Matrix<T,2,1> center_los = landmark_in_camera.head<2>() / landmark_in_camera.z();
+                // TODO TODO TODO
 
+                /*
                 T beta[2];
                 beta[0] = ceres::atan( center_los[0] );
                 beta[1] = ceres::atan( center_los[1] );
@@ -230,13 +208,13 @@ struct EKFOdometry::ObservationFunction
                 prediction[3*i+0] = proj_x;
                 prediction[3*i+1] = proj_y;
                 prediction[3*i+2] = proj_radius;
+                */
             }
         }
 
         return ok;
     }
 };
-*/
 
 /*
 struct EKFOdometry::AugmentationFunction
@@ -924,17 +902,16 @@ bool EKFOdometry::trackingPrediction(double timestamp)
 
     if(ok)
     {
-        // TODO TODO TODO TODO
-        exit(1);
-        /*
         new_state.timestamp = timestamp;
 
-        new_state.camera_to_world.translation() = predicted_state.segment<3>(0);
+        size_t offset = 0;
 
-        new_state.camera_to_world.setQuaternion(Eigen::Quaterniond( predicted_state(6), predicted_state(3), predicted_state(4), predicted_state(5) ));
+        new_state.camera_to_world = Eigen::Map<Sophus::SE3d>( predicted_state.data() + offset );
+        offset += Sophus::SE3d::num_parameters;
 
-        new_state.linear_momentum = old_state.linear_momentum;
-        new_state.angular_momentum = old_state.angular_momentum;
+        new_state.momentum = Eigen::Map<Sophus::SE3d::Tangent>( predicted_state.data() + offset );
+        offset += Sophus::SE3d::DoF;
+
         new_state.landmarks = std::move(old_state.landmarks);
 
         for(Landmark& lm : new_state.landmarks)
@@ -945,17 +922,16 @@ bool EKFOdometry::trackingPrediction(double timestamp)
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> noise(dim, dim);
         noise.setZero();
 
-        noise(7,7) = mPredictionLinearMomentumSigmaRate * mPredictionLinearMomentumSigmaRate * timestep * timestep;
-        noise(8,8) = mPredictionLinearMomentumSigmaRate * mPredictionLinearMomentumSigmaRate * timestep * timestep;
-        noise(9,9) = mPredictionLinearMomentumSigmaRate * mPredictionLinearMomentumSigmaRate * timestep * timestep;
-        noise(10,10) = mPredictionAngularMomentumSigmaRate * mPredictionAngularMomentumSigmaRate * timestep * timestep;
-        noise(11,11) = mPredictionAngularMomentumSigmaRate * mPredictionAngularMomentumSigmaRate * timestep * timestep;
-        noise(12,12) = mPredictionAngularMomentumSigmaRate * mPredictionAngularMomentumSigmaRate * timestep * timestep;
+        noise(7,7) = myPredictionLinearMomentumSigmaRate * myPredictionLinearMomentumSigmaRate * timestep * timestep;
+        noise(8,8) = myPredictionLinearMomentumSigmaRate * myPredictionLinearMomentumSigmaRate * timestep * timestep;
+        noise(9,9) = myPredictionLinearMomentumSigmaRate * myPredictionLinearMomentumSigmaRate * timestep * timestep;
+        noise(10,10) = myPredictionAngularMomentumSigmaRate * myPredictionAngularMomentumSigmaRate * timestep * timestep;
+        noise(11,11) = myPredictionAngularMomentumSigmaRate * myPredictionAngularMomentumSigmaRate * timestep * timestep;
+        noise(12,12) = myPredictionAngularMomentumSigmaRate * myPredictionAngularMomentumSigmaRate * timestep * timestep;
 
         new_state.covariance = jacobian * (old_state.covariance + noise) * jacobian.transpose();
 
         switchStates();
-        */
     }
 
     return ok;
