@@ -57,8 +57,6 @@ protected:
 
         Eigen::VectorXd toVector() const;
 
-        //void fromVector(const Eigen::VectorXd& x);
-
         void dump();
 
         double timestamp;
