@@ -900,7 +900,6 @@ bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
 
 bool EKFOdometry::trackingPrediction(double timestamp)
 {
-    /*
     State& old_state = currentState();
     State& new_state = workingState();
 
@@ -909,7 +908,7 @@ bool EKFOdometry::trackingPrediction(double timestamp)
     const size_t dim = old_state.getDimension();
 
     Eigen::VectorXd initial_state = old_state.toVector();
-    Eigen::VectorXd predicted_state(old_state.getDimension());
+    Eigen::VectorXd predicted_state(dim);
 
     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> jacobian(dim, dim);
 
@@ -918,12 +917,16 @@ bool EKFOdometry::trackingPrediction(double timestamp)
 
     function->AddParameterBlock(dim);
     function->SetNumResiduals(dim);
+
     const double* ceres_params = initial_state.data();
     double* ceres_derivative = jacobian.data();
     bool ok = function->Evaluate(&ceres_params, predicted_state.data(), &ceres_derivative);
 
     if(ok)
     {
+        // TODO TODO TODO TODO
+        exit(1);
+        /*
         new_state.timestamp = timestamp;
 
         new_state.camera_to_world.translation() = predicted_state.segment<3>(0);
@@ -952,11 +955,10 @@ bool EKFOdometry::trackingPrediction(double timestamp)
         new_state.covariance = jacobian * (old_state.covariance + noise) * jacobian.transpose();
 
         switchStates();
+        */
     }
 
     return ok;
-    */
-    return false;
 }
 
 EKFOdometry::Landmark::Landmark()
