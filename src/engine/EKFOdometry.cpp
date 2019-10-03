@@ -85,82 +85,37 @@ struct EKFOdometry::PredictionFunction
     template<typename T>
     bool operator()(T const* const* old_state_arr, T* new_state) const
     {
-        const T* old_state = *old_state_arr;
+        size_t offset = 0;
 
-        // convert linear momentum to linear velocity. Assumes mass is one.
-        T linear_velocity[3];
-        linear_velocity[0] = old_state[7];
-        linear_velocity[1] = old_state[8];
-        linear_velocity[2] = old_state[9];
+        Eigen::Map< Sophus::SE3<T> > old_pose( old_state_arr[0] + offset );
+        Eigen::Map< Sophus::SE3<T> > new_pose( new_state + offset );
+        offset += Sophus::SE3<T>::num_parameters;
 
-        // convert angular momentum to angular velocity. Assumes inertia matrix is identity.
-        T angular_velocity[3];
-        angular_velocity[0] = old_state[10];
-        angular_velocity[1] = old_state[11];
-        angular_velocity[2] = old_state[12];
-
-        T old_camera_to_world[4];
-        old_camera_to_world[0] = old_state[6];
-        old_camera_to_world[1] = old_state[3];
-        old_camera_to_world[2] = old_state[4];
-        old_camera_to_world[3] = old_state[5];
-
-        T angle_axis[3];
-        angle_axis[0] = mTimestep*angular_velocity[0];
-        angle_axis[1] = mTimestep*angular_velocity[1];
-        angle_axis[2] = mTimestep*angular_velocity[2];
-
-        T new_camera_to_old_camera[4];
-        ceres::AngleAxisToQuaternion(angle_axis, new_camera_to_old_camera);
-
-        T new_camera_to_world[4];
-        ceres::QuaternionProduct(old_camera_to_world, new_camera_to_old_camera, new_camera_to_world);
-        T cte = ceres::sqrt(
-            new_camera_to_world[0]*new_camera_to_world[0] +
-            new_camera_to_world[1]*new_camera_to_world[1] +
-            new_camera_to_world[2]*new_camera_to_world[2] +
-            new_camera_to_world[3]*new_camera_to_world[3] );
-        new_camera_to_world[0] /= cte;
-        new_camera_to_world[1] /= cte;
-        new_camera_to_world[2] /= cte;
-        new_camera_to_world[3] /= cte;
-
-        // update position.
-
-        new_state[0] = old_state[0] + mTimestep*linear_velocity[0];
-        new_state[1] = old_state[1] + mTimestep*linear_velocity[1];
-        new_state[2] = old_state[2] + mTimestep*linear_velocity[2];
-
-        // update attitude.
-
-        new_state[3] = new_camera_to_world[1];
-        new_state[4] = new_camera_to_world[2];
-        new_state[5] = new_camera_to_world[3];
-        new_state[6] = new_camera_to_world[0];
-
-        // copy linear and angular momenta.
-
-        new_state[7] = old_state[7];
-        new_state[8] = old_state[8];
-        new_state[9] = old_state[9];
-
-        new_state[10] = old_state[10];
-        new_state[11] = old_state[11];
-        new_state[12] = old_state[12];
-
-        // copy landmarks.
+        Eigen::Map< typename Sophus::SE3<T>::Tangent > old_momentum( old_state_arr[0] + offset );
+        Eigen::Map< typename Sophus::SE3<T>::Tangent > new_momentum( new_state + offset );
+        offset += Sophus::SE3<T>::DoF;
 
         for(size_t i=0; i<mNumLandmarks; i++)
         {
-            new_state[13+3*i+0] = old_state[13+3*i+0];
-            new_state[13+3*i+1] = old_state[13+3*i+1];
-            new_state[13+3*i+2] = old_state[13+3*i+2];
+            Eigen::Map< Eigen::Matrix<T,3,1> > old_landmark( old_state_arr[0] + offset );
+            Eigen::Map< Eigen::Matrix<T,3,1> > new_landmark( new_state + offset );
+            offset += 3;
+
+            new_landmark = old_landmark;
         }
+
+        new_momentum = old_momentum;
+
+        // convert momentum to velocity. Assumes mass is one and inertia matrix is identity.
+        const typename Sophus::SE3<T>::Tangent velocity = old_momentum;
+
+        new_pose = old_pose * Sophus::SE3<T>::exp(mTimestep * velocity);
 
         return true;
     }
 };
 
+/*
 struct EKFOdometry::ObservationFunction
 {
     EKFOdometry* mParent;
@@ -281,7 +236,9 @@ struct EKFOdometry::ObservationFunction
         return ok;
     }
 };
+*/
 
+/*
 struct EKFOdometry::AugmentationFunction
 {
     EKFOdometry* mParent;
@@ -308,6 +265,7 @@ struct EKFOdometry::AugmentationFunction
         return true;
     }
 };
+*/
 
 EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
 {
@@ -334,7 +292,7 @@ EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
 
 bool EKFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles, OdometryFrame& output)
 {
-    bool successful_tracking = myInitialized && ( circles.size() >= 3 );
+    bool successful_tracking = myInitialized;
 
     if(successful_tracking)
     {
@@ -482,28 +440,19 @@ bool EKFOdometry::triangulateLandmarkInCameraFrame(
     Eigen::Vector3d& position,
     Eigen::Matrix3d& covariance)
 {
-    /*
-    double ceres_variable[3];
-    double ceres_value[3];
-    double ceres_jacobian[9];
-    double* ceres_variable_ptr = ceres_variable;
-    double* ceres_jacobian_ptr = ceres_jacobian;
+    const cv::Vec3d undistorted_circle = undistortCircle(circle);
+    Eigen::Matrix<double,3,3,Eigen::RowMajor> jacobian;
 
-    const cv::Vec3f undistorted = undistortCircle(tc.circle);
-
-    ceres_variable[0] = undistorted[0];
-    ceres_variable[1] = undistorted[1];
-    ceres_variable[2] = undistorted[2];
+    const double* ceres_variable_ptr = undistorted_circle.val;
+    double* ceres_jacobian_ptr = jacobian.data();
 
     std::unique_ptr<CeresTriangulationFunction> function;
     function.reset(new CeresTriangulationFunction(new TriangulationFunction(this)));
 
-    const bool ok = function->Evaluate( &ceres_variable_ptr, ceres_value, &ceres_jacobian_ptr );
+    const bool ok = function->Evaluate( &ceres_variable_ptr, position.data(), &ceres_jacobian_ptr );
 
     if(ok)
     {
-        Eigen::Map< Eigen::Matrix<double,3,3,Eigen::RowMajor> > J(ceres_jacobian);
-
         const double sigma_center = 1.5;
         const double sigma_radius = 1.5;
 
@@ -513,10 +462,7 @@ bool EKFOdometry::triangulateLandmarkInCameraFrame(
             0.0, sigma_center*sigma_center, 0.0,
             0.0, 0.0, sigma_radius*sigma_radius;
 
-        covariance = J * S0 * J.transpose();
-        position.x() = ceres_value[0];
-        position.y() = ceres_value[1];
-        position.z() = ceres_value[2];
+        covariance = jacobian * S0 * jacobian.transpose();
 
         //std::cout << sqrt(covariance(0,0)) << std::endl;
         //std::cout << sqrt(covariance(1,1)) << std::endl;
@@ -524,9 +470,6 @@ bool EKFOdometry::triangulateLandmarkInCameraFrame(
     }
 
     return ok;
-    */
-
-    return false;
 }
 
 void EKFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& circles)
