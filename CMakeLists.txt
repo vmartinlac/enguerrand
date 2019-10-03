@@ -5,6 +5,7 @@ project(enguerrand)
 
 option(WITH_CUDA "Whether CUDA is available." OFF)
 option(BUILD_TEST "Whether to build unit tests." OFF)
+option(WITH_DOC "Whether to enable generation of doxygen documentation." OFF)
 
 enable_language(CXX)
 
@@ -39,6 +40,11 @@ find_package(Sophus REQUIRED)
 
 pkg_check_modules(OSG REQUIRED IMPORTED_TARGET openscenegraph)
 #pkg_check_modules(LIBUSB REQUIRED IMPORTED_TARGET libusb-1.0)
+
+if(${WITH_DOC})
+    find_package(Doxygen REQUIRED)
+    add_subdirectory(doc)
+endif()
 
 add_subdirectory(app)
 add_subdirectory(src)
