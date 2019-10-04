@@ -210,7 +210,6 @@ struct EKFOdometry::ObservationFunction
     }
 };
 
-/*
 struct EKFOdometry::AugmentationFunction
 {
     EKFOdometry* mParent;
@@ -222,22 +221,21 @@ struct EKFOdometry::AugmentationFunction
 
     template<typename T>
     bool operator()(
-        const T* const landmark_in_camera,
-        const T* const camera_to_world_t,
-        const T* const camera_to_world_q,
-        T* landmark_in_world) const
+        const T* const camera_to_world_,
+        const T* const landmark_in_camera_,
+        T* landmark_in_world_) const
     {
-        T tmp[3];
-        ceres::QuaternionRotatePoint(camera_to_world_q, landmark_in_camera, tmp);
+        const Eigen::Map< const Sophus::SE3<T> > camera_to_world(camera_to_world_);
 
-        landmark_in_world[0] = camera_to_world_t[0] + tmp[0];
-        landmark_in_world[1] = camera_to_world_t[1] + tmp[1];
-        landmark_in_world[2] = camera_to_world_t[2] + tmp[2];
+        const Eigen::Map< const Eigen::Matrix<T,3,1> > landmark_in_camera(landmark_in_camera_);
+
+        Eigen::Map< Eigen::Matrix<T,3,1> > landmark_in_world(landmark_in_world_);
+
+        landmark_in_world = camera_to_world * landmark_in_camera;
 
         return true;
     }
 };
-*/
 
 EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
 {
@@ -341,19 +339,20 @@ void EKFOdometry::reset()
     myInitialized = false;
 }
 
-/*
-bool EKFOdometry::triangulateLandmark(
+bool EKFOdometry::triangulateLandmarkInWorldFrame(
     const cv::Vec3f& circle,
     const Sophus::SE3d& camera_to_world,
-    TriangulatedLandmark& new_landmark)
+    const SE3SE3CovarianceMatrix& camera_to_world_covariance,
+    Eigen::Vector3d& landmark_in_world,
+    Eigen::Matrix3d& covariance_landmark_landmark,
+    Vector3SE3CovarianceMatrix& covariance_landmark_camera)
 {
     Eigen::Vector3d in_camera;
     Eigen::Matrix3d in_camera_covariance;
 
     Eigen::Vector3d in_world;
+    Eigen::Matrix<double, 3, Sophus::SE3d::num_parameters, Eigen::RowMajor> jacobian_wrt_camera;
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian_wrt_incamera;
-    Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian_wrt_camerat;
-    Eigen::Matrix<double, 3, 4, Eigen::RowMajor> jacobian_wrt_cameraq;
 
     bool ok = true;
 
@@ -364,30 +363,26 @@ bool EKFOdometry::triangulateLandmark(
 
     if(ok)
     {
-        const Eigen::Vector3d tmp0 = camera_to_world.translation();
-
-        Eigen::Vector4d tmp1;
-        tmp1.head<3>() = camera_to_world.unit_quaternion().vec();
-        tmp1.w() = camera_to_world.unit_quaternion().w();
-
-        const double* ceres_variable_ptr[3] = { in_camera.data(), tmp0.data(), tmp1.data() };
-        double* ceres_value = in_world.data();
-        double* ceres_jacobian_ptr[3] = { jacobian_wrt_incamera.data(), jacobian_wrt_camerat.data(), jacobian_wrt_cameraq.data() };
+        const double* ceres_variable_arr[2] = { camera_to_world.data(), in_camera.data() };
+        double* ceres_jacobian_arr[2] = { jacobian_wrt_camera.data(), jacobian_wrt_incamera.data() };
 
         std::unique_ptr<CeresAugmentationFunction> function;
         function.reset(new CeresAugmentationFunction(new AugmentationFunction(this)));
 
-        ok = function->Evaluate( ceres_variable_ptr, ceres_value, ceres_jacobian_ptr );
+        ok = function->Evaluate( ceres_variable_arr, in_world.data(), ceres_jacobian_arr );
     }
 
     if(ok)
     {
-        Eigen::Matrix<double, 10, 10> input_covariance;
-        input_covariance.block<3,3>(0,0) = in_camera_covariance;
-        input_covariance.block<3,7>(0,3).setZero();
-        input_covariance.block<7,3>(3,0).setZero();
-        input_covariance.block<7,7>(3,3) = pose_covariance;
+        constexpr size_t K = Sophus::SE3d::num_parameters;
 
+        Eigen::Matrix<double, K+3, K+3> input_covariance;
+        input_covariance.setZero();
+        input_covariance.block<K,K>(0,0) = camera_to_world_covariance;
+        input_covariance.block<3,3>(K,K) = in_camera_covariance;
+
+        // TODO TODO TODO
+    /*
         Eigen::Matrix<double, 10, 10> jacobian;
         jacobian.block<3,3>(0, 0) = jacobian_wrt_incamera;
         jacobian.block<3,3>(0, 3) = jacobian_wrt_camerat;
@@ -401,11 +396,11 @@ bool EKFOdometry::triangulateLandmark(
         new_landmark.covariance_landmark_landmark = output_covariance.block<3,3>(0,0);
         new_landmark.covariance_landmark_camera.block<3,7>(0,0) = output_covariance.block<3,7>(0,3);
         new_landmark.covariance_landmark_camera.block<3,6>(0,3).setZero();
+    */
     }
 
     return ok;
 }
-*/
 
 bool EKFOdometry::triangulateLandmarkInCameraFrame(
     const cv::Vec3f& circle,

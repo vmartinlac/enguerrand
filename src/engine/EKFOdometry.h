@@ -29,7 +29,10 @@ protected:
     using CeresTriangulationFunction = ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>;
     using CeresPredictionFunction = ceres::DynamicAutoDiffCostFunction<PredictionFunction>;
     using CeresObservationFunction = ceres::DynamicAutoDiffCostFunction<ObservationFunction>;
-    using CeresAugmentationFunction = ceres::AutoDiffCostFunction<AugmentationFunction, 3, 3, 3, 4>;
+    using CeresAugmentationFunction = ceres::AutoDiffCostFunction<AugmentationFunction, 3, Sophus::SE3d::num_parameters, 3>;
+
+    using SE3SE3CovarianceMatrix = Eigen::Matrix<double, Sophus::SE3d::num_parameters, Sophus::SE3d::num_parameters>;
+    using Vector3SE3CovarianceMatrix = Eigen::Matrix<double, 3, Sophus::SE3d::num_parameters>;
 
     struct Landmark
     {
@@ -39,15 +42,6 @@ protected:
         size_t seen_count;
         bool seen_in_current_frame;
     };
-
-    /*
-    struct TriangulatedLandmark
-    {
-        Eigen::Vector3d position;
-        Eigen::Matrix<double,3,3> covariance_landmark_landmark;
-        Eigen::Matrix<double,3,13> covariance_landmark_camera;
-    };
-    */
 
     struct State
     {
@@ -99,12 +93,13 @@ protected:
         Eigen::Vector3d& position,
         Eigen::Matrix3d& covariance);
 
-    /*
     bool triangulateLandmarkInWorldFrame(
         const cv::Vec3f& circle,
         const Sophus::SE3d& camera_to_world,
-        TriangulatedLandmark& triangulated_landmark);
-    */
+        const SE3SE3CovarianceMatrix& camera_to_world_covariance,
+        Eigen::Vector3d& landmark_in_world,
+        Eigen::Matrix3d& covariance_landmark_landmark,
+        Vector3SE3CovarianceMatrix& covariance_landmark_camera);
 
     void switchStates();
 
