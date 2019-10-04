@@ -6,6 +6,8 @@ add_library(
     SE3Parameterization.cpp
     BAOdometry.cpp
     BAOdometry.h
+    PFOdometry.cpp
+    PFOdometry.h
     CircleFitter.cpp
     CircleFitter.h
     CirclesTracker.cpp

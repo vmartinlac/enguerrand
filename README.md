@@ -1,3 +1,4 @@
+
 ENGUERRAND
 ==========
 
@@ -31,8 +32,8 @@ TODO
 
 * Validate Kalman filter odometry.
 * Write particle filter odometry.
-* Port edge detection to GPU.
 * Check histogram with one-class SVM instead of using distance to some reference histogram. Store SVM model in Qt ressource file.
+* Write GPU implementation of edge detection.
 * (nice to have) Optimize performances of CPU implementation of landmark detection.
 * (nice to have) Multi-frame landmark tracking.
 
