@@ -381,22 +381,19 @@ bool EKFOdometry::triangulateLandmarkInWorldFrame(
         input_covariance.block<K,K>(0,0) = camera_to_world_covariance;
         input_covariance.block<3,3>(K,K) = in_camera_covariance;
 
-        // TODO TODO TODO
-    /*
-        Eigen::Matrix<double, 10, 10> jacobian;
-        jacobian.block<3,3>(0, 0) = jacobian_wrt_incamera;
-        jacobian.block<3,3>(0, 3) = jacobian_wrt_camerat;
-        jacobian.block<3,4>(0, 6) = jacobian_wrt_cameraq;
-        jacobian.block<7,3>(3, 0).setZero();
-        jacobian.block<7,7>(3, 3).setIdentity();
+        // jacobian of (landmark_in_camera, camera_to_world) -> (landmark_in_world, camera_to_world).
+        Eigen::Matrix<double, K+3, K+3> jacobian;
 
-        const Eigen::Matrix<double, 10, 10> output_covariance = jacobian * input_covariance * jacobian.transpose();
+        jacobian.block<3,3>(0,0) = jacobian_wrt_incamera;
+        jacobian.block<3,K>(0,3) = jacobian_wrt_camera;
+        jacobian.block<K,3>(3,0).setZero();
+        jacobian.block<K,K>(3,3).setIdentity();
 
-        new_landmark.position = in_world;
-        new_landmark.covariance_landmark_landmark = output_covariance.block<3,3>(0,0);
-        new_landmark.covariance_landmark_camera.block<3,7>(0,0) = output_covariance.block<3,7>(0,3);
-        new_landmark.covariance_landmark_camera.block<3,6>(0,3).setZero();
-    */
+        const Eigen::Matrix<double, K+3, K+3> output_covariance = jacobian * input_covariance * jacobian.transpose();
+
+        landmark_in_world = in_world;
+        covariance_landmark_landmark = output_covariance.block<3,3>(0,0);
+        covariance_landmark_camera = output_covariance.block<3,K>(0,3);
     }
 
     return ok;
