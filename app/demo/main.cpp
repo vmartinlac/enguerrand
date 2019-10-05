@@ -4,11 +4,14 @@
 #include "RealsenseInterface.h"
 #include "EngineConfig.h"
 #include "MainWindow.h"
+#include "BuildInfo.h"
 
 int main(int num_args, char** args)
 {
     QApplication app(num_args, args);
-    app.setApplicationName("enguerrand");
+    app.setApplicationVersion(ENGUERRAND_VERSION_STRING);
+    app.setOrganizationName("Enguerrand");
+    app.setApplicationName("Enguerrand");
 
     qRegisterMetaType<EngineOutputPtr>();
     qRegisterMetaType<EngineConfigPtr>();

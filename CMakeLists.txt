@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.1)
 
 project(enguerrand)
 
+set(ENGUERRAND_VERSION_MAJOR 1)
+set(ENGUERRAND_VERSION_MINOR 0)
+
 option(WITH_CUDA "Whether CUDA is available." OFF)
 option(BUILD_TEST "Whether to build unit tests." OFF)
 option(WITH_DOC "Whether to enable generation of doxygen documentation." OFF)
@@ -13,12 +16,6 @@ if(${WITH_CUDA})
     enable_language(CUDA)
 endif()
 
-include(GNUInstallDirs)
-#include(GenerateExportHeader)
-
-set(ENGUERRAND_VERSION_MAJOR 1)
-set(ENGUERRAND_VERSION_MINOR 0)
-set(ENGUERRAND_VERSION_REVISION 0)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)

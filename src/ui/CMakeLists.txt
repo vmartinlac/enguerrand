@@ -3,6 +3,9 @@ add_library(
     enguerrand_ui
     SHARED
     ressources.qrc
+    AboutDialog.ui
+    AboutDialog.cpp
+    AboutDialog.h
     MainWindow.cpp
     MainWindow.h
     VideoWidget.cpp
@@ -27,4 +30,7 @@ target_link_libraries(
 )
 
 target_include_directories(enguerrand_ui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+configure_file(BuildInfo.h.in "${CMAKE_CURRENT_BINARY_DIR}/include/BuildInfo.h" @ONLY)
+target_include_directories(enguerrand_ui PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include")
 

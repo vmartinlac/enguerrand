@@ -9,6 +9,7 @@
 #include "MainWindow.h"
 #include "ViewerWidget.h"
 #include "ConfigDialog.h"
+#include "AboutDialog.h"
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
@@ -106,8 +107,9 @@ MainWindow::~MainWindow()
 
 void MainWindow::about()
 {
-    // TODO: make better about dialog with compilation information.
-    QMessageBox::information(this, "About", "Written by Victor MARTIN-LAC in 2019. Icons set is from https://icons8.com/.");
+    AboutDialog* dlg = new AboutDialog(this);
+    dlg->exec();
+    delete dlg;
 }
 
 void MainWindow::startEngine()

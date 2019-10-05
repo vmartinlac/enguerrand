@@ -282,7 +282,7 @@ bool EKFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circ
         initialize(timestamp, circles);
     }
 
-    output.timestamp = timestamp;
+    output.timestamp = currentState().timestamp;
     output.aligned_wrt_previous = successful_tracking;
     output.camera_to_world = currentState().camera_to_world;
     //output.pose_covariance.setIdentity(); // TODO set current pose covariance.
@@ -857,6 +857,10 @@ bool EKFOdometry::trackingUpdate()
             offset += Sophus::SE3d::DoF;
 
             new_state.landmarks.swap(old_state.landmarks);
+            for(ObservedLandmark& olm : observed_landmarks)
+            {
+                new_state.landmarks[olm.landmark].updated = true;
+            }
 
             new_state.observations.swap(old_state.observations);
 
