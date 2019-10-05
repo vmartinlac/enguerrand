@@ -262,13 +262,16 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
         video->header.frame_id == odometry->header.frame_id &&
         video->header.frame_id == traces->header.frame_id;
 
+    /*
     if(input_ok == false)
     {
         std::cerr << "Internal error!" << std::endl;
         exit(1);
     }
+    */
 
     const bool available =
+        input_ok &&
         video->header.available &&
         edges->header.available &&
         circles->header.available &&

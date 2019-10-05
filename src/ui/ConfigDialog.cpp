@@ -2,6 +2,7 @@
 #include <QFileDialog>
 #include <QSettings>
 #include <QMessageBox>
+#include "PFOdometry.h"
 #include "BAOdometry.h"
 #include "EKFOdometry.h"
 #include "ConfigDialog.h"
@@ -17,6 +18,9 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
 
     myOdometryCodeFactories[1] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new EKFOdometry(calib)); };
     myUI.visual_odometry_code->addItem("Extended Kalman Filter", 1);
+
+    myOdometryCodeFactories[2] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new PFOdometry(calib)); };
+    myUI.visual_odometry_code->addItem("Particle filter", 2);
 
     myVideoButtonGroup = new QButtonGroup(this);
     myVideoButtonGroup->addButton(myUI.video_file, 0);

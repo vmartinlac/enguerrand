@@ -19,7 +19,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     tb->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
     QAction* action_quit = tb->addAction("Quit");
-    QAction* action_about = tb->addAction("About");
     tb->addSeparator();
     QAction* action_start = tb->addAction("Start");
     QAction* action_stop = tb->addAction("Stop");
@@ -30,6 +29,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     QAction* action_show_circles = tb->addAction("Detection");
     tb->addSeparator();
     QAction* action_home = tb->addAction("Home");
+    tb->addSeparator();
+    QAction* action_about = tb->addAction("About");
 
     action_quit->setIcon(QIcon(":/close.png"));
     action_about->setIcon(QIcon(":/about.png"));

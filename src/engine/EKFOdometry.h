@@ -34,40 +34,58 @@ protected:
     using SE3SE3CovarianceMatrix = Eigen::Matrix<double, Sophus::SE3d::num_parameters, Sophus::SE3d::num_parameters>;
     using Vector3SE3CovarianceMatrix = Eigen::Matrix<double, 3, Sophus::SE3d::num_parameters>;
 
+    struct Observation
+    {
+        Observation()
+        {
+            circle = cv::Vec3f(0.0, 0.0, 0.0);
+            has_landmark = false;
+            landmark = 0;
+        }
+
+        cv::Vec3f circle;
+        bool has_landmark;
+        size_t landmark;
+    };
+
     struct Landmark
     {
-        Landmark();
+        Landmark()
+        {
+            position.setZero();
+            seen_count = 0;
+            currently_seen = false;
+            current_observation = 0;
+            updated = false;
+        }
 
         Eigen::Vector3d position;
         size_t seen_count;
-        bool seen_in_current_frame;
+        bool currently_seen;
+        size_t current_observation;
+        bool updated;
     };
 
     struct State
     {
-        State();
+        State()
+        {
+            timestamp = 0.0;
+            valid = false;
+        }
 
         size_t getDimension() const;
-
         Eigen::VectorXd toVector() const;
-
         void dump();
 
-        double timestamp;
+        bool valid;
 
+        double timestamp;
         Sophus::SE3d camera_to_world;
         Sophus::SE3d::Tangent momentum;
         std::vector<Landmark> landmarks;
-
         Eigen::MatrixXd covariance; //* \brief Dimension of covariance matrix is 12 + 3*num_landmarks.
-    };
-
-    struct CircleToLandmark
-    {
-        CircleToLandmark();
-
-        bool has_landmark;
-        size_t landmark;
+        std::vector<Observation> observations;
     };
 
     struct ObservedLandmark
@@ -82,11 +100,11 @@ protected:
         double timestamp,
         const std::vector<TrackedCircle>& circles);
 
-    bool trackingPrediction(double timestamp);
+    bool trackingPrediction(double timestamp, const std::vector<TrackedCircle>& circles);
 
-    bool trackingUpdate(const std::vector<TrackedCircle>& circles);
+    bool trackingUpdate();
 
-    bool mappingPruneAugment(const std::vector<TrackedCircle>& circles);
+    bool mappingPruneAugment();
 
     bool triangulateLandmarkInCameraFrame(
         const cv::Vec3f& circle,
@@ -120,8 +138,6 @@ protected:
     double myLandmarkMinDistanceToCamera;
     CalibrationDataPtr myCalibration;
 
-    bool myInitialized;
     std::unique_ptr<State> myStates[2];
-    std::vector<CircleToLandmark> myCircleToLandmark;
 };
 

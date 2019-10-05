@@ -245,10 +245,8 @@ EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
     myCalibration = calibration;
     myPredictionLinearMomentumSigmaRate = 1.0;
     myPredictionAngularMomentumSigmaRate = M_PI*10.0/180.0;
-    myObservationPositionSigma = 1.0;
-    myObservationRadiusSigma = 5.0;
-
-    myInitialized = false;
+    myObservationPositionSigma = 1.5;
+    myObservationRadiusSigma = 3.0;
 
     myStates[0].reset(new State());
     myStates[1].reset(new State());
@@ -262,21 +260,21 @@ EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
 
 bool EKFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles, OdometryFrame& output)
 {
-    bool successful_tracking = myInitialized;
+    bool successful_tracking = currentState().valid;
 
     if(successful_tracking)
     {
-        successful_tracking = trackingPrediction(timestamp);
+        successful_tracking = trackingPrediction(timestamp, circles);
     }
 
     if(successful_tracking)
     {
-        successful_tracking = trackingUpdate(circles);
+        successful_tracking = trackingUpdate();
     }
 
     if(successful_tracking)
     {
-        successful_tracking = mappingPruneAugment(circles);
+        successful_tracking = mappingPruneAugment();
     }
 
     if(successful_tracking == false)
@@ -287,11 +285,11 @@ bool EKFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circ
     output.timestamp = timestamp;
     output.aligned_wrt_previous = successful_tracking;
     output.camera_to_world = currentState().camera_to_world;
-    //output.pose_covariance.setIdentity(); // TODO set corrent pose covariance.
+    //output.pose_covariance.setIdentity(); // TODO set current pose covariance.
     output.landmarks.clear();
     for(Landmark& lm : currentState().landmarks)
     {
-        if(lm.seen_in_current_frame)
+        if(lm.currently_seen)
         {
             output.landmarks.emplace_back();
             output.landmarks.back().position = lm.position;
@@ -315,6 +313,7 @@ bool EKFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circ
     return true;
 }
 
+/*
 void EKFOdometry::State::dump()
 {
     std::cout << std::endl;
@@ -333,10 +332,11 @@ void EKFOdometry::State::dump()
     }
     std::cout << std::endl;
 }
+*/
 
 void EKFOdometry::reset()
 {
-    myInitialized = false;
+    currentState().valid = false;
 }
 
 bool EKFOdometry::triangulateLandmarkInWorldFrame(
@@ -441,36 +441,42 @@ void EKFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>&
     State& state = currentState();
 
     const size_t num_circles = circles.size();
+    std::vector<Eigen::Vector3d> landmark_positions(num_circles);
+    std::vector<Eigen::Matrix3d> landmark_covariances(num_circles);
 
+    state.valid = true;
     state.timestamp = timestamp;
     state.camera_to_world = Sophus::SE3d(); // identity
     state.momentum.setZero();
     state.landmarks.clear();
-
-    std::vector<Eigen::Vector3d> landmark_positions(num_circles);
-    std::vector<Eigen::Matrix3d> landmark_covariances(num_circles);
-    myCircleToLandmark.resize(num_circles);
+    state.observations.assign(num_circles, Observation());
 
     // triangulate circles into landmarks.
 
     for(size_t i=0; i<num_circles; i++)
     {
-        myCircleToLandmark[i].has_landmark = triangulateLandmarkInCameraFrame(
+        state.observations[i].circle = circles[i].circle;
+
+        state.observations[i].has_landmark = (state.landmarks.size() < myMaxLandmarks) && triangulateLandmarkInCameraFrame(
             circles[i].circle,
             landmark_positions[i],
             landmark_covariances[i]);
 
-        if( myCircleToLandmark[i].has_landmark )
+        if( state.observations[i].has_landmark )
         {
-            myCircleToLandmark[i].landmark = state.landmarks.size();
+            state.observations[i].landmark = state.landmarks.size();
 
             state.landmarks.emplace_back();
-            state.landmarks.back().position = landmark_positions[i];
-            state.landmarks.back().seen_count = 1;
+            Landmark& lm = state.landmarks.back();
+            lm.position = landmark_positions[i];
+            lm.seen_count = 1;
+            lm.currently_seen = true;
+            lm.current_observation = i;
+            lm.updated = true;
         }
         else
         {
-            myCircleToLandmark[i].landmark = 0; // static_cast<size_t>(-1);
+            state.observations[i].landmark = 0; // static_cast<size_t>(-1);
         }
     }
 
@@ -482,17 +488,15 @@ void EKFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>&
 
     for(size_t i=0; i<num_circles; i++)
     {
-        if( myCircleToLandmark[i].has_landmark )
+        if( state.observations[i].has_landmark )
         {
-            const size_t j = myCircleToLandmark[i].landmark;
+            const size_t j = state.observations[i].landmark;
             state.covariance.block<3,3>(13+3*j, 13+3*j) = landmark_covariances[i];
         }
     }
 
     //std::cout << state.covariance.block<3,3>(13, 13) << std::endl;
     //std::cout << "num_landmarks: " << num_landmarks << std::endl;
-
-    myInitialized = true;
     //std::cout << state.covariance << std::endl;
 }
 
@@ -537,9 +541,12 @@ cv::Vec3f EKFOdometry::undistortCircle(const cv::Vec3f& c)
     return ret;
 }
 
-bool EKFOdometry::mappingPruneAugment(const std::vector<TrackedCircle>& circles)
+bool EKFOdometry::mappingPruneAugment()
 {
-    /*
+    constexpr int se3_num_parameters = Sophus::SE3d::num_parameters;
+    constexpr int se3_dof = Sophus::SE3d::DoF;
+    constexpr int pose_and_momentum = se3_num_parameters + se3_dof;
+
     enum LandmarkStock
     {
         LMSTOCK_UNDEFINED,
@@ -559,130 +566,105 @@ bool EKFOdometry::mappingPruneAugment(const std::vector<TrackedCircle>& circles)
         size_t index;
     };
 
-    std::vector<NewLandmark> new_landmarks;
+    struct NewLandmark
+    {
+        size_t observation;
+        Eigen::Vector3d position;
+        Eigen::Matrix3d covariance_landmark_landmark;
+        Vector3SE3CovarianceMatrix covariance_landmark_camera;
+    };
 
     State& old_state = currentState();
     State& new_state = workingState();
 
-    // count number of landmarks seen in current frame.
-
-    const size_t num_seen = std::count_if(
-        old_state.landmarks.begin(),
-        old_state.landmarks.end(),
-        [] (const Landmark& lm) { return lm.seen_in_current_frame; } );
-
-    if(num_seen > myMaxLandmarks)
-    {
-        std::cerr << "Internal error!" << std::endl;
-        exit(1);
-    }
-
-    // try to triangulate new landmarks.
-
-    if( num_seen < circles.size() && num_seen < myMaxLandmarks )
-    {
-        for(size_t i=0; num_seen + new_landmarks.size() < myMaxLandmarks && i < circles.size(); i++)
-        {
-            NewLandmark new_landmark;
-
-            bool ok =
-                circles[i].has_previous  == false ||
-                myCircleToLandmark[circles[i].previous].has_landmark == false ||
-                old_state.landmarks[ myCircleToLandmark[circles[i].previous].landmark ].seen_in_current_frame == false;
-
-            if(ok)
-            {
-                ok = triangulateLandmarkInWorldFrame(
-                    old_state.camera_to_world,
-                    old_state.covariance.block<7,7>(0,0),
-                    circles[i],
-                    new_landmark);
-            }
-
-            if(ok)
-            {
-                new_landmarks.push_back(std::move(new_landmark));
-            }
-        }
-    }
-
-    // compute new state and new circle to landmark association.
-
-    // Optimization problem is:
-    //
-    //    max num_to_add
-    //
-    //    such that
-    //
-    //    num_to_add + num_seen - num_to_remove <= myMaxLandmarks
-    //    0 <= num_to_add <= new_landmarks.size()
-    //    0 <= num_to_remove <= old_state.landmarks.size()
-
-    size_t num_to_add = 0;
-    size_t num_to_remove = 0;
-
-    if( num_seen < myMaxLandmarks )
-    {
-        if( num_seen + new_landmarks.size() <= myMaxLandmarks )
-        {
-            num_to_add = new_landmarks.size();
-        }
-        else
-        {
-            num_to_add = myMaxLandmarks - num_seen;
-        }
-
-        if(old_state.landmarks.size() + num_to_add > myMaxLandmarks)
-        {
-            num_to_remove = old_state.landmarks.size() + num_to_add - myMaxLandmarks;
-        }
-    }
-
-    const size_t new_num_landmarks = old_state.landmarks.size() + num_to_add - num_to_remove;
-
-    if( new_num_landmarks > myMaxLandmarks || num_to_add > new_landmarks.size() )
+    if(old_state.valid == false)
     {
         std::cerr << "Internal error" << std::endl;
         exit(1);
     }
 
-    // compute new state.
+    // take landmarks from three pools in following order until maximum number of landmarks is reached.:
+    // 1. seen existing landmarks.
+    // 2. new triangulated landmarks.
+    // 3. unseen existing landmarks.
 
-    std::vector<LandmarkSelection> landmark_selection(new_num_landmarks);
-    new_state.landmarks.resize(new_num_landmarks);
-    new_state.covariance.resize(13+3*new_num_landmarks, 13+3*new_num_landmarks);
-    size_t landmark_counter = 0;
+    std::vector<LandmarkSelection> landmark_selection;
+    std::vector<NewLandmark> new_landmarks;
 
-    // take from old landmarks.
+    // take from seen existing landmarks.
 
-    for(size_t i=0; i<old_state.landmarks.size(); i++)
+    for(size_t i=0; landmark_selection.size() < myMaxLandmarks && i<old_state.landmarks.size(); i++)
     {
-        const bool take = ( old_state.landmarks[i].seen_in_current_frame || landmark_counter < old_state.landmarks.size()-num_to_remove );
-
-        if(take)
+        if(old_state.landmarks[i].currently_seen)
         {
-            landmark_selection[landmark_counter].stock = LMSTOCK_OLD_LANDMARK;
-            landmark_selection[landmark_counter].index = i;
-            landmark_counter++;
+            landmark_selection.emplace_back();
+            landmark_selection.back().stock = LMSTOCK_OLD_LANDMARK;
+            landmark_selection.back().index = i;
         }
     }
 
-    // take new landmarks.
+    // take from new landmarks.
 
-    for(size_t i=0; i<num_to_add; i++)
+    for(size_t i=0; landmark_selection.size() < myMaxLandmarks && i < old_state.observations.size(); i++)
     {
-        landmark_selection[landmark_counter].stock = LMSTOCK_NEW_LANDMARK;
-        landmark_selection[landmark_counter].index = i;
-        landmark_counter++;
+        NewLandmark new_landmark;
+
+        bool ok = (old_state.observations[i].has_landmark == false);
+
+        if(ok)
+        {
+            ok = triangulateLandmarkInWorldFrame(
+                old_state.observations[i].circle,
+                old_state.camera_to_world,
+                old_state.covariance.block<se3_num_parameters,se3_num_parameters>(0,0),
+                new_landmark.position,
+                new_landmark.covariance_landmark_landmark,
+                new_landmark.covariance_landmark_camera);
+        }
+
+        if(ok)
+        {
+            landmark_selection.emplace_back();
+            landmark_selection.back().stock = LMSTOCK_NEW_LANDMARK;
+            landmark_selection.back().index = new_landmarks.size();
+
+            new_landmark.observation = i;
+            new_landmarks.push_back(std::move(new_landmark));
+        }
     }
 
-    if(landmark_counter != new_num_landmarks)
+    // take from unseen existing landmarks.
+
+    for(size_t i=0; landmark_selection.size() < myMaxLandmarks && i<old_state.landmarks.size(); i++)
     {
-        std::cerr << "Internal error!" << std::endl;
-        exit(1);
+        if(old_state.landmarks[i].currently_seen == false)
+        {
+            landmark_selection.emplace_back();
+            landmark_selection.back().stock = LMSTOCK_OLD_LANDMARK;
+            landmark_selection.back().index = i;
+        }
     }
 
-    new_state.covariance.block<13,13>(0,0) = old_state.covariance.block<13,13>(0,0);
+    const size_t new_num_landmarks = landmark_selection.size();
+
+    // compute new state.
+
+    new_state.valid = true;
+    new_state.camera_to_world = old_state.camera_to_world;
+    new_state.momentum = old_state.momentum;
+    new_state.landmarks.assign(new_num_landmarks, Landmark());
+    new_state.observations.assign(old_state.observations.size(), Observation());
+    new_state.covariance.resize(se3_num_parameters + se3_dof + 3*new_num_landmarks, se3_num_parameters + se3_dof + 3*new_num_landmarks);
+
+    for(size_t i=0; i<old_state.observations.size(); i++)
+    {
+        old_state.observations[i].circle = new_state.observations[i].circle;
+        old_state.observations[i].has_landmark = false;
+        old_state.observations[i].landmark = 0;
+    }
+
+    new_state.covariance.block<se3_num_parameters+se3_dof,se3_num_parameters+se3_dof>(0,0) =
+        old_state.covariance.block<se3_num_parameters+se3_dof,se3_num_parameters+se3_dof>(0,0);
 
     for(size_t i=0; i<new_num_landmarks; i++)
     {
@@ -690,42 +672,74 @@ bool EKFOdometry::mappingPruneAugment(const std::vector<TrackedCircle>& circles)
 
         if( lms.stock == LMSTOCK_OLD_LANDMARK )
         {
-            new_state.landmarks[i] = old_state.landmarks[lms.index];
+            new_state.landmarks[i].position = old_state.landmarks[lms.index].position;
+            new_state.landmarks[i].seen_count = old_state.landmarks[lms.index].seen_count;
+            new_state.landmarks[i].currently_seen = old_state.landmarks[lms.index].currently_seen;
+            new_state.landmarks[i].current_observation = old_state.landmarks[lms.index].current_observation;
+            new_state.landmarks[i].updated = old_state.landmarks[lms.index].updated;
 
-            new_state.covariance.block<3,3>(13+3*i, 13+3*i) = old_state.covariance.block<3,3>(13+3*lms.index, 13+3*lms.index);
-            new_state.covariance.block<13,3>(0, 13+3*i) = old_state.covariance.block<13,3>(0, 13+3*lms.index);
-            new_state.covariance.block<3,13>(13+3*i, 0) = old_state.covariance.block<3,13>(13+3*lms.index, 0);
+            if(old_state.landmarks[lms.index].currently_seen)
+            {
+                const size_t observation_index = old_state.landmarks[lms.index].current_observation;
+                new_state.observations[observation_index].has_landmark = true;
+                new_state.observations[observation_index].landmark = i;
+            }
+
+            new_state.covariance.block<3,3>(pose_and_momentum+3*i, pose_and_momentum+3*i) =
+                old_state.covariance.block<3,3>(pose_and_momentum+3*lms.index, pose_and_momentum+3*lms.index);
+
+            new_state.covariance.block<pose_and_momentum,3>(0, pose_and_momentum+3*i) =
+                old_state.covariance.block<pose_and_momentum,3>(0, pose_and_momentum+3*lms.index);
+
+            new_state.covariance.block<3,pose_and_momentum>(pose_and_momentum+3*i, 0) =
+                old_state.covariance.block<3,pose_and_momentum>(pose_and_momentum+3*lms.index, 0);
 
             for(size_t j=0; j<i; j++)
             {
-                const auto& other_lms = landmark_selection[j];
+                const auto& olms = landmark_selection[j];
 
-                if(other_lms.stock == LMSTOCK_OLD_LANDMARK)
+                if(olms.stock == LMSTOCK_OLD_LANDMARK)
                 {
-                    new_state.covariance.block<3,3>(13+3*i, 13+3*j) = old_state.covariance.block<3,3>(13+3*lms.index, 13+3*other_lms.index);
-                    new_state.covariance.block<3,3>(13+3*j, 13+3*i) = old_state.covariance.block<3,3>(13+3*other_lms.index, 13+3*lms.index);
+                    new_state.covariance.block<3,3>(pose_and_momentum+3*i, pose_and_momentum+3*j) =
+                        old_state.covariance.block<3,3>(pose_and_momentum+3*lms.index, pose_and_momentum+3*olms.index);
+
+                    new_state.covariance.block<3,3>(pose_and_momentum+3*j, pose_and_momentum+3*i) =
+                        old_state.covariance.block<3,3>(pose_and_momentum+3*olms.index, pose_and_momentum+3*lms.index);
                 }
                 else
                 {
-                    new_state.covariance.block<3,3>(13+3*i, 13+3*j).setZero();
-                    new_state.covariance.block<3,3>(13+3*j, 13+3*i).setZero();
+                    new_state.covariance.block<3,3>(pose_and_momentum+3*i, pose_and_momentum+3*j).setZero();
+                    new_state.covariance.block<3,3>(pose_and_momentum+3*j, pose_and_momentum+3*i).setZero();
                 }
             }
         }
         else if( lms.stock == LMSTOCK_NEW_LANDMARK )
         {
+            const size_t observation_index = new_landmarks[lms.index].observation;
             new_state.landmarks[i].position = new_landmarks[lms.index].position;
             new_state.landmarks[i].seen_count = 1;
-            new_state.landmarks[i].seen_in_current_frame = true;
+            new_state.landmarks[i].currently_seen = true;
+            new_state.landmarks[i].current_observation = observation_index;
+            new_state.landmarks[i].updated = true;
 
-            new_state.covariance.block<3,3>(13+3*i, 13+3*i) = new_landmarks[lms.index].covariance_landmark_landmark;
-            new_state.covariance.block<13,3>(0, 13+3*i) = new_landmarks[lms.index].covariance_landmark_camera.transpose();
-            new_state.covariance.block<3,13>(13+3*i, 0) = new_landmarks[lms.index].covariance_landmark_camera;
+            new_state.observations[observation_index].has_landmark = true;
+            new_state.observations[observation_index].landmark = i;
+
+            new_state.covariance.block<3,3>(pose_and_momentum+3*i, pose_and_momentum+3*i) =
+                new_landmarks[lms.index].covariance_landmark_landmark;
+
+            new_state.covariance.block<se3_num_parameters,3>(0, pose_and_momentum+3*i) =
+                new_landmarks[lms.index].covariance_landmark_camera.transpose();
+            new_state.covariance.block<se3_dof,3>(se3_num_parameters, pose_and_momentum+3*i).setZero();
+
+            new_state.covariance.block<3,se3_num_parameters>(pose_and_momentum+3*i,0) =
+                new_landmarks[lms.index].covariance_landmark_camera;
+            new_state.covariance.block<3,se3_dof>(pose_and_momentum+3*i, se3_num_parameters).setZero();
 
             for(size_t j=0; j<i; j++)
             {
-                new_state.covariance.block<3,3>(13+3*i, 13+3*j).setZero();
-                new_state.covariance.block<3,3>(13+3*j, 13+3*i).setZero();
+                new_state.covariance.block<3,3>(pose_and_momentum+3*i, pose_and_momentum+3*j).setZero();
+                new_state.covariance.block<3,3>(pose_and_momentum+3*j, pose_and_momentum+3*i).setZero();
             }
         }
         else
@@ -735,26 +749,41 @@ bool EKFOdometry::mappingPruneAugment(const std::vector<TrackedCircle>& circles)
         }
     }
 
+    // commit new state.
+
     switchStates();
 
     return true;
-    */
-    return false;
 }
 
-bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
+bool EKFOdometry::trackingUpdate()
 {
     State& old_state = currentState();
     State& new_state = workingState();
 
-    std::vector<ObservedLandmark> observed_landmarks;
-    observed_landmarks.reserve(old_state.landmarks.size());
-
-    for(size_t i=0; i<circles.size(); i++)
+    if(old_state.valid == false)
     {
-        if(circles[i].has_previous && myCircleToLandmark[circles[i].previous].has_landmark)
+        std::cerr << "Internal error!" << std::endl;
+        exit(1);
+    }
+
+    const int num_observations = old_state.observations.size();
+    const int num_landmarks = old_state.landmarks.size();
+
+    std::vector<ObservedLandmark> observed_landmarks;
+    observed_landmarks.reserve(num_landmarks);
+
+    for(size_t i=0; i<num_observations; i++)
+    {
+        if( old_state.observations[i].has_landmark )
         {
-            const size_t landmark = myCircleToLandmark[circles[i].previous].landmark;
+            const size_t landmark = old_state.observations[i].landmark;
+
+            if(old_state.landmarks[landmark].currently_seen == false || old_state.landmarks[landmark].current_observation != i)
+            {
+                std::cerr << "Internal error!" << std::endl;
+                exit(1);
+            }
 
             const Eigen::Vector3d landmark_in_camera = old_state.camera_to_world.inverse() * old_state.landmarks[landmark].position;
 
@@ -762,7 +791,7 @@ bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
             {
                 observed_landmarks.emplace_back();
                 observed_landmarks.back().landmark = landmark;
-                observed_landmarks.back().undistorted_circle = undistortCircle( circles[i].circle );
+                observed_landmarks.back().undistorted_circle = undistortCircle( old_state.observations[i].circle );
             }
         }
     }
@@ -827,42 +856,39 @@ bool EKFOdometry::trackingUpdate(const std::vector<TrackedCircle>& circles)
             new_state.momentum = Eigen::Map<const Sophus::SE3d::Tangent>(new_state_vector.data() + offset);
             offset += Sophus::SE3d::DoF;
 
-            new_state.landmarks = std::move(old_state.landmarks);
+            new_state.landmarks.swap(old_state.landmarks);
 
-            for(size_t i=0; i<new_state.landmarks.size(); i++)
-            {
-                new_state.landmarks[i].position = Eigen::Map<const Eigen::Vector3d>(new_state_vector.data() + offset);
-                offset += 3;
-
-                new_state.landmarks[i].seen_in_current_frame = false;
-            }
-
-            for(size_t i=0; i<observed_landmarks.size(); i++)
-            {
-                new_state.landmarks[ observed_landmarks[i].landmark ].seen_count++;
-                new_state.landmarks[ observed_landmarks[i].landmark ].seen_in_current_frame = true;
-            }
+            new_state.observations.swap(old_state.observations);
 
             new_state.covariance = new_covariance;
 
             new_state.timestamp = old_state.timestamp;
+
+            new_state.valid = true;
         }
     }
 
-    if(ok)
-    {
-        switchStates();
-    }
+    new_state.valid = ok;
+
+    switchStates();
 
     return ok;
 }
 
-bool EKFOdometry::trackingPrediction(double timestamp)
+bool EKFOdometry::trackingPrediction(double timestamp, const std::vector<TrackedCircle>& circles)
 {
     State& old_state = currentState();
     State& new_state = workingState();
 
+    if(old_state.valid == false)
+    {
+        std::cerr << "Internal error!" << std::endl;
+        exit(1);
+    }
+
     const double timestep = timestamp - old_state.timestamp;
+
+    const size_t num_circles = circles.size();
 
     const size_t dim = old_state.getDimension();
 
@@ -883,6 +909,7 @@ bool EKFOdometry::trackingPrediction(double timestamp)
 
     if(ok)
     {
+        new_state.valid = true;
         new_state.timestamp = timestamp;
 
         size_t offset = 0;
@@ -893,11 +920,47 @@ bool EKFOdometry::trackingPrediction(double timestamp)
         new_state.momentum = Eigen::Map<Sophus::SE3d::Tangent>( predicted_state.data() + offset );
         offset += Sophus::SE3d::DoF;
 
-        new_state.landmarks = std::move(old_state.landmarks);
+        new_state.landmarks.assign(old_state.landmarks.size(), Landmark());
+        new_state.observations.assign(num_circles, Observation());
 
-        for(Landmark& lm : new_state.landmarks)
+        for(size_t i=0; i<new_state.landmarks.size(); i++)
         {
-            lm.seen_in_current_frame = false;
+            Landmark& old_lm = old_state.landmarks[i];
+            Landmark& new_lm = new_state.landmarks[i];
+
+            new_lm.position = old_lm.position;
+            new_lm.seen_count = old_lm.seen_count;
+            new_lm.currently_seen = false;
+            new_lm.current_observation = 0;
+            new_lm.updated = false;
+        }
+
+        for(size_t i=0; i<num_circles; i++)
+        {
+            Observation& obs = new_state.observations[i];
+            obs.circle = circles[i].circle;
+
+            if(circles[i].has_previous)
+            {
+                obs.has_landmark = old_state.observations[circles[i].previous].has_landmark;
+                if(obs.has_landmark)
+                {
+                    obs.landmark = old_state.observations[circles[i].previous].landmark;
+
+                    new_state.landmarks[obs.landmark].seen_count++;
+                    new_state.landmarks[obs.landmark].currently_seen = true;
+                    new_state.landmarks[obs.landmark].current_observation = i;
+                }
+                else
+                {
+                    obs.landmark = 0;
+                }
+            }
+            else
+            {
+                obs.has_landmark = false;
+                obs.landmark = 0;
+            }
         }
 
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> noise(dim, dim);
@@ -915,31 +978,14 @@ bool EKFOdometry::trackingPrediction(double timestamp)
         switchStates();
     }
 
+    new_state.valid = ok;
+
     return ok;
-}
-
-EKFOdometry::Landmark::Landmark()
-{
-    seen_count = 0;
-}
-
-EKFOdometry::CircleToLandmark::CircleToLandmark()
-{
-    has_landmark = false;
-    landmark = 0;
-}
-
-EKFOdometry::State::State()
-{
-    timestamp = 0.0;
 }
 
 size_t EKFOdometry::State::getDimension() const
 {
-    return
-        Sophus::SE3d::num_parameters +
-        Sophus::SE3d::DoF +
-        3*landmarks.size();
+    return Sophus::SE3d::num_parameters + Sophus::SE3d::DoF + 3*landmarks.size();
 }
 
 Eigen::VectorXd EKFOdometry::State::toVector() const
@@ -952,7 +998,7 @@ Eigen::VectorXd EKFOdometry::State::toVector() const
 
     for(size_t i=0; i<landmarks.size(); i++)
     {
-        Eigen::Map<Eigen::Vector3d>( ret.data() + Sophus::SE3d::num_parameters + Sophus::SE3d::DoF ) = landmarks[i].position;
+        Eigen::Map<Eigen::Vector3d>( ret.data() + Sophus::SE3d::num_parameters + Sophus::SE3d::DoF + 3*i) = landmarks[i].position;
     }
 
     return ret;
