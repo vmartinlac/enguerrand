@@ -4,6 +4,8 @@ add_library(
     SHARED
     SE3Parameterization.h
     SE3Parameterization.cpp
+    NullOdometry.cpp
+    NullOdometry.h
     BAOdometry.cpp
     BAOdometry.h
     PFOdometry.cpp
