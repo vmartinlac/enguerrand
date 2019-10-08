@@ -5,7 +5,13 @@
 #include <librealsense2/hpp/rs_sensor.hpp>
 #include <opencv2/videoio.hpp>
 #include "VideoSource.h"
-#include "CalibrationData.h"
+
+struct RealsenseCalibration
+{
+    cv::Matx33d calibration_matrix;
+    cv::Size image_size;
+    std::vector<double> distortion_coefficients;
+};
 
 class RealsenseVideoSource : public AsynchronousVideoSource
 {
@@ -19,7 +25,7 @@ public:
 
     int getNumViews() override;
 
-    CalibrationDataPtr getCalibrationData();
+    bool getCalibration(RealsenseCalibration& calibration) const;
 
 protected:
 

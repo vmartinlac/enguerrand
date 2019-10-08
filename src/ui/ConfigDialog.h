@@ -7,6 +7,8 @@
 #include "EngineConfig.h"
 #include "ui_ConfigDialog.h"
 
+class RealsenseCalibration;
+
 class ConfigDialog : public QDialog
 {
 
@@ -26,6 +28,10 @@ protected slots:
     void selectHistogram();
     void accept() override;
     int exec() override;
+
+protected:
+
+    static CalibrationDataPtr convertCalibration(const RealsenseCalibration& rscalib);
 
 protected:
 

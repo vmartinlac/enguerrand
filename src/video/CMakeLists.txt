@@ -2,8 +2,6 @@
 add_library(
     enguerrand_video
     SHARED
-    CalibrationData.h
-    CalibrationData.cpp
     FileVideoSource.cpp
     FileVideoSource.h
     RealsenseVideoSource.cpp

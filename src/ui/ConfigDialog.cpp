@@ -167,9 +167,18 @@ void ConfigDialog::accept()
                 video->stop();
                 */
 
-                ret->calibration = video->getCalibrationData();
-                ok = bool(ret->calibration);
+                RealsenseCalibration rscalib;
+
+                ok = bool(video->getCalibration(rscalib));
                 err = "Could not retrieve calibration data from camera!";
+
+                if(ok)
+                {
+                    ret->calibration = convertCalibration(rscalib);
+
+                    ok = bool(ret->calibration);
+                    err = "Could not decode calibration data from camera!";
+                }
             }
         }
         else
@@ -251,6 +260,34 @@ EngineConfigPtr ConfigDialog::askConfig(QWidget* parent)
     }
 
     delete dlg;
+
+    return ret;
+}
+
+CalibrationDataPtr ConfigDialog::convertCalibration(const RealsenseCalibration& rscalib)
+{
+    CalibrationDataPtr ret = std::make_shared<CalibrationData>();
+
+    ret->cameras.resize(1);
+    CameraCalibrationData& cam = ret->cameras.front();
+    
+    cam.image_size = rscalib.image_size;
+
+    cam.calibration_matrix = rscalib.calibration_matrix;
+
+    const double fx = rscalib.calibration_matrix(0,0);
+    const double fy = rscalib.calibration_matrix(1,1);
+    const double cx = rscalib.calibration_matrix(0,2);
+    const double cy = rscalib.calibration_matrix(1,2);
+
+    cam.inverse_calibration_matrix <<
+        1.0/fx, 0.0, -cx/fx,
+        0.0, 1.0/fy, -cy/fy,
+        0.0, 0.0, 1.0;
+
+    cam.distortion_coefficients = rscalib.distortion_coefficients;
+
+    cam.camera_to_robot = Sophus::SE3d(); // identity.
 
     return ret;
 }

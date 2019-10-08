@@ -73,42 +73,34 @@ int RealsenseVideoSource::getNumViews()
     return 1;
 }
 
-CalibrationDataPtr RealsenseVideoSource::getCalibrationData()
+bool RealsenseVideoSource::getCalibration(RealsenseCalibration& calibration) const
 {
     rs2::video_stream_profile profile(myProfile);
     rs2_intrinsics intrinsics = profile.get_intrinsics();
 
-    CalibrationDataPtr ret;
+    const bool ok = (intrinsics.model == RS2_DISTORTION_INVERSE_BROWN_CONRADY || intrinsics.model == RS2_DISTORTION_NONE);
 
-    if(intrinsics.model == RS2_DISTORTION_INVERSE_BROWN_CONRADY || intrinsics.model == RS2_DISTORTION_NONE)
+    if(ok)
     {
-        ret = std::make_shared<CalibrationData>();
+        calibration.image_size.width = intrinsics.width;
+        calibration.image_size.height = intrinsics.height;
 
-        ret->cameras.resize(1);
-        CameraCalibrationData& cam = ret->cameras.front();
-        
-        cam.image_size.width = intrinsics.width;
-        cam.image_size.height = intrinsics.height;
-
-        cam.calibration_matrix <<
+        calibration.calibration_matrix <<
             intrinsics.fx, 0.0, intrinsics.ppx,
             0.0, intrinsics.fy, intrinsics.ppy,
             0.0, 0.0, 1.0;
 
-        cam.inverse_calibration_matrix <<
-            1.0/intrinsics.fx, 0.0, -intrinsics.ppx/intrinsics.fx,
-            0.0, 1.0/intrinsics.fy, -intrinsics.ppy/intrinsics.fy,
-            0.0, 0.0, 1.0;
-
         if(intrinsics.model == RS2_DISTORTION_INVERSE_BROWN_CONRADY)
         {
-            cam.distortion_coefficients.resize(5);
-            std::copy(intrinsics.coeffs, intrinsics.coeffs+5, cam.distortion_coefficients.begin());
+            calibration.distortion_coefficients.resize(5);
+            std::copy(intrinsics.coeffs, intrinsics.coeffs+5, calibration.distortion_coefficients.begin());
         }
-
-        cam.camera_to_robot = Sophus::SE3d(); // identity.
+        else
+        {
+            calibration.distortion_coefficients.clear();
+        }
     }
 
-    return ret;
+    return ok;
 }
 
