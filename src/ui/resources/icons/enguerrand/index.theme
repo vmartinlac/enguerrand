@@ -1,6 +1,6 @@
 [Icon Theme]
 Name=enguerrand
-Directories=actions-50,actions-100
+Directories=actions-50,actions-100,apps-16,apps-32,apps-48,apps-64,apps-128
 
 [actions-50]
 Type=Fixed
@@ -11,4 +11,29 @@ Context=Actions
 Type=Fixed
 Size=100
 Context=Actions
+
+[apps-16]
+Type=Fixed
+Size=16
+Context=Applications
+
+[apps-32]
+Type=Fixed
+Size=32
+Context=Applications
+
+[apps-48]
+Type=Fixed
+Size=48
+Context=Applications
+
+[apps-64]
+Type=Fixed
+Size=64
+Context=Applications
+
+[apps-128]
+Type=Fixed
+Size=128
+Context=Applications
 

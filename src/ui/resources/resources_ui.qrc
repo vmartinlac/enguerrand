@@ -2,6 +2,11 @@
 <qresource>
 <file>./background/background.png</file>
 <file>./background/background.xcf</file>
+<file>./icons/enguerrand/apps-16/enguerrand.png</file>
+<file>./icons/enguerrand/apps-32/enguerrand.png</file>
+<file>./icons/enguerrand/apps-48/enguerrand.png</file>
+<file>./icons/enguerrand/apps-64/enguerrand.png</file>
+<file>./icons/enguerrand/apps-128/enguerrand.png</file>
 <file>./icons/enguerrand/actions-100/about.png</file>
 <file>./icons/enguerrand/actions-100/apple.png</file>
 <file>./icons/enguerrand/actions-100/apricot.png</file>
