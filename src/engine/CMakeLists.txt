@@ -36,8 +36,6 @@ add_library(
     TrackedCircle.h
     EngineOutput.cpp
     EngineOutput.h
-    "${CMAKE_SOURCE_DIR}/thirdparty/libsvm/svm.h"
-    "${CMAKE_SOURCE_DIR}/thirdparty/libsvm/svm.cpp"
 )
 
 target_link_libraries(
@@ -58,8 +56,6 @@ target_link_libraries(
     Threads::Threads
     enguerrand_video
 )
-
-target_include_directories(enguerrand_engine PRIVATE "${CMAKE_SOURCE_DIR}/thirdparty/libsvm/")
 
 target_include_directories(enguerrand_engine INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 

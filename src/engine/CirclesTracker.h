@@ -5,7 +5,6 @@
 #include <random>
 #include "Histogram.h"
 #include "TrackedCircle.h"
-//#include "svm.h"
 
 class CirclesTracker
 {
