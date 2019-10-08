@@ -80,8 +80,6 @@ protected:
     float mMinRadius;
     float mMaxRadius;
     HistogramPtr mReferenceHistogram;
-    bool mExportThumbnails;
-    size_t mThumbnailsCount;
     bool mExportDetectionPicture;
     double mHistogramIntersectionThreshold;
 };

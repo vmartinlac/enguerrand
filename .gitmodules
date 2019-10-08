@@ -1,6 +1,4 @@
 [submodule "thirdparty/tbb"]
 	path = thirdparty/tbb
 	url = https://github.com/intel/tbb.git
-[submodule "thirdparty/libsvm"]
-	path = thirdparty/libsvm
-	url = https://github.com/cjlin1/libsvm.git
+

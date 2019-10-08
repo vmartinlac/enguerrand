@@ -2,6 +2,8 @@
 add_library(
     enguerrand_engine
     SHARED
+    Histogram.h
+    Histogram.cpp
     SE3Parameterization.h
     SE3Parameterization.cpp
     NullOdometry.cpp
@@ -55,7 +57,6 @@ target_link_libraries(
     Qt5::Gui
     Threads::Threads
     enguerrand_video
-    enguerrand_stuff
 )
 
 target_include_directories(enguerrand_engine PRIVATE "${CMAKE_SOURCE_DIR}/thirdparty/libsvm/")

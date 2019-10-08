@@ -1,9 +1,14 @@
 #include <iostream>
 #include <queue>
-#include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/imgcodecs.hpp>
 #include "CirclesTracker.h"
+
+//
+// TODO remove these includes.
+#include <iomanip>
+#include <fstream>
+#include <opencv2/imgcodecs.hpp>
+//
 
 #define CIRCLESTRACKER_DEBUG
 
@@ -16,10 +21,7 @@ CirclesTracker::CirclesTracker()
 {
     mHistogramIntersectionThreshold = 0.03;
 
-    mExportDetectionPicture = true;
-
-    mExportThumbnails = false;
-    mThumbnailsCount = 0;
+    mExportDetectionPicture = false;
 
     mMinRadius = 5.0f;
     mMaxRadius = 600.0f;
@@ -101,22 +103,6 @@ void CirclesTracker::track(
         cv::resize( output, output, cv::Size(), 0.5, 0.5);
 
         cv::imwrite("detected_circles.png", output);
-    }
-
-    if( mExportThumbnails)
-    {
-        for(TrackedCircle& c : circles)
-        {
-            const cv::Vec3f& circle = c.circle;
-
-            const cv::Rect ROI =
-                cv::Rect( circle[0]-circle[2], circle[1]-circle[2], 2*circle[2], 2*circle[2] ) &
-                cv::Rect( cv::Point(0,0), input_image.size() );
-
-            cv::imwrite("circles_tracker_"+std::to_string(mThumbnailsCount)+".png", input_image(ROI));
-
-            mThumbnailsCount++;
-        }
     }
 }
 
@@ -218,6 +204,32 @@ bool CirclesTracker::filterCircle(const cv::Mat3b& image, const cv::Vec3f& circl
         if(ret)
         {
             ret = candidate_histogram.build(mReferenceHistogram->getBins(), image, circle, 0.9);
+
+
+            //
+            const int margin = 20;
+            const cv::Rect ROI(circle[0]-margin-circle[2], circle[1]-margin-circle[2], 2*margin+2*circle[2], 2*margin+2*circle[2]);
+            const cv::Rect image_rect(0,0,image.cols,image.rows);
+            if( (image_rect | ROI) == image_rect && ret)
+            {
+                static std::ofstream file;
+                static bool initialized = false;
+                static int i = 0;
+                if(initialized == false)
+                {
+                    file = std::move(std::ofstream("listing.txt"));
+                    initialized = true;
+                }
+
+                std::stringstream ss;
+                ss << std::setfill('0') << std::setw(6) << i++;
+                const std::string id = ss.str();
+
+                file << id << " " << circle[0]-ROI.x << " " << circle[1]-ROI.y << " " << circle[2] << std::endl << std::flush;
+                candidate_histogram.save(id + "_histogram.bin");
+                cv::imwrite(id + "_image.png", image(ROI));
+            }
+            //
         }
 
         if(ret)
