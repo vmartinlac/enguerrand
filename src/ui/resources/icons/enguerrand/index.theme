@@ -1,0 +1,14 @@
+[Icon Theme]
+Name=enguerrand
+Directories=actions-50,actions-100
+
+[actions-50]
+Type=Fixed
+Size=50
+Context=Actions
+
+[actions-100]
+Type=Fixed
+Size=100
+Context=Actions
+

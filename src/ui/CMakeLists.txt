@@ -2,7 +2,7 @@
 add_library(
     enguerrand_ui
     SHARED
-    ressources.qrc
+    resources/resources_ui.qrc
     AboutDialog.ui
     AboutDialog.cpp
     AboutDialog.h

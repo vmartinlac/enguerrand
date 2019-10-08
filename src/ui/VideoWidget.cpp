@@ -10,7 +10,7 @@ VideoWidget::VideoWidget(QWidget* parent) : QWidget(parent)
     myFocusX = 0.0;
     myFocusY = 0.0;
     myLastSize = cv::Size(0,0);
-    myBackground = QPixmap(":/background.png");
+    myBackground = QPixmap(":/background/background.png");
 }
 
 void VideoWidget::paintEvent(QPaintEvent* ev)

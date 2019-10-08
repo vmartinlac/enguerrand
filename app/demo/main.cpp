@@ -9,6 +9,10 @@
 int main(int num_args, char** args)
 {
     QApplication app(num_args, args);
+
+    QIcon::setThemeSearchPaths({":/icons/"});
+    QIcon::setThemeName("enguerrand");
+
     app.setApplicationVersion(ENGUERRAND_VERSION_STRING);
     app.setOrganizationName("Enguerrand");
     app.setApplicationName("Enguerrand");

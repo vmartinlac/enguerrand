@@ -33,15 +33,15 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     tb->addSeparator();
     QAction* action_about = tb->addAction("About");
 
-    action_quit->setIcon(QIcon(":/close.png"));
-    action_about->setIcon(QIcon(":/about.png"));
-    action_home->setIcon(QIcon(":/home.png"));
-    action_start->setIcon(QIcon(":/play.png"));
-    action_stop->setIcon(QIcon(":/stop.png"));
-    action_show_raw->setIcon(QIcon(":/video_raw.png"));
-    action_show_edges->setIcon(QIcon(":/video_edges.png"));
-    action_show_traces->setIcon(QIcon(":/video_traces.png"));
-    action_show_circles->setIcon(QIcon(":/video_circles.png"));
+    action_quit->setIcon(QIcon::fromTheme("close-window"));
+    action_about->setIcon(QIcon::fromTheme("about"));
+    action_home->setIcon(QIcon::fromTheme("home"));
+    action_start->setIcon(QIcon::fromTheme("play"));
+    action_stop->setIcon(QIcon::fromTheme("stop"));
+    action_show_raw->setIcon(QIcon::fromTheme("kiwi"));
+    action_show_edges->setIcon(QIcon::fromTheme("melon"));
+    action_show_traces->setIcon(QIcon::fromTheme("raspberry"));
+    action_show_circles->setIcon(QIcon::fromTheme("olive"));
 
     QActionGroup* group_image = new QActionGroup(this);
     group_image->addAction(action_show_raw);
