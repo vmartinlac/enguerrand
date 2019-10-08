@@ -16,6 +16,8 @@ public:
 
     std::vector<uint32_t>& refVector();
 
+    const std::vector<uint32_t>& refVector() const;
+
     size_t getCount() const;
 
 protected:

@@ -4,16 +4,11 @@
 #include <QDir>
 #include "Histogram.h"
 #include "DataDirIterator.h"
+#include "HistogramValidator.h"
 
 #include <svm.h>
 
 #define HISTOGRAM_NUM_BINS 16
-
-struct TrainingData
-{
-    std::vector< std::vector<svm_node> > nodes;
-    std::vector<double> probabilities;
-};
 
 int main(int num_args, char** args)
 {
@@ -23,7 +18,7 @@ int main(int num_args, char** args)
         exit(1);
     }
 
-    TrainingData tdata;
+    HistogramValidatorPtr validator = HistogramValidator::createHistogramValidatorSVM();
 
     QDir dir(args[1]);
 
@@ -44,28 +39,13 @@ int main(int num_args, char** args)
                 Histogram hist;
                 if( hist.build(HISTOGRAM_NUM_BINS, image, circle, 0.9) )
                 {
-                    std::vector<svm_node> nodes;
-
-                    auto& vector = hist.refVector();
-                    for(size_t i=0; i<vector.size(); i++)
-                    {
-                        if( vector[i] > 0 )
-                        {
-                            nodes.emplace_back();
-                            nodes.back().index = i;
-                            nodes.back().value = double(vector[i]) / double(hist.getCount());
-                        }
-                    }
-
-                    nodes.emplace_back();
-                    nodes.back().index = -1;
-                    nodes.back().value = 0.0;
-
-                    tdata.nodes.push_back( std::move(nodes) );
+                    validator->addToTrainingSet(hist);
                 }
             }
         }
     }
+
+    validator->train();
 
     return 0;
 }

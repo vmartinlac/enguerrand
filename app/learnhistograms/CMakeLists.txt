@@ -2,6 +2,10 @@
 add_executable(
     enguerrand_learnhistograms
     main.cpp
+    HistogramValidatorSVM.h
+    HistogramValidatorSVM.cpp
+    HistogramValidator.h
+    HistogramValidator.cpp
     Histogram.h
     Histogram.cpp
     DataDirIterator.h

@@ -57,6 +57,11 @@ size_t Histogram::getCount() const
     return myCount;
 }
 
+const std::vector<uint32_t>& Histogram::refVector() const
+{
+    return myHistogram;
+}
+
 std::vector<uint32_t>& Histogram::refVector()
 {
     return myHistogram;
