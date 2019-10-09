@@ -7,7 +7,6 @@ Dependencies
 
 * Ceres
 * Eigen3
-* libsvm
 * OpenCV
 * openscenegraph
 * Qt5

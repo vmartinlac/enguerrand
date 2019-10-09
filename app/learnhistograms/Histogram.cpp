@@ -7,8 +7,6 @@ Histogram::Histogram()
 
 bool Histogram::build(size_t bins, const cv::Mat3b& image, const cv::Vec3f& circle, double gamma)
 {
-    bool ret = false;
-
     const size_t N = bins*bins*bins;
 
     myHistogram.assign(N, 0);

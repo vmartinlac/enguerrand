@@ -22,7 +22,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
 
 include("${CMAKE_SOURCE_DIR}/thirdparty/tbb/cmake/TBBBuild.cmake")
 tbb_build(TBB_ROOT "${CMAKE_SOURCE_DIR}/thirdparty/tbb" CONFIG_DIR TBB_DIR)
@@ -36,7 +36,6 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(OpenCV REQUIRED)
 find_package(Qt5 COMPONENTS OpenGL Sql Core Widgets Gui Test REQUIRED)
 find_package(Sophus REQUIRED)
-find_package(libsvm REQUIRED)
 
 pkg_check_modules(OSG REQUIRED IMPORTED_TARGET openscenegraph)
 #pkg_check_modules(LIBUSB REQUIRED IMPORTED_TARGET libusb-1.0)

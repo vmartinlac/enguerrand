@@ -46,7 +46,6 @@ target_link_libraries(
     enguerrand_core
     PRIVATE
     ceres
-    libsvm
 )
 
 target_include_directories(enguerrand_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -2,37 +2,34 @@
 #pragma once
 
 #include <memory>
+#include <opencv2/ml.hpp>
 #include "Histogram.h"
-
-enum HistogramValidationResult
-{
-    HISTOGRAM_VALIDATION_ACCEPTED,
-    HISTOGRAM_VALIDATION_REJECTED,
-    HISTOGRAM_VALIDATION_FAILURE
-};
-
-class HistogramValidator;
-
-using HistogramValidatorPtr = std::shared_ptr<HistogramValidator>;
 
 class HistogramValidator
 {
 public:
 
-    static HistogramValidatorPtr createHistogramValidatorSVM();
-
     HistogramValidator();
 
-    virtual void load() = 0;
+    bool load(const std::string& path);
 
-    virtual void save() = 0;
+    void save(const std::string& path);
 
-    virtual bool addToTrainingSet(const Histogram& histogram) = 0;
+    void addSample(const cv::Mat3b& image, const cv::Vec3f& circle);
 
-    virtual void clearTrainingSet() = 0;
+    void clearSamples();
 
-    virtual void train() = 0;
+    bool train();
 
-    virtual HistogramValidationResult validate(const Histogram& histogram) = 0;
+    bool validate(const cv::Mat3b& image, const cv::Vec3f& circle);
+
+protected:
+
+    double myAlpha;
+    size_t myDimension;
+    size_t myNumHistogramBins;
+    cv::Ptr<cv::ml::SVM> mySVM;
 };
+
+using HistogramValidatorPtr = std::shared_ptr<HistogramValidator>;
 

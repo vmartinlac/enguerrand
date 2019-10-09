@@ -8,7 +8,11 @@ DataDirIterator::DataDirIterator()
 {
 }
 
-void DataDirIterator::reset(const QDir& dir)
+DataDirIterator1::DataDirIterator1()
+{
+}
+
+void DataDirIterator1::reset(const QDir& dir)
 {
     myListing.clear();
     myDir = dir;
@@ -35,7 +39,7 @@ void DataDirIterator::reset(const QDir& dir)
     }
 }
 
-bool DataDirIterator::next(cv::Vec3f& circle, cv::Mat3b& image)
+bool DataDirIterator1::next(cv::Vec3f& circle, cv::Mat3b& image)
 {
     bool ret = true;
     bool go_on = true;
@@ -61,6 +65,58 @@ bool DataDirIterator::next(cv::Vec3f& circle, cv::Mat3b& image)
                 circle = item.second;
                 ret = true;
                 go_on = false;
+            }
+        }
+    }
+
+    return ret;
+}
+
+DataDirIterator2::DataDirIterator2()
+{
+}
+
+void DataDirIterator2::reset(const QDir& dir)
+{
+    myReady = false;
+    mySubDirectories = dir.entryList(QDir::Dirs);
+    myDir = dir;
+}
+
+bool DataDirIterator2::next(cv::Vec3f& circle, cv::Mat3b& image)
+{
+    bool go_on = true;
+    bool ret = true;
+
+    while(go_on)
+    {
+        if(myReady)
+        {
+            if( myIterator1.next(circle, image) )
+            {
+                go_on = false;
+                ret = true;
+            }
+            else
+            {
+                myReady = false;
+            }
+        }
+        else if(mySubDirectories.empty())
+        {
+            go_on = false;
+            ret = false;
+        }
+        else
+        {
+            const QString dirname = mySubDirectories.back();
+            mySubDirectories.pop_back();
+
+            QDir tmp = myDir;
+            if(tmp.cd(dirname))
+            {
+                myIterator1.reset(tmp);
+                myReady = true;
             }
         }
     }

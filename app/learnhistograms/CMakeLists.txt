@@ -2,8 +2,6 @@
 add_executable(
     enguerrand_learnhistograms
     main.cpp
-    HistogramValidatorSVM.h
-    HistogramValidatorSVM.cpp
     HistogramValidator.h
     HistogramValidator.cpp
     Histogram.h
@@ -17,7 +15,7 @@ target_link_libraries(
     PUBLIC
     opencv_imgcodecs
     opencv_core
+    opencv_ml
     Qt5::Core
-    libsvm
 )
 
