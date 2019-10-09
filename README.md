@@ -7,7 +7,7 @@ Dependencies
 
 * Ceres
 * Eigen3
-* libsvm (included as git submodule)
+* libsvm
 * OpenCV
 * openscenegraph
 * Qt5
