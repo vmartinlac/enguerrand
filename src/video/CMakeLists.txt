@@ -31,3 +31,5 @@ target_include_directories(enguerrand_video INTERFACE ${CMAKE_CURRENT_SOURCE_DIR
 
 target_compile_definitions(enguerrand_video PUBLIC QT_NO_FOREACH)
 
+install(TARGETS enguerrand_video RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+

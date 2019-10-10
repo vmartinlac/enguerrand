@@ -14,7 +14,7 @@ int main(int num_args, char** args)
     QIcon::setThemeName("enguerrand");
 
     app.setWindowIcon(QIcon::fromTheme("enguerrand"));
-    app.setApplicationVersion(ENGUERRAND_VERSION_STRING);
+    app.setApplicationVersion(ENGUERRAND_VERSION);
     app.setOrganizationName("Enguerrand");
     app.setApplicationName("Enguerrand");
 

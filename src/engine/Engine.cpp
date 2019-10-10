@@ -42,7 +42,7 @@ void Engine::startEngine(EngineConfigPtr config)
 
     myVideoEdgeJoinNode.reset(new EngineGraph::VideoEdgeJoinNode(*myGraph));
 
-    myCirclesNode.reset(new EngineGraph::CircleNode(*myGraph, 1, EngineGraph::CirclesBody(myConfig->balls_histogram)));
+    myCirclesNode.reset(new EngineGraph::CircleNode(*myGraph, 1, EngineGraph::CirclesBody(myConfig->observation_validator)));
 
     myOdometryNode.reset(new EngineGraph::OdometryNode(*myGraph, 1, EngineGraph::OdometryBody(myConfig->odometry_code)));
 

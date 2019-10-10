@@ -78,9 +78,9 @@ EngineGraph::EdgeMessagePtr EngineGraph::EdgeBody::operator()(const EngineGraph:
     return edge_msg;
 }
 
-EngineGraph::CirclesBody::CirclesBody(HistogramPtr reference_histogram)
+EngineGraph::CirclesBody::CirclesBody(ObservationValidatorPtr observation_validator)
 {
-    mTracker.setReferenceHistogram(std::move(reference_histogram));
+    mTracker.setObservationValidator(observation_validator);
 }
 
 EngineGraph::CirclesMessagePtr EngineGraph::CirclesBody::operator()(const tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> frame)

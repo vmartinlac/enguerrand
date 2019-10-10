@@ -1,18 +1,15 @@
-#include "ObservationValidator.h"
+#include "ObservationValidatorSVM.h"
 
-const double ObservationValidator::myTransformationExponent = (1.0/3.0);
+const double ObservationValidatorSVM::myTransformationExponent = (1.0/3.0);
+const double ObservationValidatorSVM::mySVMNu = 0.5;
+const double ObservationValidatorSVM::myRadiusRatio = 0.95;
+const size_t ObservationValidatorSVM::myNumHistogramBins = 16;
 
-const double ObservationValidator::mySVMNu = 0.5;
-
-const double ObservationValidator::myRadiusRatio = 0.9;
-
-const size_t ObservationValidator::myNumHistogramBins = 16;
-
-ObservationValidator::ObservationValidator()
+ObservationValidatorSVM::ObservationValidatorSVM()
 {
 }
 
-bool ObservationValidator::addSample(const cv::Mat3b& image, const cv::Vec3f& circle)
+void ObservationValidatorSVM::addSample(const cv::Mat3b& image, const cv::Vec3f& circle)
 {
     Histogram hist;
 
@@ -22,16 +19,9 @@ bool ObservationValidator::addSample(const cv::Mat3b& image, const cv::Vec3f& ci
     {
         myTrainingSet.push_back(std::move(hist));
     }
-
-    return ret;
 }
 
-void ObservationValidator::clearSamples()
-{
-    myTrainingSet.clear();
-}
-
-bool ObservationValidator::load(const std::string& path)
+bool ObservationValidatorSVM::load(const std::string& path)
 {
     bool ret = false;
     cv::Ptr<cv::ml::SVM> svm = cv::ml::SVM::load(path);
@@ -45,12 +35,18 @@ bool ObservationValidator::load(const std::string& path)
     return ret;
 }
 
-void ObservationValidator::save(const std::string& path)
+bool ObservationValidatorSVM::save(const std::string& path)
 {
     mySVM->save(path);
+    return true;
 }
 
-bool ObservationValidator::train()
+void ObservationValidatorSVM::prepareTraining()
+{
+    myTrainingSet.clear();
+}
+
+bool ObservationValidatorSVM::train()
 {
     bool ret = false;
 
@@ -99,10 +95,12 @@ bool ObservationValidator::train()
         ret = true;
     }
 
+    myTrainingSet.clear();
+
     return ret;
 }
 
-bool ObservationValidator::validate(const cv::Mat3b& image, const cv::Vec3f& circle)
+bool ObservationValidatorSVM::validate(const cv::Mat3b& image, const cv::Vec3f& circle)
 {
     Histogram hist;
     bool ret = false;
@@ -131,8 +129,70 @@ bool ObservationValidator::validate(const cv::Mat3b& image, const cv::Vec3f& cir
     return ret;
 }
 
-size_t ObservationValidator::getNumSamples() const
+///////////
+
+ObservationValidatorSVM::Histogram::Histogram()
 {
-    return myTrainingSet.size();
+    myBins = 0;
+}
+
+bool ObservationValidatorSVM::Histogram::build(size_t bins, const cv::Mat3b& image, const cv::Vec3f& circle, double gamma)
+{
+    const size_t N = bins*bins*bins;
+
+    myHistogram.assign(N, 0);
+
+    myBins = bins;
+
+    myCount = 0;
+
+    const cv::Rect ROI =
+        cv::Rect( cv::Point(0,0), image.size() ) &
+        cv::Rect( circle[0]-circle[2]-1, circle[1]-circle[2]-1, 2*circle[2]+1, 2*circle[2]+1 );
+
+    for(int di=0; di<ROI.height; di++)
+    {
+        for(int dj=0; dj<ROI.width; dj++)
+        {
+            const int j = ROI.x + dj;
+            const int i = ROI.y + di;
+
+            const double radius = std::hypot( j+0.5-circle[0], i+0.5-circle[1] );
+
+            if(radius < gamma * circle[2])
+            {
+                cv::Vec3i tmp = image(i,j);
+                tmp *= (int) bins;
+                tmp /= 256;
+
+                const size_t index = myBins*myBins*tmp[0] + myBins*tmp[1] + tmp[2];
+
+                myHistogram[index]++;
+                myCount++;
+            }
+        }
+    }
+
+    return (myCount > 0);
+}
+
+size_t ObservationValidatorSVM::Histogram::getBins() const
+{
+    return myBins;
+}
+
+size_t ObservationValidatorSVM::Histogram::getCount() const
+{
+    return myCount;
+}
+
+const std::vector<uint32_t>& ObservationValidatorSVM::Histogram::refVector() const
+{
+    return myHistogram;
+}
+
+std::vector<uint32_t>& ObservationValidatorSVM::Histogram::refVector()
+{
+    return myHistogram;
 }
 

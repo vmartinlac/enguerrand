@@ -3,7 +3,7 @@
 
 #include <memory>
 #include <random>
-#include "Histogram.h"
+#include "ObservationValidator.h"
 #include "TrackedCircle.h"
 
 class CirclesTracker
@@ -18,7 +18,7 @@ public:
         const cv::Mat2f& normals,
         std::vector<TrackedCircle>& circles);
 
-    void setReferenceHistogram(HistogramPtr histogram);
+    void setObservationValidator(ObservationValidatorPtr validator);
 
     void setMinRadius(float x);
 
@@ -78,9 +78,7 @@ protected:
     std::array<cv::Vec2i,8> mNeighbors;
     float mMinRadius;
     float mMaxRadius;
-    HistogramPtr mReferenceHistogram;
-    bool mExportDetectionPicture;
-    double mHistogramIntersectionThreshold;
+    ObservationValidatorPtr mObservationValidator;
 };
 
 using CirclesTrackerPtr = std::shared_ptr<CirclesTracker>;

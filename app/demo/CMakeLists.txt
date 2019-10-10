@@ -11,3 +11,5 @@ target_link_libraries(
     enguerrand_ui
 )
 
+install(TARGETS enguerrand_demo RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+

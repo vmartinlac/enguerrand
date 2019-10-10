@@ -3,7 +3,7 @@
 
 #include <memory>
 #include <QMetaType>
-#include "Histogram.h"
+#include "ObservationValidator.h"
 #include "VideoSource.h"
 #include "OdometryCode.h"
 #include "CalibrationData.h"
@@ -14,8 +14,7 @@ public:
 
     EngineConfig();
 
-    //bool debug;
-    HistogramPtr balls_histogram;
+    ObservationValidatorPtr observation_validator;
     VideoSourcePtr video_input;
     OdometryCodePtr odometry_code;
     CalibrationDataPtr calibration;

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>480</width>
-    <height>378</height>
+    <width>615</width>
+    <height>492</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -107,12 +107,12 @@
      </property>
      <layout class="QGridLayout" name="gridLayout_2">
       <item row="1" column="1">
-       <widget class="QLineEdit" name="histogram_path"/>
+       <widget class="QLineEdit" name="observation_validator_data"/>
       </item>
-      <item row="2" column="0">
+      <item row="3" column="0">
        <widget class="QLabel" name="visualOdometryLabel">
         <property name="text">
-         <string>Visual odometry</string>
+         <string>Visual odometry code</string>
         </property>
        </widget>
       </item>
@@ -123,7 +123,7 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="1" colspan="2">
+      <item row="3" column="1" colspan="2">
        <widget class="QComboBox" name="visual_odometry_code">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -136,9 +136,19 @@
       <item row="1" column="0">
        <widget class="QLabel" name="label">
         <property name="text">
-         <string>Reference histogram</string>
+         <string>Observation validator data</string>
         </property>
        </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>Observation validator</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" colspan="2">
+       <widget class="QComboBox" name="observation_validator"/>
       </item>
      </layout>
     </widget>

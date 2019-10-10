@@ -135,7 +135,7 @@ namespace EngineGraph
     {
     public:
 
-        CirclesBody(HistogramPtr reference_histogram);
+        CirclesBody(ObservationValidatorPtr observation_validator);
 
         CirclesMessagePtr operator()(const tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> frame);
 

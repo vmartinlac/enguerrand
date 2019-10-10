@@ -4,8 +4,14 @@ add_library(
     SHARED
     CalibrationData.h
     CalibrationData.cpp
-    Histogram.h
-    Histogram.cpp
+    ObservationValidator.h
+    ObservationValidator.cpp
+    ObservationValidator.h
+    ObservationValidator.cpp
+    ObservationValidatorSVM.h
+    ObservationValidatorSVM.cpp
+    ObservationValidatorSimple.h
+    ObservationValidatorSimple.cpp
     SE3Parameterization.h
     SE3Parameterization.cpp
     NullOdometry.cpp
@@ -35,6 +41,7 @@ target_link_libraries(
     PUBLIC
     opencv_core
     opencv_imgproc
+    opencv_ml
     opencv_imgcodecs
     opencv_calib3d
     Qt5::Core
@@ -49,4 +56,6 @@ target_link_libraries(
 )
 
 target_include_directories(enguerrand_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+install(TARGETS enguerrand_core RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 

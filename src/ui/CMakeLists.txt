@@ -34,3 +34,5 @@ target_include_directories(enguerrand_ui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 configure_file(BuildInfo.h.in "${CMAKE_CURRENT_BINARY_DIR}/include/BuildInfo.h" @ONLY)
 target_include_directories(enguerrand_ui PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include")
 
+install(TARGETS enguerrand_ui RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+

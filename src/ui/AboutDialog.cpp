@@ -14,7 +14,7 @@ AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent)
         "</body></html>";
 
     myUI.content->setText(text);
-    myUI.version_label->setText(ENGUERRAND_VERSION_STRING);
+    myUI.version_label->setText(ENGUERRAND_VERSION);
     myUI.build_type_label->setText(ENGUERRAND_BUILD_TYPE);
     myUI.compiler_label->setText(ENGUERRAND_COMPILER);
     myUI.platform_label->setText(ENGUERRAND_SYSTEM_NAME);

@@ -5,6 +5,7 @@
 #include <QDialog>
 #include <map>
 #include "EngineConfig.h"
+#include "ObservationValidator.h"
 #include "ui_ConfigDialog.h"
 
 class RealsenseCalibration;
@@ -25,7 +26,7 @@ protected slots:
     void selectVideoInput(int);
     void selectVideoPath();
     void selectCalibrationPath();
-    void selectHistogram();
+    void selectObservationValidatorData();
     void accept() override;
     int exec() override;
 
@@ -36,11 +37,13 @@ protected:
 protected:
 
     using OdometryCodeFactory = std::function<OdometryCodePtr(CalibrationDataPtr)>;
+    using ObservationValidatorFactory = std::function<ObservationValidatorPtr()>;
 
 protected:
 
     Ui::ConfigDialog myUI;
     std::map<int,OdometryCodeFactory> myOdometryCodeFactories;
+    std::map<int,ObservationValidatorFactory> myObservationValidatorFactories;
     EngineConfigPtr myConfig;
     QButtonGroup* myVideoButtonGroup;
 };

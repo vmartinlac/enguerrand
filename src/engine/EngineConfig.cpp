@@ -3,6 +3,7 @@
 #include <QFile>
 #include "EKFOdometry.h"
 #include "FileVideoSource.h"
+#include "ObservationValidatorSimple.h"
 #include "EngineConfig.h"
 
 EngineConfig::EngineConfig()
@@ -55,9 +56,10 @@ bool EngineConfig::loadFromFile(const std::string& path)
 
     if(ret)
     {
-        balls_histogram.reset(new Histogram());
-        ret = balls_histogram->load( root["balls_histogram"].toString().toStdString() );
-        err = "Could not load histogram!";
+        ObservationValidatorSimplePtr validator = std::make_shared<ObservationValidatorSimple>();
+        observation_validator = validator;
+        ret = validator->load( root["balls_histogram"].toString().toStdString() );
+        err = "Could not initialize observation validator!";
     }
 
     // set calibration.

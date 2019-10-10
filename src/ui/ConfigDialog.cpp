@@ -9,6 +9,8 @@
 #include "PFOdometry.h"
 #include "BAOdometry.h"
 #include "EKFOdometry.h"
+#include "ObservationValidatorSVM.h"
+#include "ObservationValidatorSimple.h"
 
 ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
 {
@@ -26,6 +28,14 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
     myOdometryCodeFactories[3] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new NullOdometry()); };
     myUI.visual_odometry_code->addItem("None", 3);
 
+
+    myObservationValidatorFactories[0] = [] () -> ObservationValidatorPtr { return std::make_shared<ObservationValidatorSimple>(); };
+    myUI.observation_validator->addItem("Distance to reference histogram", 0);
+
+    myObservationValidatorFactories[1] = [] () -> ObservationValidatorPtr { return std::make_shared<ObservationValidatorSVM>(); };
+    myUI.observation_validator->addItem("Support Vector Machine", 1);
+
+
     myVideoButtonGroup = new QButtonGroup(this);
     myVideoButtonGroup->addButton(myUI.video_file, 0);
     myVideoButtonGroup->addButton(myUI.video_realsense, 1);
@@ -36,7 +46,7 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
     connect(myVideoButtonGroup, SIGNAL(buttonClicked(int)), this, SLOT(selectVideoInput(int)));
     connect(myUI.video_file_select_video, SIGNAL(clicked()), this, SLOT(selectVideoPath()));
     connect(myUI.video_file_select_calibration, SIGNAL(clicked()), this, SLOT(selectCalibrationPath()));
-    connect(myUI.histogram_select, SIGNAL(clicked()), this, SLOT(selectHistogram()));
+    connect(myUI.histogram_select, SIGNAL(clicked()), this, SLOT(selectObservationValidatorData()));
 
     selectVideoInput(0);
 }
@@ -66,13 +76,13 @@ void ConfigDialog::selectVideoInput(int btn)
     }
 }
 
-void ConfigDialog::selectHistogram()
+void ConfigDialog::selectObservationValidatorData()
 {
-    const QString ret = QFileDialog::getOpenFileName(this, "Select histogram file");
+    const QString ret = QFileDialog::getOpenFileName(this, "Select data file");
 
     if(ret.isEmpty() == false)
     {
-        myUI.histogram_path->setText(ret);
+        myUI.observation_validator_data->setText(ret);
     }
 }
 
@@ -105,15 +115,29 @@ void ConfigDialog::accept()
 
     if(ok)
     {
-        const QString path = myUI.histogram_path->text();
+        const int item = myUI.observation_validator->currentData().toInt();
+        auto it = myObservationValidatorFactories.find(item);
+        if( it == myObservationValidatorFactories.end() )
+        {
+            err = "Incorrect observation validator!";
+            ok = false;
+        }
+        else
+        {
+            ret->observation_validator = it->second();
+        }
+    }
+
+    if(ok)
+    {
+        const QString path = myUI.observation_validator_data->text();
         ok = ( path.isEmpty() == false );
-        err = "Please set histogram path!";
+        err = "Please set path to observation validator data!";
 
         if(ok)
         {
-            ret->balls_histogram = std::make_shared<Histogram>();
-            ok = ret->balls_histogram->load(path.toStdString());
-            err = "Could not load histogram!";
+            ok = ret->observation_validator->load(path.toStdString());
+            err = "Could not load observation validator data!";
         }
     }
 
@@ -215,7 +239,8 @@ void ConfigDialog::accept()
         s.setValue("video_realsense_camera", myUI.video_realsense_camera->currentIndex());
         s.setValue("video", myVideoButtonGroup->checkedId());
         s.setValue("visual_odometry_code", myUI.visual_odometry_code->currentIndex());
-        s.setValue("histogram_path", myUI.histogram_path->text());
+        s.setValue("observation_validator", myUI.observation_validator->currentIndex());
+        s.setValue("observation_validator_data", myUI.observation_validator_data->text());
         s.endGroup();
 
         s.sync();
@@ -238,11 +263,12 @@ int ConfigDialog::exec()
     myUI.video_file_calibration->setText(s.value("video_file_calibration", QString()).toString());
     myUI.video_realsense_camera->setCurrentIndex(s.value("video_realsense_camera", 0).toInt());
     myUI.visual_odometry_code->setCurrentIndex(s.value("visual_odometry_code", 0).toInt());
+    myUI.observation_validator->setCurrentIndex(s.value("observation_validator", 0).toInt());
     const int btn = s.value("video", 0).toInt();
     if(btn == 0 || btn == 1) selectVideoInput(btn);
     QAbstractButton* btn2 = myVideoButtonGroup->button( s.value("video", 0).toInt() );
     if(btn2) btn2->setChecked(true);
-    myUI.histogram_path->setText( s.value("histogram_path", QString()).toString() );
+    myUI.observation_validator_data->setText( s.value("observation_validator_data", QString()).toString() );
     s.endGroup();
 
     return QDialog::exec();

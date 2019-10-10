@@ -1,3 +1,3 @@
 add_subdirectory(demo)
-add_subdirectory(learnhistograms)
+add_subdirectory(learnobservations)
 

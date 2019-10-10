@@ -3,12 +3,21 @@ cmake_minimum_required(VERSION 3.1)
 
 project(enguerrand)
 
+include(GNUInstallDirs)
+
 set(ENGUERRAND_VERSION_MAJOR 1)
 set(ENGUERRAND_VERSION_MINOR 0)
+set(ENGUERRAND_VERSION_REVISION 0)
+
+set(ENGUERRAND_VERSION "${ENGUERRAND_VERSION_MAJOR}.${ENGUERRAND_VERSION_MINOR}.${ENGUERRAND_VERSION_REVISION}")
 
 option(WITH_CUDA "Whether CUDA is available." OFF)
+option(WITH_DOXYGEN "Whether to enable generation of doxygen documentation." OFF)
 option(BUILD_TEST "Whether to build unit tests." OFF)
-option(WITH_DOC "Whether to enable generation of doxygen documentation." OFF)
+
+if(${WITH_DOXYGEN})
+set(DOCUMENTATION_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/doxygen_documentation/" CACHE PATH "Path to directory in which to generate documentation.")
+endif()
 
 enable_language(CXX)
 
@@ -22,7 +31,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
+#list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
 
 include("${CMAKE_SOURCE_DIR}/thirdparty/tbb/cmake/TBBBuild.cmake")
 tbb_build(TBB_ROOT "${CMAKE_SOURCE_DIR}/thirdparty/tbb" CONFIG_DIR TBB_DIR)
@@ -40,7 +49,7 @@ find_package(Sophus REQUIRED)
 pkg_check_modules(OSG REQUIRED IMPORTED_TARGET openscenegraph)
 #pkg_check_modules(LIBUSB REQUIRED IMPORTED_TARGET libusb-1.0)
 
-if(${WITH_DOC})
+if(${WITH_DOXYGEN})
     find_package(Doxygen REQUIRED)
     add_subdirectory(doc)
 endif()
@@ -50,4 +59,9 @@ add_subdirectory(src)
 if(${BUILD_TEST})
     add_subdirectory(tst)
 endif()
+
+set(CPACK_PACKAGE_VERSION_MAJOR ${ENGUERRAND_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${ENGUERRAND_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${ENGUERRAND_VERSION_REVISION})
+include(CPack)
 

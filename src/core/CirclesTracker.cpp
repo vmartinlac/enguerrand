@@ -3,14 +3,15 @@
 #include <opencv2/imgproc.hpp>
 #include "CirclesTracker.h"
 
-//
-// TODO remove these includes.
+//#define CIRCLESTRACKER_DEBUG
+//#define CIRCLESTRACKER_SAVE_PREVALIDATION
+
+#ifdef CIRCLESTRACKER_SAVE_PREVALIDATION
 #include <iomanip>
 #include <fstream>
 #include <opencv2/imgcodecs.hpp>
-//
+#endif
 
-#define CIRCLESTRACKER_DEBUG
 
 #define CIRCLESTRACKER_EDGE 1
 #define CIRCLESTRACKER_VISITED 2
@@ -19,10 +20,6 @@
 
 CirclesTracker::CirclesTracker()
 {
-    mHistogramIntersectionThreshold = 0.03;
-
-    mExportDetectionPicture = false;
-
     mMinRadius = 5.0f;
     mMaxRadius = 600.0f;
 
@@ -36,9 +33,9 @@ CirclesTracker::CirclesTracker()
     mNeighbors[7] = cv::Vec2i(1,1);
 }
 
-void CirclesTracker::setReferenceHistogram(HistogramPtr histogram)
+void CirclesTracker::setObservationValidator(ObservationValidatorPtr validator)
 {
-    mReferenceHistogram = histogram;
+    mObservationValidator = validator;
 }
 
 void CirclesTracker::setMinRadius(float x)
@@ -91,7 +88,7 @@ void CirclesTracker::track(
 
     //std::cout << "   Success: " << ok << std::endl;
 
-    if(mExportDetectionPicture)
+#if CIRCLESTRACKER_DEBUG
     {
         cv::Mat output = input_image.clone();
         for(TrackedCircle& tc : circles)
@@ -104,12 +101,10 @@ void CirclesTracker::track(
 
         cv::imwrite("detected_circles.png", output);
     }
+#endif
 }
 
-bool CirclesTracker::detect(
-    const cv::Mat1b& edges,
-    const cv::Mat2f& normals,
-    std::vector<TrackedCircle>& circles)
+bool CirclesTracker::detect(const cv::Mat1b& edges, const cv::Mat2f& normals, std::vector<TrackedCircle>& circles)
 {
     std::vector<cv::Point2i> pixels_to_process;
 
@@ -197,47 +192,35 @@ bool CirclesTracker::filterCircle(const cv::Mat3b& image, const cv::Vec3f& circl
 {
     bool ret = true;
 
-    if( mReferenceHistogram )
+#ifdef CIRCLESTRACKER_SAVE_PREVALIDATION
     {
-        Histogram candidate_histogram;
-
-        if(ret)
+        const int margin = 20;
+        const cv::Rect ROI(circle[0]-margin-circle[2], circle[1]-margin-circle[2], 2*margin+2*circle[2], 2*margin+2*circle[2]);
+        const cv::Rect image_rect(0,0,image.cols,image.rows);
+        if( (image_rect | ROI) == image_rect )
         {
-            ret = candidate_histogram.build(mReferenceHistogram->getBins(), image, circle, 0.9);
-
-
-            //
-            const int margin = 20;
-            const cv::Rect ROI(circle[0]-margin-circle[2], circle[1]-margin-circle[2], 2*margin+2*circle[2], 2*margin+2*circle[2]);
-            const cv::Rect image_rect(0,0,image.cols,image.rows);
-            if( (image_rect | ROI) == image_rect && ret)
+            static std::ofstream file;
+            static bool initialized = false;
+            static int i = 0;
+            if(initialized == false)
             {
-                static std::ofstream file;
-                static bool initialized = false;
-                static int i = 0;
-                if(initialized == false)
-                {
-                    file = std::move(std::ofstream("listing.txt"));
-                    initialized = true;
-                }
-
-                std::stringstream ss;
-                ss << std::setfill('0') << std::setw(6) << i++;
-                const std::string id = ss.str();
-
-                file << id << " " << circle[0]-ROI.x << " " << circle[1]-ROI.y << " " << circle[2] << std::endl << std::flush;
-                candidate_histogram.save(id + "_histogram.bin");
-                cv::imwrite(id + "_image.png", image(ROI));
+                file = std::move(std::ofstream("listing.txt"));
+                initialized = true;
             }
-            //
-        }
 
-        if(ret)
-        {
-            const double score = mReferenceHistogram->computeIntersectionWith(candidate_histogram);
-            //std::cout << "HISTOGRAM INTERSECTION " << score << std::endl;
-            ret = ( score > mHistogramIntersectionThreshold );
+            std::stringstream ss;
+            ss << std::setfill('0') << std::setw(6) << i++;
+            const std::string id = ss.str();
+
+            file << id << " " << circle[0]-ROI.x << " " << circle[1]-ROI.y << " " << circle[2] << std::endl << std::flush;
+            cv::imwrite(id + "_image.png", image(ROI));
         }
+    }
+#endif
+
+    if( mObservationValidator )
+    {
+        ret = mObservationValidator->validate(image, circle);
     }
 
     //if(ret == false) std::cout << "   REMOVED ONE CIRCLE DURING FILTERING!" << std::endl;

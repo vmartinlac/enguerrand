@@ -1,20 +1,88 @@
 #include <iostream>
 #include <QFile>
 #include <QDataStream>
-#include "Histogram.h"
+#include "ObservationValidatorSimple.h"
 
-void BigHistogramBuilder::init(size_t bins)
+const double ObservationValidatorSimple::myRadiusRatio = 0.95;
+const double ObservationValidatorSimple::myDistanceThreshold = 0.03;
+const size_t ObservationValidatorSimple::myNumHistogramBins = 16;
+
+const uint32_t ObservationValidatorSimple::Histogram::mSignature = 0x11AA11BB;
+
+ObservationValidatorSimple::ObservationValidatorSimple()
+{
+}
+
+bool ObservationValidatorSimple::validate(const cv::Mat3b& image, const cv::Vec3f& circle)
+{
+    Histogram hist;
+    bool ret = false;
+
+    if( hist.build(myNumHistogramBins, image, circle, myRadiusRatio) )
+    {
+        ret = ( myReferenceHistogram.computeIntersectionWith(hist) < myDistanceThreshold );
+    }
+
+    return ret;
+}
+
+void ObservationValidatorSimple::prepareTraining()
+{
+    myBigHistogramBuilder.init(myNumHistogramBins);
+}
+
+void ObservationValidatorSimple::addSample(const cv::Mat3b& image, const cv::Vec3f& circle)
+{
+    myBigHistogramBuilder.add(image, circle, myRadiusRatio);
+}
+
+bool ObservationValidatorSimple::train()
+{
+    Histogram new_reference;
+
+    const bool ret = myBigHistogramBuilder.build(new_reference);
+
+    myBigHistogramBuilder.init(0);
+
+    if(ret)
+    {
+        myReferenceHistogram = std::move(new_reference);
+    }
+
+    return ret;
+}
+
+bool ObservationValidatorSimple::load(const std::string& path)
+{
+    Histogram new_histogram;
+
+    const bool ret = new_histogram.load(path);
+
+    if(ret)
+    {
+        myReferenceHistogram = std::move(new_histogram);
+    }
+
+    return ret;
+}
+
+bool ObservationValidatorSimple::save(const std::string& path)
+{
+    return myReferenceHistogram.save(path);
+}
+
+void ObservationValidatorSimple::BigHistogramBuilder::init(size_t bins)
 {
     mBins = bins;
     mHistogram.assign(bins*bins*bins, 0);
     mCount = 0;
 }
 
-void BigHistogramBuilder::add(const cv::Mat3b& image, double gamma)
+void ObservationValidatorSimple::BigHistogramBuilder::add(const cv::Mat3b& image, const cv::Vec3f& circle, double gamma)
 {
-    const double center_x = 0.5*image.cols;
-    const double center_y = 0.5*image.rows;
-    const double radius = std::min(image.cols, image.rows)*0.5*gamma;
+    const double center_x = circle[0];
+    const double center_y = circle[1];
+    const double radius = circle[2]*gamma;
 
     for(int i=0; i<image.rows; i++)
     {
@@ -38,7 +106,7 @@ void BigHistogramBuilder::add(const cv::Mat3b& image, double gamma)
     }
 }
 
-bool BigHistogramBuilder::build(Histogram& hist)
+bool ObservationValidatorSimple::BigHistogramBuilder::build(Histogram& hist)
 {
     bool ret = false;
 
@@ -61,13 +129,13 @@ bool BigHistogramBuilder::build(Histogram& hist)
     return ret;
 }
 
-void Histogram::set(size_t bins, std::vector<float>&& histogram)
+void ObservationValidatorSimple::Histogram::set(size_t bins, std::vector<float>&& histogram)
 {
     mBins = bins;
     mHistogram = std::move(histogram);
 }
 
-bool Histogram::save(const std::string& path) const
+bool ObservationValidatorSimple::Histogram::save(const std::string& path) const
 {
     bool ret = false;
 
@@ -76,6 +144,9 @@ bool Histogram::save(const std::string& path) const
     if( file.open(QIODevice::WriteOnly) )
     {
         QDataStream stream(&file);
+
+        stream << (quint32) mSignature;
+
         stream << (quint64) mBins;
 
         const size_t N = mBins*mBins*mBins;
@@ -93,7 +164,7 @@ bool Histogram::save(const std::string& path) const
     return ret;
 }
 
-bool Histogram::load(const std::string& path)
+bool ObservationValidatorSimple::Histogram::load(const std::string& path)
 {
     bool ret = false;
 
@@ -103,38 +174,44 @@ bool Histogram::load(const std::string& path)
     {
         QDataStream stream(&file);
 
-        quint64 tmp;
-        stream >> tmp;
-        mBins = tmp;
+        quint32 tmp0;
+        stream >> tmp0;
 
-        const size_t N = mBins*mBins*mBins;
-
-        mHistogram.resize(N);
-
-        for(size_t i=0; i<N; i++)
+        if(tmp0 == mSignature)
         {
-            stream >> mHistogram[i];
+            quint64 tmp1;
+            stream >> tmp1;
+            mBins = tmp1;
+
+            const size_t N = mBins*mBins*mBins;
+
+            mHistogram.resize(N);
+
+            for(size_t i=0; i<N; i++)
+            {
+                stream >> mHistogram[i];
+            }
+
+            ret = true;
         }
 
         file.close();
-
-        ret = true;
     }
 
     return ret;
 }
 
-Histogram::Histogram()
+ObservationValidatorSimple::Histogram::Histogram()
 {
     mBins = 0;
 }
 
-size_t Histogram::getBins() const
+size_t ObservationValidatorSimple::Histogram::getBins() const
 {
     return mBins;
 }
 
-double Histogram::computeIntersectionWith(const Histogram& other)
+double ObservationValidatorSimple::Histogram::computeIntersectionWith(const Histogram& other)
 {
     if( mBins != other.mBins )
     {
@@ -154,7 +231,7 @@ double Histogram::computeIntersectionWith(const Histogram& other)
     return s;
 }
 
-bool Histogram::build(size_t bins, const cv::Mat3b& image, const cv::Vec3f& circle, double gamma)
+bool ObservationValidatorSimple::Histogram::build(size_t bins, const cv::Mat3b& image, const cv::Vec3f& circle, double gamma)
 {
     bool ret = false;
 
