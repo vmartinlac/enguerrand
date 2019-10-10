@@ -4,28 +4,10 @@
 #include <QDir>
 #include "Histogram.h"
 #include "DataDirIterator.h"
-#include "HistogramValidator.h"
-
-#define HISTOGRAM_NUM_BINS 16
-
-#define GAMMA (0.3333)
+#include "ObservationValidator.h"
 
 void loadHistograms(const QString& path, std::vector<Histogram>& histograms)
 {
-    cv::Vec3f circle;
-    cv::Mat3b image;
-
-    DataDirIterator2 it;
-    it.reset(QDir(path));
-
-    while(it.next(circle, image))
-    {
-        Histogram hist;
-        if( hist.build(HISTOGRAM_NUM_BINS, image, circle, 0.9) )
-        {
-            histograms.push_back(std::move(hist));
-        }
-    }
 }
 
 int main(int num_args, char** args)
@@ -36,26 +18,36 @@ int main(int num_args, char** args)
         exit(1);
     }
 
-    std::cout << "Loading histograms..." << std::endl;
+    ObservationValidator ov;
 
-    std::vector<Histogram> histograms;
-    loadHistograms(args[1], histograms);
+    std::cout << "Loading samples..." << std::endl;
 
-    std::cout << "Number of histograms: " << histograms.size() << std::endl;
+    cv::Vec3f circle;
+    cv::Mat3b image;
 
-    if(histograms.empty())
+    DataDirIterator2 it;
+    it.reset(QDir(args[1]));
+
+    while(it.next(circle, image))
     {
-        std::cerr << "No available histogram!" << std::endl;
-        exit(1);
+        ov.addSample(image, circle);
     }
 
-    HistogramValidatorPtr validator = std::make_shared<HistogramValidator>();
+    std::cout << "Number of histograms: " << ov.getNumSamples() << std::endl;
 
     std::cout << "Training model..." << std::endl;
-    validator->train(histograms);
+    const bool ok = ov.train();
+    ov.clearSamples();
 
-    std::cout << "Saving model..." << std::endl;
-    validator->save("model.bin");
+    if(ok)
+    {
+        std::cout << "Saving model..." << std::endl;
+        ov.save("model.bin");
+    }
+    else
+    {
+        std::cerr << "Training failed!" << std::endl;
+    }
 
     return 0;
 }

@@ -2,8 +2,8 @@
 add_executable(
     enguerrand_learnhistograms
     main.cpp
-    HistogramValidator.h
-    HistogramValidator.cpp
+    ObservationValidator.h
+    ObservationValidator.cpp
     Histogram.h
     Histogram.cpp
     DataDirIterator.h
@@ -17,5 +17,6 @@ target_link_libraries(
     opencv_core
     opencv_ml
     Qt5::Core
+    enguerrand_core
 )
 
