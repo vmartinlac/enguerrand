@@ -2,6 +2,8 @@
 add_library(
     enguerrand_core
     SHARED
+    OdometryHelpers.h
+    OdometryHelpers.cpp
     CalibrationData.h
     CalibrationData.cpp
     ObservationValidator.h
@@ -14,6 +16,8 @@ add_library(
     ObservationValidatorSimple.cpp
     SE3Parameterization.h
     SE3Parameterization.cpp
+    AlignmentOdometry.cpp
+    AlignmentOdometry.h
     NullOdometry.cpp
     NullOdometry.h
     BAOdometry.cpp

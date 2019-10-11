@@ -5,6 +5,7 @@
 #include <ceres/rotation.h>
 #include "BAOdometry.h"
 #include "SE3Parameterization.h"
+#include "OdometryHelpers.h"
 
 template<typename FramePtrContainer>
 size_t BAOdometry::buildLocalMap(FramePtrContainer& frames, std::vector<LandmarkPtr>& local_map)
@@ -199,7 +200,7 @@ bool BAOdometry::track(
     const std::vector<TrackedCircle>& circles,
     OdometryFrame& output)
 {
-    bool successful_alignment = track(timestamp, circles);
+    const bool successful_alignment = track(timestamp, circles);
 
     if(successful_alignment == false)
     {
@@ -268,7 +269,7 @@ bool BAOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
         for(size_t i=0; i<circles.size(); i++)
         {
             new_observations[i].circle = circles[i].circle;
-            new_observations[i].undistorted_circle = undistortCircle(circles[i].circle);
+            new_observations[i].undistorted_circle = OdometryHelpers::undistortCircle(circles[i].circle, myCalibration);
 
             if( circles[i].has_previous && bool(previous_frame->observations[circles[i].previous].landmark) )
             {
@@ -341,7 +342,7 @@ void BAOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
     for(size_t i=0; i<circles.size(); i++)
     {
         new_frame->observations[i].circle = circles[i].circle;
-        new_frame->observations[i].undistorted_circle = undistortCircle(circles[i].circle);
+        new_frame->observations[i].undistorted_circle = OdometryHelpers::undistortCircle(circles[i].circle, myCalibration);
         new_frame->observations[i].landmark = triangulateInitialLandmark(new_frame->camera_to_world, new_frame->observations[i].undistorted_circle);
     }
 
@@ -361,52 +362,11 @@ BAOdometry::LandmarkPtr BAOdometry::triangulateInitialLandmark(const Sophus::SE3
 {
     LandmarkPtr ret;
 
-    //const cv::Vec3f undistorted = undistortCircle(circle);
-    const cv::Vec3f undistorted = undistorted_circle;
-
-    const double cx = undistorted[0];
-    const double cy = undistorted[1];
-    const double r = undistorted[2];
-
-    const double IK00 = myCalibration->cameras[0].inverse_calibration_matrix(0,0);
-    const double IK02 = myCalibration->cameras[0].inverse_calibration_matrix(0,2);
-    const double IK11 = myCalibration->cameras[0].inverse_calibration_matrix(1,1);
-    const double IK12 = myCalibration->cameras[0].inverse_calibration_matrix(1,2);
-
-    const double los_cx = IK00*cx + IK02;
-    const double los_cy = IK11*cy + IK12;
-    const double los_cxminus = IK00*(cx-r) + IK02;
-    const double los_cxplus = IK00*(cx+r) + IK02;
-    const double los_cyminus = IK11*(cy-r) + IK12;
-    const double los_cyplus = IK11*(cy+r) + IK12;
-
-    const double alpha_xminus = ceres::atan(los_cxminus);
-    const double alpha_xplus = ceres::atan(los_cxplus);
-    const double alpha_yminus = ceres::atan(los_cyminus);
-    const double alpha_yplus = ceres::atan(los_cyplus);
-
-    const double los_dirx = ceres::tan( (alpha_xminus + alpha_xplus) / 2.0 );
-    const double los_diry = ceres::tan( (alpha_yminus + alpha_yplus) / 2.0 );
-
-    const double beta = ( (alpha_xplus - alpha_xminus)/2.0 + (alpha_yplus - alpha_yminus)/2.0 ) / 2.0;
-
-    if( M_PI*0.3/180.0 < beta && beta < M_PI*150.0/180.0 )
+    Eigen::Vector3d position_in_camera;
+    if( OdometryHelpers::triangulateLandmark(undistorted_circle, myCalibration, myLandmarkRadius, position_in_camera) )
     {
-        const double distance = myLandmarkRadius/ceres::sin(beta);
-
-        double dir[3];
-        dir[0] = los_dirx;
-        dir[1] = los_diry;
-        dir[2] = 1.0;
-
-        const double norm = ceres::sqrt( dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2] );
-
-        ret.reset(new Landmark());
-        ret->position.x() = distance*dir[0]/norm;
-        ret->position.y() = distance*dir[1]/norm;
-        ret->position.z() = distance*dir[2]/norm;
-
-        ret->position = camera_to_world * ret->position;
+        ret = std::make_shared<Landmark>();
+        ret->position = camera_to_world * position_in_camera;
     }
 
     return ret;
@@ -550,43 +510,3 @@ void BAOdometry::dump()
     }
 }
 
-cv::Vec3f BAOdometry::undistortCircle(const cv::Vec3f& c)
-{
-    std::vector<cv::Vec2d> distorted(4);
-    std::vector<cv::Vec2d> undistorted(4);
-
-    // require newer version of OpenCV.
-    //std::array< cv::Vec2d, 4 > distorted;
-    //std::array< cv::Vec2d, 4 > undistorted;
-
-    distorted[0][0] = c[0]+c[2];
-    distorted[0][1] = c[1];
-    distorted[1][0] = c[0]-c[2];
-    distorted[1][1] = c[1];
-    distorted[2][0] = c[0];
-    distorted[2][1] = c[1]+c[2];
-    distorted[3][0] = c[0];
-    distorted[3][1] = c[1]-c[2];
-
-    cv::undistortPoints(
-        distorted,
-        undistorted,
-        myCalibration->cameras[0].calibration_matrix,
-        myCalibration->cameras[0].distortion_coefficients,
-        cv::noArray(),
-        myCalibration->cameras[0].calibration_matrix);
-
-    const cv::Vec2d center = 0.25f * ( undistorted[0] + undistorted[1] + undistorted[2] + undistorted[3] );
-
-    const double l0 = cv::norm(center, undistorted[0]);
-    const double l1 = cv::norm(center, undistorted[1]);
-    const double l2 = cv::norm(center, undistorted[2]);
-    const double l3 = cv::norm(center, undistorted[3]);
-
-    cv::Vec3f ret;
-    ret[0] = center[0];
-    ret[1] = center[1];
-    ret[2] = ( l0+l1+l2+l3 ) / 4.0;
-
-    return ret;
-}

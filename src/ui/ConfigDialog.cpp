@@ -9,6 +9,7 @@
 #include "PFOdometry.h"
 #include "BAOdometry.h"
 #include "EKFOdometry.h"
+#include "AlignmentOdometry.h"
 #include "ObservationValidatorSVM.h"
 #include "ObservationValidatorSimple.h"
 
@@ -25,8 +26,11 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
     myOdometryCodeFactories[2] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new PFOdometry(calib)); };
     myUI.visual_odometry_code->addItem("Particle filter", 2);
 
-    myOdometryCodeFactories[3] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new NullOdometry()); };
-    myUI.visual_odometry_code->addItem("None", 3);
+    myOdometryCodeFactories[3] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new AlignmentOdometry(calib)); };
+    myUI.visual_odometry_code->addItem("Alignment", 3);
+
+    myOdometryCodeFactories[4] = [] (CalibrationDataPtr calib) -> OdometryCodePtr { return OdometryCodePtr(new NullOdometry()); };
+    myUI.visual_odometry_code->addItem("None", 4);
 
 
     myObservationValidatorFactories[0] = [] () -> ObservationValidatorPtr { return std::make_shared<ObservationValidatorSimple>(); };

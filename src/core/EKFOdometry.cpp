@@ -6,6 +6,7 @@
 #include <opencv2/imgproc.hpp>
 #include <ceres/rotation.h>
 #include "EKFOdometry.h"
+#include "OdometryHelpers.h"
 
 struct EKFOdometry::TriangulationFunction
 {
@@ -404,7 +405,7 @@ bool EKFOdometry::triangulateLandmarkInCameraFrame(
     Eigen::Vector3d& position,
     Eigen::Matrix3d& covariance)
 {
-    const cv::Vec3d undistorted_circle = undistortCircle(circle);
+    const cv::Vec3d undistorted_circle = OdometryHelpers::undistortCircle(circle, myCalibration);
     Eigen::Matrix<double,3,3,Eigen::RowMajor> jacobian;
 
     const double* ceres_variable_ptr = undistorted_circle.val;
@@ -498,47 +499,6 @@ void EKFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>&
     //std::cout << state.covariance.block<3,3>(13, 13) << std::endl;
     //std::cout << "num_landmarks: " << num_landmarks << std::endl;
     //std::cout << state.covariance << std::endl;
-}
-
-cv::Vec3f EKFOdometry::undistortCircle(const cv::Vec3f& c)
-{
-    std::vector<cv::Vec2d> distorted(4);
-    std::vector<cv::Vec2d> undistorted(4);
-
-    // require newer version of OpenCV.
-    //std::array< cv::Vec2d, 4 > distorted;
-    //std::array< cv::Vec2d, 4 > undistorted;
-
-    distorted[0][0] = c[0]+c[2];
-    distorted[0][1] = c[1];
-    distorted[1][0] = c[0]-c[2];
-    distorted[1][1] = c[1];
-    distorted[2][0] = c[0];
-    distorted[2][1] = c[1]+c[2];
-    distorted[3][0] = c[0];
-    distorted[3][1] = c[1]-c[2];
-
-    cv::undistortPoints(
-        distorted,
-        undistorted,
-        myCalibration->cameras[0].calibration_matrix,
-        myCalibration->cameras[0].distortion_coefficients,
-        cv::noArray(),
-        myCalibration->cameras[0].calibration_matrix);
-
-    const cv::Vec2d center = 0.25f * ( undistorted[0] + undistorted[1] + undistorted[2] + undistorted[3] );
-
-    const double l0 = cv::norm(center, undistorted[0]);
-    const double l1 = cv::norm(center, undistorted[1]);
-    const double l2 = cv::norm(center, undistorted[2]);
-    const double l3 = cv::norm(center, undistorted[3]);
-
-    cv::Vec3f ret;
-    ret[0] = center[0];
-    ret[1] = center[1];
-    ret[2] = ( l0+l1+l2+l3 ) / 4.0;
-
-    return ret;
 }
 
 bool EKFOdometry::mappingPruneAugment()
@@ -791,7 +751,7 @@ bool EKFOdometry::trackingUpdate()
             {
                 observed_landmarks.emplace_back();
                 observed_landmarks.back().landmark = landmark;
-                observed_landmarks.back().undistorted_circle = undistortCircle( old_state.observations[i].circle );
+                observed_landmarks.back().undistorted_circle = OdometryHelpers::undistortCircle( old_state.observations[i].circle, myCalibration );
             }
         }
     }

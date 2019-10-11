@@ -125,8 +125,6 @@ protected:
 
     State& currentState();
 
-    cv::Vec3f undistortCircle(const cv::Vec3f& c);
-
 protected:
 
     double myLandmarkRadius;

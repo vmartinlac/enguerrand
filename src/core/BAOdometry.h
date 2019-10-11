@@ -62,11 +62,9 @@ protected:
 
     bool track(double timestamp, const std::vector<TrackedCircle>& circles);
 
-    LandmarkPtr triangulateInitialLandmark(const Sophus::SE3d& camera_to_world, const cv::Vec3f& circle);
+    LandmarkPtr triangulateInitialLandmark(const Sophus::SE3d& camera_to_world, const cv::Vec3f& undistorted_circle);
 
     bool performBundleAdjustment(BundleAdjustmentType type);
-
-    cv::Vec3f undistortCircle(const cv::Vec3f& c);
 
     template<typename FramePtrContainer>
     size_t buildLocalMap(FramePtrContainer& frames, std::vector<LandmarkPtr>& local_map);
