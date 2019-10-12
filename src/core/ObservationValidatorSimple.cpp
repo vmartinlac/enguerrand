@@ -20,7 +20,7 @@ bool ObservationValidatorSimple::validate(const cv::Mat3b& image, const cv::Vec3
 
     if( hist.build(myNumHistogramBins, image, circle, myRadiusRatio) )
     {
-        ret = ( myReferenceHistogram.computeIntersectionWith(hist) < myDistanceThreshold );
+        ret = ( myReferenceHistogram.computeIntersectionWith(hist) > myDistanceThreshold );
     }
 
     return ret;

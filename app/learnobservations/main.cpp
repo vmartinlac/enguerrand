@@ -58,7 +58,7 @@ int main(int num_args, char** args)
     if(ok)
     {
         std::cout << "Saving model..." << std::endl;
-        ov->save("model.bin");
+        ov->save(args[3]);
     }
     else
     {

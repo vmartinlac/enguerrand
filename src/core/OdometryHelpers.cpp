@@ -56,23 +56,25 @@ cv::Vec3f OdometryHelpers::undistortCircle(const cv::Vec3f& circle, const Calibr
 {
     const cv::Vec3f& c = circle;
 
-    cv::Matx<double,4,2> distorted;
-    cv::Matx<double,4,2> undistorted;
-    //std::vector<cv::Vec2d> distorted(4);
-    //std::vector<cv::Vec2d> undistorted(4);
+    //cv::Matx<cv::Vec2d,4,1> distorted;
+    //cv::Matx<cv::Vec2d,4,1> undistorted;
+
+    // TODO: do not use dynamic arrays.
+    std::vector<cv::Vec2d> distorted(4);
+    std::vector<cv::Vec2d> undistorted(4);
 
     // require newer version of OpenCV.
     //std::array< cv::Vec2d, 4 > distorted;
     //std::array< cv::Vec2d, 4 > undistorted;
 
-    distorted(0, 0) = c[0]+c[2];
-    distorted(0, 1) = c[1];
-    distorted(1, 0) = c[0]-c[2];
-    distorted(1, 1) = c[1];
-    distorted(2, 0) = c[0];
-    distorted(2, 1) = c[1]+c[2];
-    distorted(3, 0) = c[0];
-    distorted(3, 1) = c[1]-c[2];
+    distorted[0][0] = c[0]+c[2];
+    distorted[0][1] = c[1];
+    distorted[1][0] = c[0]-c[2];
+    distorted[1][1] = c[1];
+    distorted[2][0] = c[0];
+    distorted[2][1] = c[1]+c[2];
+    distorted[3][0] = c[0];
+    distorted[3][1] = c[1]-c[2];
 
     cv::undistortPoints(
         distorted,
@@ -82,14 +84,21 @@ cv::Vec3f OdometryHelpers::undistortCircle(const cv::Vec3f& circle, const Calibr
         cv::noArray(),
         calibration->cameras[0].calibration_matrix);
 
-    cv::Vec2d center;
-    center[0] = 0.25f * ( undistorted(0,0) + undistorted(1,0) + undistorted(2,0) + undistorted(3,0) );
-    center[1] = 0.25f * ( undistorted(0,1) + undistorted(1,1) + undistorted(2,1) + undistorted(3,1) );
+    const cv::Vec2d center = 0.25f * ( undistorted[0] + undistorted[1] + undistorted[2] + undistorted[3] );
+    //center[0] = 0.25f * ( undistorted(0,0) + undistorted(1,0) + undistorted(2,0) + undistorted(3,0) );
+    //center[1] = 0.25f * ( undistorted(0,1) + undistorted(1,1) + undistorted(2,1) + undistorted(3,1) );
 
+    /*
     const double l0 = std::hypot(center[0]-undistorted(0,0), center[1]-undistorted(0,1));
     const double l1 = std::hypot(center[0]-undistorted(1,0), center[1]-undistorted(1,1));
     const double l2 = std::hypot(center[0]-undistorted(2,0), center[1]-undistorted(2,1));
     const double l3 = std::hypot(center[0]-undistorted(3,0), center[1]-undistorted(3,1));
+    */
+
+    const double l0 = cv::norm(center-undistorted[0]);
+    const double l1 = cv::norm(center-undistorted[1]);
+    const double l2 = cv::norm(center-undistorted[2]);
+    const double l3 = cv::norm(center-undistorted[3]);
 
     cv::Vec3f ret;
     ret[0] = center[0];

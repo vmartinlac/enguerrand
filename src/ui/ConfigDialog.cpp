@@ -82,7 +82,7 @@ void ConfigDialog::selectVideoInput(int btn)
 
 void ConfigDialog::selectObservationValidatorData()
 {
-    const QString ret = QFileDialog::getOpenFileName(this, "Select data file");
+    const QString ret = QFileDialog::getOpenFileName(this, "Select data file", myUI.observation_validator_data->text());
 
     if(ret.isEmpty() == false)
     {
@@ -92,7 +92,7 @@ void ConfigDialog::selectObservationValidatorData()
 
 void ConfigDialog::selectCalibrationPath()
 {
-    const QString ret = QFileDialog::getOpenFileName(this, "Select calibration file");
+    const QString ret = QFileDialog::getOpenFileName(this, "Select calibration file", myUI.video_file_calibration->text());
 
     if(ret.isEmpty() == false)
     {
@@ -102,7 +102,7 @@ void ConfigDialog::selectCalibrationPath()
 
 void ConfigDialog::selectVideoPath()
 {
-    const QString ret = QFileDialog::getOpenFileName(this, "Select video file");
+    const QString ret = QFileDialog::getOpenFileName(this, "Select video file", myUI.video_file_path->text());
 
     if(ret.isEmpty() == false)
     {
