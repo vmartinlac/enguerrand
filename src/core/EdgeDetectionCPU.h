@@ -2,9 +2,9 @@
 #pragma once
 
 #include <array>
-#include <memory>
+#include "EdgeDetection.h"
 
-class EdgeDetectionCPU
+class EdgeDetectionCPU : public EdgeDetection
 {
 public:
 
@@ -13,7 +13,7 @@ public:
     void detect(
         const cv::Mat3b& image,
         cv::Mat1b& edges,
-        cv::Mat2f& normals);
+        cv::Mat2f& normals) override;
 
 protected:
 

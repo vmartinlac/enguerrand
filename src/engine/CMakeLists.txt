@@ -2,7 +2,6 @@
 add_library(
     enguerrand_engine
     SHARED
-    EngineConfig.cpp
     EngineConfig.h
     Engine.cpp
     Engine.h

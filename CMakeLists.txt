@@ -23,6 +23,7 @@ enable_language(CXX)
 
 if(${WITH_CUDA})
     enable_language(CUDA)
+    set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS WITH_CUDA)
 endif()
 
 set(CMAKE_AUTOMOC ON)

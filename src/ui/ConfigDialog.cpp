@@ -47,6 +47,20 @@ ConfigDialog::ConfigDialog(QWidget* parent) : QDialog(parent)
     RealsenseInterface::instance()->discover();
     myUI.video_realsense_camera->setModel(RealsenseInterface::instance());
 
+    myUI.video_file->setChecked(true);
+    if(RealsenseInterface::instance()->rowCount() == 0)
+    {
+        myUI.video_realsense->setEnabled(false);
+        myUI.video_realsense_camera->setEnabled(false);
+        myUI.camera_label->setEnabled(false);
+    }
+
+#ifndef WITH_CUDA
+    myUI.use_gpu_label->setEnabled(false);
+    myUI.use_gpu->setChecked(false);
+    myUI.use_gpu->setEnabled(false);
+#endif
+
     connect(myVideoButtonGroup, SIGNAL(buttonClicked(int)), this, SLOT(selectVideoInput(int)));
     connect(myUI.video_file_select_video, SIGNAL(clicked()), this, SLOT(selectVideoPath()));
     connect(myUI.video_file_select_calibration, SIGNAL(clicked()), this, SLOT(selectCalibrationPath()));
@@ -116,6 +130,23 @@ void ConfigDialog::accept()
 
     bool ok = true;
     const char* err = "";
+
+    if(ok)
+    {
+#ifdef WITH_CUDA
+        if( myUI.use_gpu->isChecked() )
+        {
+            ret->edge_detector = EdgeDetection::createEdgeDetectionGPU();
+        }
+        else
+#endif
+        {
+            ret->edge_detector = EdgeDetection::createEdgeDetectionCPU();
+        }
+
+        ok = bool(ret->edge_detector);
+        err = "Could not create edge detector!";
+    }
 
     if(ok)
     {
@@ -245,6 +276,7 @@ void ConfigDialog::accept()
         s.setValue("visual_odometry_code", myUI.visual_odometry_code->currentIndex());
         s.setValue("observation_validator", myUI.observation_validator->currentIndex());
         s.setValue("observation_validator_data", myUI.observation_validator_data->text());
+        s.setValue("use_gpu", myUI.use_gpu->isChecked());
         s.endGroup();
 
         s.sync();
@@ -273,6 +305,11 @@ int ConfigDialog::exec()
     QAbstractButton* btn2 = myVideoButtonGroup->button( s.value("video", 0).toInt() );
     if(btn2) btn2->setChecked(true);
     myUI.observation_validator_data->setText( s.value("observation_validator_data", QString()).toString() );
+#if WITH_CUDA
+    myUI.use_gpu->setChecked( s.value("use_gpu", false).toBool() );
+#else
+    myUI.use_gpu->setChecked(false);
+#endif
     s.endGroup();
 
     return QDialog::exec();

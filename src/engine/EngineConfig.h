@@ -7,23 +7,19 @@
 #include "VideoSource.h"
 #include "OdometryCode.h"
 #include "CalibrationData.h"
+#include "EdgeDetection.h"
 
 class EngineConfig
 {
 public:
 
-    EngineConfig();
+    EngineConfig() = default;
 
     ObservationValidatorPtr observation_validator;
     VideoSourcePtr video_input;
     OdometryCodePtr odometry_code;
+    EdgeDetectionPtr edge_detector;
     CalibrationDataPtr calibration;
-
-public:
-
-    bool loadFromFile(const std::string& path);
-
-    void clear();
 };
 
 using EngineConfigPtr = std::shared_ptr<EngineConfig>;

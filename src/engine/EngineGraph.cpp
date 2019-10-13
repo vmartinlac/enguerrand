@@ -46,8 +46,9 @@ bool EngineGraph::VideoBody::operator()(EngineGraph::VideoMessagePtr& message)
     return ret;
 }
 
-EngineGraph::EdgeBody::EdgeBody()
+EngineGraph::EdgeBody::EdgeBody(EdgeDetectionPtr filter)
 {
+    mDetector = std::move(filter);
 }
 
 EngineGraph::EdgeMessagePtr EngineGraph::EdgeBody::operator()(const EngineGraph::VideoMessagePtr video_msg)
@@ -61,7 +62,7 @@ EngineGraph::EdgeMessagePtr EngineGraph::EdgeBody::operator()(const EngineGraph:
         edge_msg->header.available = true;
         edge_msg->header.frame_id = video_msg->header.frame_id;
 
-        mDetector.detect(
+        mDetector->detect(
             video_msg->frame.getView(0),
             edge_msg->edges,
             edge_msg->normals);
@@ -287,6 +288,8 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
         //output->frame_id = video->header.frame_id;
         //output->timestamp = video->frame.getTimestamp();
         output->frame_runtime = std::chrono::duration_cast<std::chrono::microseconds>(ClockType::now() - video->received_time);
+        const double runtime_in_seconds = static_cast<double>( output->frame_runtime.count() ) * 1.0e-6;
+        std::cout << "Runtime for frame " << video->header.frame_id << ": " << runtime_in_seconds << " (seconds)" << std::endl;
 
         cv::cvtColor(video->frame.getView(), output->input_image, cv::COLOR_BGR2RGB);
 

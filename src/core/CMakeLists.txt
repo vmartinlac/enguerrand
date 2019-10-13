@@ -28,6 +28,8 @@ add_library(
     CircleFitter.h
     CirclesTracker.cpp
     CirclesTracker.h
+    EdgeDetection.h
+    EdgeDetection.cpp
     EdgeDetectionCPU.cpp
     EdgeDetectionCPU.h
     EKFOdometry.cpp
@@ -39,6 +41,14 @@ add_library(
     TrackedCircle.cpp
     TrackedCircle.h
 )
+
+if(${WITH_CUDA})
+    set_property(
+        TARGET enguerrand_core
+        APPEND PROPERTY
+        EdgeDetectionGPU.cu
+        EdgeDetectionGPU.h)
+endif()
 
 target_link_libraries(
     enguerrand_core

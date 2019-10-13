@@ -6,7 +6,7 @@
 #include <opencv2/core.hpp>
 #include <sophus/se3.hpp>
 #include <tbb/flow_graph.h>
-#include "EdgeDetectionCPU.h"
+#include "EdgeDetection.h"
 #include "CirclesTracker.h"
 #include "VideoFrame.h"
 #include "VideoSource.h"
@@ -122,13 +122,13 @@ namespace EngineGraph
     {
     public:
 
-        EdgeBody();
+        EdgeBody(EdgeDetectionPtr filter);
 
         EdgeMessagePtr operator()(const VideoMessagePtr frame);
 
     protected:
 
-        EdgeDetectionCPU mDetector;
+        EdgeDetectionPtr mDetector;
     };
 
     class CirclesBody

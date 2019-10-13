@@ -38,7 +38,7 @@ void Engine::startEngine(EngineConfigPtr config)
 
     myVideoLimiterNode.reset(new EngineGraph::VideoLimiterNode(*myGraph, 1));
 
-    myEdgeNode.reset(new EngineGraph::EdgeNode(*myGraph, 1, EngineGraph::EdgeBody()));
+    myEdgeNode.reset(new EngineGraph::EdgeNode(*myGraph, 2, EngineGraph::EdgeBody( myConfig->edge_detector )));
 
     myVideoEdgeJoinNode.reset(new EngineGraph::VideoEdgeJoinNode(*myGraph));
 
