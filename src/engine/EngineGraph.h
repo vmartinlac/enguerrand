@@ -235,8 +235,6 @@ namespace EngineGraph
 
     using SummaryJoinNode = tbb::flow::join_node<SummaryTuple, tbb::flow::tag_matching>;
 
-    using SummarySequencerNode = tbb::flow::sequencer_node<SummaryTuple>;
-
     using TerminalNode = tbb::flow::function_node<SummaryTuple,tbb::flow::continue_msg>;
 };
 

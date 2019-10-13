@@ -42,7 +42,7 @@ private:
     std::unique_ptr<EngineGraph::OdometryNode> myOdometryNode;
     std::unique_ptr<EngineGraph::TracesNode> myTracesNode;
     std::unique_ptr<EngineGraph::SummaryJoinNode> mySummaryJoinNode;
-    std::unique_ptr<EngineGraph::SummarySequencerNode> mySummarySequencerNode;
+    //std::unique_ptr<EngineGraph::SummarySequencerNode> mySummarySequencerNode;
     std::unique_ptr<EngineGraph::TerminalNode> myTerminalNode;
 };
 

@@ -1,0 +1,43 @@
+digraph {
+    VideoNode [label="VideoNode\nsource_node"]
+    VideoFilterNode [label="VideoFilterNode\nlimiter_node"]
+    EdgeNode [label="EdgeNode\nfunction_node (unlimited)"]
+    VideoEdgeJoinNode [label="VideoEdgeJoinNode\njoin_node (tag_matching)"]
+    CirclesDetectionNode [label="CirclesDetectionNode\nfunction_node (unlimited)"]
+    CirclesTrackingNode [label="CirclesTrackingNode\nfunction_node (1)"]
+    OdometryNode [label="OdometryNode\nfunction_node (1)"]
+    TracesNode [label="TracesNode\nfunction_node (1)"]
+    SummaryJoinNode [label="SummaryJoinNode\njoin_node (tag_matching)"]
+    CirclesSequencerNode [label="CirclesSequencerNode\nsequencer_node"]
+    TerminalNode [label="TerminalNode\nfunction_node"]
+
+    VideoNode -> VideoFilterNode [label="VideoMessage"]
+
+    VideoFilterNode -> EdgeNode [label="VideoMessage"]
+
+    VideoFilterNode -> VideoEdgeJoinNode [label="VideoMessage"]
+    EdgeNode -> VideoEdgeJoinNode [label="EdgeMessage"]
+
+    VideoEdgeJoinNode -> CirclesDetectionNode [label="VideoEdgeTuple"]
+
+    CirclesDetectionNode -> CirclesSequencerNode [label="CirclesDetectionMessage"]
+
+    CirclesSequencerNode -> CirclesTrackingNode [label="CirclesDetectionMessage"]
+
+    CirclesTrackingNode -> OdometryNode [label="CirclesTrackingMessage"]
+
+    CirclesTrackingNode -> TracesNode [label="CirclesTrackingMessage"]
+
+    VideoFilterNode -> SummaryJoinNode [label="VideoMessage"]
+
+    CirclesTrackingNode -> SummaryJoinNode [label="CirclesTrackingMessage"]
+
+    OdometryNode -> SummaryJoinNode [label="OdometryMessage"]
+
+    TracesNode -> SummaryJoinNode [label="TracesMessage"]
+
+    SummaryJoinNode -> TerminalNode [label="SummaryTuple"]
+
+    TerminalNode -> VideoFilterNode [label="continue_msg"]
+}
+

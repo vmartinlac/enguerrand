@@ -28,7 +28,7 @@ struct EngineOutputFrame
 
 struct EngineOutput
 {
-    std::chrono::microseconds frame_runtime;
+    std::chrono::microseconds lag;
     cv::Mat3b input_image;
     cv::Mat1b edges_image;
     cv::Mat3b traces_image;

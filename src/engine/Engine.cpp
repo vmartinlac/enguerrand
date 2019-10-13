@@ -61,8 +61,8 @@ void Engine::startEngine(EngineConfigPtr config)
         [] (const EngineGraph::OdometryMessagePtr& msg) { return msg->header.frame_id; },
         [] (const EngineGraph::TracesMessagePtr& msg) { return msg->header.frame_id; } ));
 
-    mySummarySequencerNode.reset(new EngineGraph::SummarySequencerNode(*myGraph,
-        [] (const EngineGraph::SummaryTuple& msg) { return tbb::flow::get<0>(msg)->header.frame_id; } ));
+    //mySummarySequencerNode.reset(new EngineGraph::SummarySequencerNode(*myGraph,
+        //[] (const EngineGraph::SummaryTuple& msg) { return tbb::flow::get<0>(msg)->header.frame_id; } ));
 
     myTerminalNode.reset(new EngineGraph::TerminalNode(*myGraph, 1, EngineGraph::TerminalBody(terminal_pred)));
 
@@ -102,11 +102,8 @@ void Engine::startEngine(EngineConfigPtr config)
     make_edge(*myOdometryNode, tbb::flow::input_port<3>(*mySummaryJoinNode) );
     make_edge(*myTracesNode, tbb::flow::input_port<4>(*mySummaryJoinNode) );
 
-    // input for SummarySequencerNode.
-    make_edge(*mySummaryJoinNode, *mySummarySequencerNode);
-
     // input for TerminalNode.
-    make_edge(*mySummarySequencerNode, *myTerminalNode);
+    make_edge(*mySummaryJoinNode, *myTerminalNode);
 
     // decrement video limiter.
     make_edge(*myTerminalNode, myVideoLimiterNode->decrement);
@@ -177,7 +174,7 @@ void Engine::stopEngine()
         myOdometryNode.reset();
         myTracesNode.reset();
         mySummaryJoinNode.reset();
-        mySummarySequencerNode.reset();
+        //mySummarySequencerNode.reset();
         myTerminalNode.reset();
 
         myGraph.reset();

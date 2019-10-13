@@ -319,9 +319,8 @@ tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph:
 
         //output->frame_id = video->header.frame_id;
         //output->timestamp = video->frame.getTimestamp();
-        output->frame_runtime = std::chrono::duration_cast<std::chrono::microseconds>(ClockType::now() - video->received_time);
-        const double runtime_in_seconds = static_cast<double>( output->frame_runtime.count() ) * 1.0e-6;
-        std::cout << "Runtime for frame " << video->header.frame_id << ": " << runtime_in_seconds << " (seconds)" << std::endl;
+        output->lag = std::chrono::duration_cast<std::chrono::microseconds>(ClockType::now() - video->received_time);
+        //const double lag_in_seconds = static_cast<double>( output->lag.count() ) * 1.0e-6;
 
         cv::cvtColor(video->frame.getView(), output->input_image, cv::COLOR_BGR2RGB);
 
