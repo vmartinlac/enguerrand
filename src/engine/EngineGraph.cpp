@@ -79,17 +79,21 @@ EngineGraph::EdgeMessagePtr EngineGraph::EdgeBody::operator()(const EngineGraph:
     return edge_msg;
 }
 
-EngineGraph::CirclesBody::CirclesBody(ObservationValidatorPtr observation_validator)
+EngineGraph::CirclesDetectionBody::CirclesDetectionBody(ObservationValidatorPtr observation_validator)
 {
-    mTracker.setObservationValidator(observation_validator);
+    mDetector.setObservationValidator(observation_validator);
 }
 
-EngineGraph::CirclesMessagePtr EngineGraph::CirclesBody::operator()(const tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> frame)
+EngineGraph::CirclesTrackingBody::CirclesTrackingBody()
+{
+}
+
+EngineGraph::CirclesDetectionMessagePtr EngineGraph::CirclesDetectionBody::operator()(const VideoEdgeTuple& frame)
 {
     const VideoMessagePtr video_frame = tbb::flow::get<0>(frame);
     const EdgeMessagePtr edge_frame = tbb::flow::get<1>(frame);
 
-    CirclesMessagePtr circles_frame;
+    CirclesDetectionMessagePtr circles_frame;
 
     if( bool(video_frame) && bool(edge_frame) && video_frame->header.available && edge_frame->header.available )
     {
@@ -100,12 +104,12 @@ EngineGraph::CirclesMessagePtr EngineGraph::CirclesBody::operator()(const tbb::f
             exit(1);
         }
 
-        circles_frame = std::allocate_shared<CirclesMessage>( tbb::scalable_allocator<CirclesMessage>() );
+        circles_frame = std::allocate_shared<CirclesDetectionMessage>( tbb::scalable_allocator<CirclesDetectionMessage>() );
 
         circles_frame->header.available = true;
         circles_frame->header.frame_id = video_frame->header.frame_id;
 
-        mTracker.track(
+        mDetector.detect(
             video_frame->frame.getView(0),
             edge_frame->edges,
             edge_frame->normals,
@@ -117,10 +121,38 @@ EngineGraph::CirclesMessagePtr EngineGraph::CirclesBody::operator()(const tbb::f
 
     if(circles_frame)
     {
-        std::cout << "CirclesBody " << circles_frame->header.frame_id << std::endl;
+        std::cout << "CirclesDetectionBody " << circles_frame->header.frame_id << std::endl;
     }
 
     return circles_frame;
+}
+
+EngineGraph::CirclesTrackingMessagePtr EngineGraph::CirclesTrackingBody::operator()(const CirclesDetectionMessagePtr frame)
+{
+    CirclesTrackingMessagePtr ret;
+
+    if( bool(frame) && frame->header.available )
+    {
+        ret = std::allocate_shared<CirclesTrackingMessage>( tbb::scalable_allocator<CirclesTrackingMessage>() );
+
+        ret->header.available = true;
+        ret->header.frame_id = frame->header.frame_id;
+
+        mTracker.track(
+            frame->image_size,
+            frame->circles,
+            ret->circles);
+
+        ret->timestamp = frame->timestamp;
+        ret->image_size = frame->image_size;
+    }
+
+    if(ret)
+    {
+        std::cout << "CirclesTrackingBody " << ret->header.frame_id << std::endl;
+    }
+
+    return ret;
 }
 
 EngineGraph::OdometryBody::OdometryBody(OdometryCodePtr odom)
@@ -128,7 +160,7 @@ EngineGraph::OdometryBody::OdometryBody(OdometryCodePtr odom)
     mOdometryCode = odom;
 }
 
-EngineGraph::OdometryMessagePtr EngineGraph::OdometryBody::operator()(const EngineGraph::CirclesMessagePtr circles)
+EngineGraph::OdometryMessagePtr EngineGraph::OdometryBody::operator()(const EngineGraph::CirclesTrackingMessagePtr circles)
 {
     OdometryMessagePtr odometry;
 
@@ -164,7 +196,7 @@ EngineGraph::TracesBody::TracesBody()
     //mOutputFileName = "circles_trajectories.png";
 }
 
-EngineGraph::TracesMessagePtr EngineGraph::TracesBody::operator()(const EngineGraph::CirclesMessagePtr circles)
+EngineGraph::TracesMessagePtr EngineGraph::TracesBody::operator()(const EngineGraph::CirclesTrackingMessagePtr circles)
 {
     std::uniform_int_distribution<uint8_t> color_distrib(64,192);
 
@@ -244,11 +276,11 @@ EngineGraph::TerminalBody::TerminalBody(FrameListenerFunction fn)
     myListener = std::move(fn);
 }
 
-tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph::VideoEdgeCirclesOdometryTracesTuple& data)
+tbb::flow::continue_msg EngineGraph::TerminalBody::operator()(const EngineGraph::SummaryTuple& data)
 {
     VideoMessagePtr video = tbb::flow::get<0>(data);
     EdgeMessagePtr edges = tbb::flow::get<1>(data);
-    CirclesMessagePtr circles = tbb::flow::get<2>(data);
+    CirclesTrackingMessagePtr circles = tbb::flow::get<2>(data);
     OdometryMessagePtr odometry = tbb::flow::get<3>(data);
     TracesMessagePtr traces = tbb::flow::get<4>(data);
 

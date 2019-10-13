@@ -26,8 +26,10 @@ add_library(
     PFOdometry.h
     CircleFitter.cpp
     CircleFitter.h
-    CirclesTracker.cpp
-    CirclesTracker.h
+    CircleDetector.cpp
+    CircleDetector.h
+    CircleTracker.cpp
+    CircleTracker.h
     EdgeDetection.h
     EdgeDetection.cpp
     EdgeDetectionCPU.cpp

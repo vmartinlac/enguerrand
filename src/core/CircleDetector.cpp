@@ -1,7 +1,7 @@
 #include <iostream>
 #include <queue>
 #include <opencv2/imgproc.hpp>
-#include "CirclesTracker.h"
+#include "CircleDetector.h"
 
 //#define CIRCLESTRACKER_DEBUG
 //#define CIRCLESTRACKER_SAVE_PREVALIDATION
@@ -18,7 +18,7 @@
 #define CIRCLESTRACKER_NO_SEED 4
 #define CIRCLESTRACKER_CIRCLE 8
 
-CirclesTracker::CirclesTracker()
+CircleDetector::CircleDetector()
 {
     mMinRadius = 5.0f;
     mMaxRadius = 600.0f;
@@ -33,26 +33,26 @@ CirclesTracker::CirclesTracker()
     mNeighbors[7] = cv::Vec2i(1,1);
 }
 
-void CirclesTracker::setObservationValidator(ObservationValidatorPtr validator)
+void CircleDetector::setObservationValidator(ObservationValidatorPtr validator)
 {
     mObservationValidator = validator;
 }
 
-void CirclesTracker::setMinRadius(float x)
+void CircleDetector::setMinRadius(float x)
 {
     mMinRadius = x;
 }
 
-void CirclesTracker::setMaxRadius(float x)
+void CircleDetector::setMaxRadius(float x)
 {
     mMaxRadius = x;
 }
 
-void CirclesTracker::track(
+void CircleDetector::detect(
     const cv::Mat3b& input_image,
     const cv::Mat1b& edges,
     const cv::Mat2f& normals,
-    std::vector<TrackedCircle>& circles)
+    std::vector<cv::Vec3f>& circles)
 {
     bool ok = true;
 
@@ -73,17 +73,9 @@ void CirclesTracker::track(
 
     //std::cout << "   Num circles after filtering: " << circles.size() << std::endl;
 
-    if(ok)
-    {
-        ok = track(circles);
-    }
-
-    //std::cout << "   Num circles after tracking: " << circles.size() << std::endl;
-
     if(ok == false)
     {
         circles.clear();
-        mLastDetectionMap = cv::Mat();
     }
 
     //std::cout << "   Success: " << ok << std::endl;
@@ -91,9 +83,8 @@ void CirclesTracker::track(
 #if CIRCLESTRACKER_DEBUG
     {
         cv::Mat output = input_image.clone();
-        for(TrackedCircle& tc : circles)
+        for(cv::Vec3f& c : circles)
         {
-            const cv::Vec3f& c = tc.circle;
             cv::circle(output, cv::Point2f(c[0], c[1]), c[2], cv::Scalar(255, 255, 255));
         }
 
@@ -104,7 +95,7 @@ void CirclesTracker::track(
 #endif
 }
 
-bool CirclesTracker::detect(const cv::Mat1b& edges, const cv::Mat2f& normals, std::vector<TrackedCircle>& circles)
+bool CircleDetector::detect(const cv::Mat1b& edges, const cv::Mat2f& normals, std::vector<cv::Vec3f>& circles)
 {
     std::vector<cv::Point2i> pixels_to_process;
 
@@ -152,11 +143,7 @@ bool CirclesTracker::detect(const cv::Mat1b& edges, const cv::Mat2f& normals, st
 
             if(found)
             {
-                circles.emplace_back();
-                
-                circles.back().circle = circle;
-                circles.back().has_previous = false;
-                circles.back().previous = 0;
+                circles.push_back( circle );
             }
         }
     }
@@ -164,35 +151,36 @@ bool CirclesTracker::detect(const cv::Mat1b& edges, const cv::Mat2f& normals, st
     return true;
 }
 
-bool CirclesTracker::filter(
-    const cv::Mat3b& input_image,
-    std::vector<TrackedCircle>& circles)
+bool CircleDetector::filter(const cv::Mat3b& input_image, std::vector<cv::Vec3f>& circles)
 {
-    std::vector<TrackedCircle>::iterator it = circles.begin();
-
-    while(it != circles.end())
+    if( mObservationValidator )
     {
-        bool keep = filterCircle(input_image, it->circle);
+        std::vector<cv::Vec3f>::iterator it = circles.begin();
 
-        if(keep)
+        while(it != circles.end())
         {
-            it++;
-        }
-        else
-        {
-            *it = circles.back();
-            circles.pop_back();
+            const bool keep = mObservationValidator->validate(input_image, *it);
+
+            if(keep)
+            {
+                it++;
+            }
+            else
+            {
+                *it = circles.back();
+                circles.pop_back();
+            }
         }
     }
 
     return true;
 }
 
-bool CirclesTracker::filterCircle(const cv::Mat3b& image, const cv::Vec3f& circle)
-{
-    bool ret = true;
-
+/*
 #ifdef CIRCLESTRACKER_SAVE_PREVALIDATION
+void CircleDetector::saveDetection(const std::vector<cv::Vec3f>& circles)
+{
+    for(const cv::Vec3f& circle : circles)
     {
         const int margin = 20;
         const cv::Rect ROI(circle[0]-margin-circle[2], circle[1]-margin-circle[2], 2*margin+2*circle[2], 2*margin+2*circle[2]);
@@ -216,177 +204,11 @@ bool CirclesTracker::filterCircle(const cv::Mat3b& image, const cv::Vec3f& circl
             cv::imwrite(id + "_image.png", image(ROI));
         }
     }
+}
 #endif
+*/
 
-    if( mObservationValidator )
-    {
-        ret = mObservationValidator->validate(image, circle);
-    }
-
-    //if(ret == false) std::cout << "   REMOVED ONE CIRCLE DURING FILTERING!" << std::endl;
-
-    return ret;
-}
-
-bool CirclesTracker::track(std::vector<TrackedCircle>& circles)
-{
-    const cv::Size image_size = mFlags.size();
-    std::vector<bool> to_remove(circles.size(), false);
-    cv::Mat1i new_detection_map(image_size);
-
-    // create new detection map.
-
-    {
-        std::fill( new_detection_map.begin(), new_detection_map.end(), -1);
-
-        int id = 0;
-
-        for(TrackedCircle& c : circles)
-        {
-            cv::Point center;
-            center.x = c.circle[0];
-            center.y = c.circle[1];
-
-            const double radius = c.circle[2];
-
-            const int x0 = std::max<int>(0, std::floor(center.x - radius));
-            const int x1 = std::min<int>(image_size.width-1, std::ceil(center.x + radius));
-            const int y0 = std::max<int>(0, std::floor(center.y - radius));
-            const int y1 = std::min<int>(image_size.height-1, std::ceil(center.y + radius));
-
-            for(int i=y0; i<=y1; i++)
-            {
-                for(int j=x0; j<=x1; j++)
-                {
-                    const double candidate_radius = std::hypot( j+0.5 - center.x, i+0.5-center.y );
-                    if( candidate_radius < radius )
-                    {
-                        int& value = new_detection_map(i,j);
-
-                        if( value >= 0 )
-                        {
-                            to_remove[id] = true;
-                            to_remove[value] = true;
-                            //std::cout << "   REMOVED TWO OVERLAPPING CIRCLES!" << std::endl;
-                        }
-                        else
-                        {
-                            value = id;
-                        }
-                    }
-                }
-            }
-
-            id++;
-        }
-    }
-
-    //cv::imshow("rien", new_detection_map*65535/(id-1));
-    //cv::waitKey(0);
-
-    // if there is a previous detection map, use it to track.
-
-    if( mLastDetectionMap.data && mLastDetectionMap.size() == image_size )
-    {
-        std::vector<size_t> new_count(circles.size(), 0);
-        std::vector<size_t> last_count(circles.size(), 0);
-
-        auto it_last = mLastDetectionMap.begin();
-        auto end_last = mLastDetectionMap.end();
-        auto it_new = new_detection_map.begin();
-
-        while(it_last != end_last)
-        {
-            if( *it_new >= 0 && to_remove[*it_new] == false )
-            {
-                new_count[*it_new]++;
-
-                if( *it_last >= 0 )
-                {
-                    if( circles[*it_new].has_previous == false )
-                    {
-                        circles[*it_new].has_previous = true;
-                        circles[*it_new].previous = *it_last;
-                        last_count[*it_new]++;
-                    }
-                    else if( *it_last == circles[*it_new].previous )
-                    {
-                        last_count[*it_new]++;
-                    }
-                    else
-                    {
-                        //std::cout << "   REMOVED ONE CIRCLE BECAUSE AMBIGUOUS TRACK!" << std::endl;
-                        to_remove[*it_new] = true;
-                    }
-                }
-            }
-
-            it_last++;
-            it_new++;
-        }
-
-        for(size_t i=0; i<circles.size(); i++)
-        {
-            if( to_remove[i] == false && circles[i].has_previous )
-            {
-                if( last_count[i] == 0 ) throw std::logic_error("internal error");
-
-                const double ratio = double(new_count[i]) / double(last_count[i]);
-
-                constexpr double factor = 3.0;
-
-                to_remove[i] = (ratio > factor || ratio < 1.0/factor);
-
-                //if(to_remove[i]) std::cout << "   REMOVED ONE CIRCLE BECAUSE DISSIMILAR RADII!" << std::endl;
-            }
-        }
-    }
-
-    // remove eliminated circles.
-
-    {
-        std::vector<TrackedCircle> new_circles;
-        std::vector<size_t> new_id(circles.size());
-
-        for(size_t i=0; i<circles.size(); i++)
-        {
-            if(to_remove[i])
-            {
-                new_id[i] = 0;
-            }
-            else
-            {
-                new_id[i] = new_circles.size();
-                new_circles.push_back(circles[i]);
-            }
-        }
-
-        circles.swap(new_circles);
-
-        for(int& x : new_detection_map)
-        {
-            if(x >= 0)
-            {
-                if(to_remove[x])
-                {
-                    x = -1;
-                }
-                else
-                {
-                    x = new_id[x];
-                }
-            }
-        }
-    }
-
-    // update detection map.
-
-    mLastDetectionMap = std::move(new_detection_map);
-
-    return true;
-}
-
-bool CirclesTracker::findCircle(
+bool CircleDetector::findCircle(
     const cv::Mat2f& normals,
     const cv::Point2i& seed,
     cv::Vec3f& circle)
@@ -599,7 +421,7 @@ bool CirclesTracker::findCircle(
     return ret;
 }
 
-bool CirclesTracker::findEdgeInNeighborhood(
+bool CircleDetector::findEdgeInNeighborhood(
     const cv::Point& center,
     int half_size,
     cv::Point& edge)
@@ -634,7 +456,7 @@ bool CirclesTracker::findEdgeInNeighborhood(
 }
 
 template<typename PrimitiveType, typename EstimatorType, typename ClassifierType>
-bool CirclesTracker::growPrimitive(
+bool CircleDetector::growPrimitive(
     std::vector<cv::Point2i>& patch,
     const EstimatorType& estimator,
     const ClassifierType& classifier,
@@ -668,7 +490,7 @@ bool CirclesTracker::growPrimitive(
 }
 
 template<typename T>
-void CirclesTracker::growPatch(
+void CircleDetector::growPatch(
     std::vector<cv::Point2i>& patch,
     const T& pred)
 {

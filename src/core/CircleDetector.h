@@ -1,22 +1,20 @@
 
 #pragma once
 
-#include <memory>
 #include <random>
 #include "ObservationValidator.h"
-#include "TrackedCircle.h"
 
-class CirclesTracker
+class CircleDetector
 {
 public:
 
-    CirclesTracker();
+    CircleDetector();
 
-    void track(
+    void detect(
         const cv::Mat3b& input_image,
         const cv::Mat1b& edges,
         const cv::Mat2f& normals,
-        std::vector<TrackedCircle>& circles);
+        std::vector<cv::Vec3f>& circles);
 
     void setObservationValidator(ObservationValidatorPtr validator);
 
@@ -26,26 +24,14 @@ public:
 
 protected:
 
-    /**
-    * \brief First stage of detection-tracking.
-    */
     bool detect(
         const cv::Mat1b& edges,
         const cv::Mat2f& normals,
-        std::vector<TrackedCircle>& circles);
+        std::vector<cv::Vec3f>& circles);
 
-    /**
-    * \brief Second stage of detection-tracking.
-    */
     bool filter(
         const cv::Mat3b& input_image,
-        std::vector<TrackedCircle>& circles);
-
-    /**
-    * \brief Third stage of detection-tracking.
-    */
-    bool track(
-        std::vector<TrackedCircle>& circles);
+        std::vector<cv::Vec3f>& circles);
 
     bool findCircle(
         const cv::Mat2f& normals,
@@ -68,18 +54,13 @@ protected:
         const ClassifierType& classifier,
         PrimitiveType& result);
 
-    bool filterCircle(const cv::Mat3b& image, const cv::Vec3f& circle);
-
 protected:
 
     cv::Mat1b mFlags;
-    cv::Mat1i mLastDetectionMap;
     std::default_random_engine mEngine;
     std::array<cv::Vec2i,8> mNeighbors;
     float mMinRadius;
     float mMaxRadius;
     ObservationValidatorPtr mObservationValidator;
 };
-
-using CirclesTrackerPtr = std::shared_ptr<CirclesTracker>;
 

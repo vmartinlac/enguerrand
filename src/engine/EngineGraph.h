@@ -7,7 +7,8 @@
 #include <sophus/se3.hpp>
 #include <tbb/flow_graph.h>
 #include "EdgeDetection.h"
-#include "CirclesTracker.h"
+#include "CircleTracker.h"
+#include "CircleDetector.h"
 #include "VideoFrame.h"
 #include "VideoSource.h"
 #include "TrackedCircle.h"
@@ -52,15 +53,26 @@ namespace EngineGraph
     using EdgeMessagePtr = std::shared_ptr<EdgeMessage>;
 
 
-    struct CirclesMessage
+    struct CirclesDetectionMessage
     {
         MessageHeader header;
         double timestamp;
-        std::vector<TrackedCircle> circles;
         cv::Size image_size;
+        std::vector<cv::Vec3f> circles;
     };
 
-    using CirclesMessagePtr = std::shared_ptr<CirclesMessage>;
+    using CirclesDetectionMessagePtr = std::shared_ptr<CirclesDetectionMessage>;
+
+
+    struct CirclesTrackingMessage
+    {
+        MessageHeader header;
+        double timestamp;
+        cv::Size image_size;
+        std::vector<TrackedCircle> circles;
+    };
+
+    using CirclesTrackingMessagePtr = std::shared_ptr<CirclesTrackingMessage>;
 
 
     struct OdometryMessage
@@ -83,7 +95,7 @@ namespace EngineGraph
 
     using VideoEdgeTuple = tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr>;
 
-    using VideoEdgeCirclesOdometryTracesTuple = tbb::flow::tuple<VideoMessagePtr, EdgeMessagePtr, CirclesMessagePtr, OdometryMessagePtr, TracesMessagePtr>;
+    using SummaryTuple = tbb::flow::tuple<VideoMessagePtr, EdgeMessagePtr, CirclesTrackingMessagePtr, OdometryMessagePtr, TracesMessagePtr>;
 
     class AsyncVideoCallback : public AsynchronousVideoCallback
     {
@@ -131,17 +143,30 @@ namespace EngineGraph
         EdgeDetectionPtr mDetector;
     };
 
-    class CirclesBody
+    class CirclesDetectionBody
     {
     public:
 
-        CirclesBody(ObservationValidatorPtr observation_validator);
+        CirclesDetectionBody(ObservationValidatorPtr observation_validator);
 
-        CirclesMessagePtr operator()(const tbb::flow::tuple<VideoMessagePtr,EdgeMessagePtr> frame);
+        CirclesDetectionMessagePtr operator()(const VideoEdgeTuple& frame);
 
     protected:
 
-        CirclesTracker mTracker;
+        CircleDetector mDetector;
+    };
+
+    class CirclesTrackingBody
+    {
+    public:
+
+        CirclesTrackingBody();
+
+        CirclesTrackingMessagePtr operator()(const CirclesDetectionMessagePtr frame);
+
+    protected:
+
+        CircleTracker mTracker;
     };
 
     class OdometryBody
@@ -150,7 +175,7 @@ namespace EngineGraph
 
         OdometryBody(OdometryCodePtr odom);
 
-        OdometryMessagePtr operator()(const CirclesMessagePtr circles);
+        OdometryMessagePtr operator()(const CirclesTrackingMessagePtr circles);
 
     protected:
 
@@ -163,7 +188,7 @@ namespace EngineGraph
 
         TracesBody();
 
-        TracesMessagePtr operator()(const CirclesMessagePtr circles);
+        TracesMessagePtr operator()(const CirclesTrackingMessagePtr circles);
 
     protected:
 
@@ -183,7 +208,7 @@ namespace EngineGraph
 
         TerminalBody(FrameListenerFunction listener);
 
-        tbb::flow::continue_msg operator()(const VideoEdgeCirclesOdometryTracesTuple& items);
+        tbb::flow::continue_msg operator()(const SummaryTuple& items);
 
     protected:
 
@@ -196,16 +221,22 @@ namespace EngineGraph
 
     using EdgeNode = tbb::flow::function_node<VideoMessagePtr,EdgeMessagePtr>;
 
-    using VideoEdgeJoinNode = tbb::flow::join_node<VideoEdgeTuple>;
+    using VideoEdgeJoinNode = tbb::flow::join_node<VideoEdgeTuple, tbb::flow::tag_matching>;
 
-    using CircleNode = tbb::flow::function_node<VideoEdgeTuple, CirclesMessagePtr>;
+    using CirclesDetectionNode = tbb::flow::function_node<VideoEdgeTuple, CirclesDetectionMessagePtr>;
 
-    using OdometryNode = tbb::flow::function_node<CirclesMessagePtr,OdometryMessagePtr>;
+    using CirclesTrackingNode = tbb::flow::function_node<CirclesDetectionMessagePtr, CirclesTrackingMessagePtr>;
 
-    using TracesNode = tbb::flow::function_node<CirclesMessagePtr,TracesMessagePtr>;
+    using CirclesSequencerNode = tbb::flow::sequencer_node<CirclesDetectionMessagePtr>;
 
-    using VideoEdgeCirclesOdometryTracesJoinNode = tbb::flow::join_node<VideoEdgeCirclesOdometryTracesTuple>;
+    using OdometryNode = tbb::flow::function_node<CirclesTrackingMessagePtr,OdometryMessagePtr>;
 
-    using TerminalNode = tbb::flow::function_node<VideoEdgeCirclesOdometryTracesTuple,tbb::flow::continue_msg>;
+    using TracesNode = tbb::flow::function_node<CirclesTrackingMessagePtr,TracesMessagePtr>;
+
+    using SummaryJoinNode = tbb::flow::join_node<SummaryTuple, tbb::flow::tag_matching>;
+
+    using SummarySequencerNode = tbb::flow::sequencer_node<SummaryTuple>;
+
+    using TerminalNode = tbb::flow::function_node<SummaryTuple,tbb::flow::continue_msg>;
 };
 
