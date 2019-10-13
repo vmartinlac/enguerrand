@@ -44,14 +44,6 @@ add_library(
     TrackedCircle.h
 )
 
-if(${WITH_CUDA})
-    set_property(
-        TARGET enguerrand_core
-        APPEND PROPERTY
-        EdgeDetectionGPU.cu
-        EdgeDetectionGPU.h)
-endif()
-
 target_link_libraries(
     enguerrand_core
     PUBLIC
@@ -74,4 +66,18 @@ target_link_libraries(
 target_include_directories(enguerrand_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
 install(TARGETS enguerrand_core RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+if(${WITH_CUDA})
+
+    add_library(
+        enguerrand_core_cu
+        SHARED
+        EdgeDetectionGPU.cu
+        EdgeDetectionGPU.h)
+
+    target_link_libraries(enguerrand_core_cu PUBLIC opencv_core Sophus::Sophus)
+
+    target_link_libraries(enguerrand_core PRIVATE enguerrand_core_cu)
+
+endif()
 

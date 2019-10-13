@@ -3,7 +3,7 @@
 #include "EdgeDetectionCPU.h"
 
 #ifdef WITH_CUDA
-#include "EdgeDetectionCPU.h"
+#include "EdgeDetectionGPU.h"
 #endif
 
 EdgeDetectionPtr EdgeDetection::createEdgeDetectionCPU()

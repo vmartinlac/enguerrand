@@ -11,7 +11,7 @@ class EdgeDetectionGPU : public EdgeDetection
 public:
 
     EdgeDetectionGPU();
-    ~EdgeDetectionGPU();
+    virtual ~EdgeDetectionGPU();
 
     void detect(
         const cv::Mat3b& image,
