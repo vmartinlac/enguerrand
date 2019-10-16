@@ -2,8 +2,6 @@
 add_executable(
     enguerrand_learnobservations
     main.cpp
-    DataDirIterator.h
-    DataDirIterator.cpp
 )
 
 target_link_libraries(
@@ -12,6 +10,7 @@ target_link_libraries(
     opencv_imgcodecs
     Qt5::Core
     enguerrand_core
+    enguerrand_tools
 )
 
 install(TARGETS enguerrand_learnobservations RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
