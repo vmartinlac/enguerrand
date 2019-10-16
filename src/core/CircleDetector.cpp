@@ -249,7 +249,8 @@ bool CircleDetector::findCircle(
         if(ret)
         {
             const float dot_product = normals(seed).dot(normals(opposite));
-            constexpr float threshold = -cos(10.0*M_PI/180.0);
+            //constexpr float threshold = -cos(10.0*M_PI/180.0);
+            constexpr float threshold = -0.984807753012208;
 
             ret = (dot_product < threshold);
         }
@@ -291,7 +292,8 @@ bool CircleDetector::findCircle(
                 {
                     const cv::Vec2f normal = normals(found_points[i]);
                     const float scalar_product = normal[0]*cos_beta + normal[1]*sin_beta;
-                    constexpr float threshold = std::cos(30.0*M_PI/180.0);
+                    //constexpr float threshold = std::cos(30.0*M_PI/180.0);
+                    constexpr float threshold = 0.8660254037844387;
                     ret = scalar_product > threshold;
                 }
             }

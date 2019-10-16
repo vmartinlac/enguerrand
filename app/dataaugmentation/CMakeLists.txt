@@ -2,6 +2,8 @@
 add_executable(
     enguerrand_dataaugmentation
     main.cpp
+    VariantGenerator.h
+    VariantGenerator.cpp
 )
 
 target_link_libraries(
@@ -10,7 +12,6 @@ target_link_libraries(
     opencv_imgcodecs
     Qt5::Core
     enguerrand_core
-    enguerrand_tools
 )
 
 install(TARGETS enguerrand_dataaugmentation RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
