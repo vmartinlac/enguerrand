@@ -1,9 +1,10 @@
-#include <QDir>
-#include <QRegExp>
+#include <memory>
+#include <random>
+#include <vector>
 #include <fstream>
 #include <iostream>
-#include <memory>
-#include <vector>
+#include <QDir>
+#include <QRegExp>
 #include <opencv2/imgcodecs.hpp>
 #include "VariantGenerator.h"
 
@@ -16,6 +17,31 @@ protected:
         variant = original.clone();
         return true;
     }
+};
+
+class AffineVariantGenerator : public VariantGenerator
+{
+public:
+
+    AffineVariantGenerator(double a, double b)
+    {
+        myA = a;
+        myB = b;
+    }
+
+protected:
+
+    bool generateVariant(const cv::Mat3b& original, cv::Mat3b& variant) override
+    {
+        variant = myA * original + myB;
+        return true;
+    }
+
+protected:
+
+    double myA;
+    double myB;
+    //std::default_random_engine myEngine;
 };
 
 class App
@@ -51,7 +77,11 @@ protected:
     {
         myGenerators.clear();
 
-        myGenerators.emplace_back(new IdentityVariantGenerator());
+        myGenerators.emplace_back(new AffineVariantGenerator(1.0, -30.0));
+        myGenerators.emplace_back(new AffineVariantGenerator(1.0, 30.0));
+        myGenerators.emplace_back(new AffineVariantGenerator(1.3, 0.0));
+        myGenerators.emplace_back(new AffineVariantGenerator(1.0/1.3, 0.0));
+        //myGenerators.emplace_back(new IdentityVariantGenerator());
     }
 
     size_t processDirectory(const QDir& dir, const QString& path)
