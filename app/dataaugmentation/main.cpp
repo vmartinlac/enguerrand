@@ -1,4 +1,5 @@
 #include <iostream>
+#include <memory>
 #include <vector>
 #include <opencv2/core.hpp>
 #include "DataDirIterator.h"
