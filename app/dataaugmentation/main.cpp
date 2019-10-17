@@ -50,6 +50,11 @@ public:
 
     int run(int& num_args, char**& args)
     {
+        if(num_args != 2)
+        {
+            printHelpAndExit();
+        }
+
         buildVariantGenerators();
 
         QDir dir(args[1]);
@@ -73,6 +78,12 @@ public:
 
 protected:
 
+    void printHelpAndExit()
+    {
+        std::cerr << "Bad command line!" << std::endl;
+        exit(1);
+    }
+
     void buildVariantGenerators()
     {
         myGenerators.clear();
@@ -84,13 +95,13 @@ protected:
         //myGenerators.emplace_back(new IdentityVariantGenerator());
     }
 
-    size_t processDirectory(const QDir& dir, const QString& path)
+    size_t processDirectory(const QDir& dir, const QString& name)
     {
-        std::cout << "Processing " << path.toStdString() << std::endl;
+        std::cout << "Processing " << name.toStdString() << std::endl;
 
         QDir indir;
         QDir outdir;
-        const QString outname = path + "_generated";
+        const QString outname = name + "_generated";
         std::ifstream inlisting;
         std::ofstream outlisting;
         cv::Mat3b inimage;
@@ -104,7 +115,7 @@ protected:
         if(ok)
         {
             indir = dir;
-            ok = indir.cd(path);
+            ok = indir.cd(name);
         }
 
         if(ok)
@@ -124,7 +135,7 @@ protected:
         {
             dir.mkdir(outname);
 
-            QDir outdir = dir;
+            outdir = dir;
             ok = outdir.cd(outname);
         }
 
