@@ -75,7 +75,7 @@ if(${WITH_CUDA})
         EdgeDetectionGPU.cu
         EdgeDetectionGPU.h)
 
-    target_link_libraries(enguerrand_core_cu PUBLIC opencv_core Sophus::Sophus)
+    target_link_libraries(enguerrand_core_cu PUBLIC opencv_core opencv_cudaimgproc opencv_cudafilters Sophus::Sophus)
 
     target_link_libraries(enguerrand_core PRIVATE enguerrand_core_cu)
 

@@ -27,7 +27,6 @@ void EdgeDetectionCPU::detect(
     cv::Size image_size;
 
     cv::Mat1b gray;
-    cv::Mat1b blurred;
     cv::Mat1f sobel_x;
     cv::Mat1f sobel_y;
     cv::Mat1f edgeness;
@@ -152,8 +151,8 @@ void EdgeDetectionCPU::detect(
 
     if(ok)
     {
-        const float high_threshold = 760.0f;
-        const float low_threshold = 0.7f*high_threshold; //200.0f;
+        constexpr float high_threshold = 760.0f;
+        constexpr float low_threshold = 0.7f*high_threshold; //200.0f;
 
         for(int i=0; i<image_size.height; i++)
         {
