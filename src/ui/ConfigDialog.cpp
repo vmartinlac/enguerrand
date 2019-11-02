@@ -199,7 +199,7 @@ void ConfigDialog::accept()
                 if(ok)
                 {
                     ret->calibration.reset(new CalibrationData());
-                    ok = ret->calibration->loadFromFile(path);
+                    ok = ret->calibration->loadCamerasFromFile(path);
                     err = "Incorrect calibration data!";
                 }
             }

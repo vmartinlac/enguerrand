@@ -5,7 +5,6 @@
 bool OdometryHelpers::triangulateLandmark(
     const cv::Vec3f& undistorted_circle,
     const CalibrationDataPtr calibration,
-    double landmark_radius,
     Eigen::Vector3d& landmark)
 {
     bool ret = false;
@@ -38,7 +37,7 @@ bool OdometryHelpers::triangulateLandmark(
 
     if( M_PI*0.3/180.0 < beta && beta < M_PI*150.0/180.0 )
     {
-        const double distance = landmark_radius/std::sin(beta);
+        const double distance = calibration->landmark_radius / std::sin(beta);
 
         Eigen::Vector3d dir;
         dir.x() = los_dirx;

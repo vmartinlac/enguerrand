@@ -48,7 +48,6 @@ struct AlignmentOdometry::Alignment
 AlignmentOdometry::AlignmentOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
-    myLandmarkRadius = 1.0;
 }
 
 bool AlignmentOdometry::track(
@@ -105,7 +104,7 @@ bool AlignmentOdometry::track(double timestamp, const std::vector<TrackedCircle>
             {
                 const cv::Vec3f undistorted = OdometryHelpers::undistortCircle(circles[i].circle, myCalibration);
                 Eigen::Vector3d position_in_camera;
-                if( OdometryHelpers::triangulateLandmark(undistorted, myCalibration, myLandmarkRadius, position_in_camera) )
+                if( OdometryHelpers::triangulateLandmark(undistorted, myCalibration, position_in_camera) )
                 {
                     new_frame->observations[i].position_in_world = myLastFrame->observations[circles[i].previous].position_in_world;
                     new_frame->observations[i].position_in_camera = position_in_camera;
@@ -128,7 +127,7 @@ bool AlignmentOdometry::track(double timestamp, const std::vector<TrackedCircle>
                 {
                     const cv::Vec3f undistorted = OdometryHelpers::undistortCircle(circles[i].circle, myCalibration);
                     Eigen::Vector3d position_in_camera;
-                    if( OdometryHelpers::triangulateLandmark(undistorted, myCalibration, myLandmarkRadius, position_in_camera) )
+                    if( OdometryHelpers::triangulateLandmark(undistorted, myCalibration, position_in_camera) )
                     {
                         new_frame->observations[i].position_in_world = new_frame->camera_to_world * position_in_camera;
                         new_frame->observations[i].position_in_camera = position_in_camera;
@@ -168,7 +167,7 @@ void AlignmentOdometry::initialize(double timestamp, const std::vector<TrackedCi
         const cv::Vec3f undistorted_circle = OdometryHelpers::undistortCircle( circles[i].circle, myCalibration );
 
         Eigen::Vector3d position_in_camera;
-        obs.valid = OdometryHelpers::triangulateLandmark(undistorted_circle, myCalibration, myLandmarkRadius, position_in_camera);
+        obs.valid = OdometryHelpers::triangulateLandmark(undistorted_circle, myCalibration, position_in_camera);
 
         if(obs.valid)
         {

@@ -127,7 +127,6 @@ protected:
 
 protected:
 
-    double myLandmarkRadius;
     size_t myMaxLandmarks;
     double myPredictionLinearMomentumSigmaRate;
     double myPredictionAngularMomentumSigmaRate;

@@ -25,10 +25,11 @@ public:
 
     CalibrationData();
 
-    bool loadFromFile(const std::string& file);
+    bool loadCamerasFromFile(const std::string& file);
 
     void dump() const;
 
+    double landmark_radius;
     std::vector<CameraCalibrationData> cameras;
 };
 

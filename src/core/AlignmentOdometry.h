@@ -51,7 +51,6 @@ protected:
 
 protected:
 
-    double myLandmarkRadius;
     CalibrationDataPtr myCalibration;
     FramePtr myLastFrame;
 };

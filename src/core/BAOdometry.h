@@ -73,7 +73,6 @@ protected:
 
 protected:
 
-    double myLandmarkRadius;
     double myKeyFrameSelectionTranslationThreshold;
     double myKeyFrameSelectionRotationThreshold;
     size_t myMaxKeyFrames;

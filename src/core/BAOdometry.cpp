@@ -75,7 +75,7 @@ struct BAOdometry::BundleAdjustment
         const T cx(myParent->myCalibration->cameras[0].calibration_matrix(0,2));
         const T cy(myParent->myCalibration->cameras[0].calibration_matrix(1,2));
 
-        if( landmark_in_camera.z() < myParent->myLandmarkRadius*0.1 )
+        if( landmark_in_camera.z() < myParent->myCalibration->landmark_radius*0.1 )
         {
             ok = false;
         }
@@ -83,7 +83,7 @@ struct BAOdometry::BundleAdjustment
         {
             const T distance = landmark_in_camera.norm();
 
-            const T alpha = ceres::asin( T(myParent->myLandmarkRadius) / distance );
+            const T alpha = ceres::asin( T(myParent->myCalibration->landmark_radius) / distance );
 
             T center_los[2];
             center_los[0] = landmark_in_camera[0] / landmark_in_camera[2];
@@ -188,10 +188,9 @@ BAOdometry::BAOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
 
-    myLandmarkRadius = 1.0;
     myMaxKeyFrames = 10;
 
-    myKeyFrameSelectionTranslationThreshold = myLandmarkRadius * 5.0;
+    myKeyFrameSelectionTranslationThreshold = calibration->landmark_radius * 5.0;
     myKeyFrameSelectionRotationThreshold = 0.2*M_PI;
 }
 
@@ -363,7 +362,7 @@ BAOdometry::LandmarkPtr BAOdometry::triangulateInitialLandmark(const Sophus::SE3
     LandmarkPtr ret;
 
     Eigen::Vector3d position_in_camera;
-    if( OdometryHelpers::triangulateLandmark(undistorted_circle, myCalibration, myLandmarkRadius, position_in_camera) )
+    if( OdometryHelpers::triangulateLandmark(undistorted_circle, myCalibration, position_in_camera) )
     {
         ret = std::make_shared<Landmark>();
         ret->position = camera_to_world * position_in_camera;
