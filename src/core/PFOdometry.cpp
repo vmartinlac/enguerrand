@@ -114,6 +114,10 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
     myCurrentState->particles.resize(myNumParticles);
     myWorkingState->particles.resize(myNumParticles);
+
+    myCurrentState->frame_id = 0;
+    myCurrentState->timestamp = timestamp;
+    // TODO
 }
 
 bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>& circles)
