@@ -1,5 +1,6 @@
 #include "OdometryHelpers.h"
 #include "PFOdometry.h"
+#include "CoreConstants.h"
 
 struct PFOdometry::TriangulationFunction
 {
@@ -41,7 +42,7 @@ struct PFOdometry::TriangulationFunction
 
         if( M_PI*0.3/180.0 < beta && beta < M_PI*150.0/180.0)
         {
-            T distance = myCalibration->landmark_radius / ceres::sin(beta);
+            T distance = CORE_LANDMARK_RADIUS / ceres::sin(beta);
 
             T dir[3];
             dir[0] = los_dirx;
@@ -67,6 +68,96 @@ struct PFOdometry::TriangulationFunction
         {
             return false;
         }
+    }
+
+    Sophus::SE3d myCameraToWorld;
+    CalibrationDataPtr myCalibration;
+};
+
+struct PFOdometry::LandmarkObservationFunction
+{
+    LandmarkObservationFunction(CalibrationDataPtr calibration, const Sophus::SE3d& camera_to_world)
+    {
+        myCalibration = calibration;
+        myCameraToWorld = camera_to_world;
+    }
+
+    template<typename T>
+    bool operator()(const T* const landmark, T* observation) const
+    {
+        bool ok = true;
+
+        const Eigen::Map< const Eigen::Matrix<T,3,1> > landmark_in_world(landmark);
+
+        const Eigen::Matrix<T,3,1> landmark_in_camera = myCameraToWorld.cast<T>() * landmark_in_world;
+
+        if( landmark_in_camera.z() < CORE_LANDMARK_RADIUS*0.1 )
+        {
+            ok = false;
+        }
+        else
+        {
+            const T fx(myCalibration->cameras[0].calibration_matrix(0,0));
+            const T fy(myCalibration->cameras[0].calibration_matrix(1,1));
+            const T cx(myCalibration->cameras[0].calibration_matrix(0,2));
+            const T cy(myCalibration->cameras[0].calibration_matrix(1,2));
+
+            const T distance = landmark_in_camera.norm();
+
+            const T alpha = ceres::asin( T(CORE_LANDMARK_RADIUS) / distance );
+
+            T center_los[2];
+            center_los[0] = landmark_in_camera.x() / landmark_in_camera.z();
+            center_los[1] = landmark_in_camera.y() / landmark_in_camera.z();
+
+            T beta[2];
+            beta[0] = ceres::atan( center_los[0] );
+            beta[1] = ceres::atan( center_los[1] );
+
+            T tangentlos0[2];
+            tangentlos0[0] = ceres::tan( beta[0] - alpha );
+            tangentlos0[1] = center_los[1];
+
+            T tangentlos1[2];
+            tangentlos1[0] = ceres::tan( beta[0] + alpha );
+            tangentlos1[1] = center_los[1];
+
+            T tangentlos2[2];
+            tangentlos2[0] = center_los[0];
+            tangentlos2[1] = ceres::tan( beta[1] - alpha );
+
+            T tangentlos3[2];
+            tangentlos3[0] = center_los[0];
+            tangentlos3[1] = ceres::tan( beta[1] + alpha );
+
+            T tanpoint0[2];
+            tanpoint0[0] = fx * tangentlos0[0] + cx;
+            tanpoint0[1] = fy * tangentlos0[1] + cy;
+
+            T tanpoint1[2];
+            tanpoint1[0] = fx * tangentlos1[0] + cx;
+            tanpoint1[1] = fy * tangentlos1[1] + cy;
+
+            T tanpoint2[2];
+            tanpoint2[0] = fx * tangentlos2[0] + cx;
+            tanpoint2[1] = fy * tangentlos2[1] + cy;
+
+            T tanpoint3[2];
+            tanpoint3[0] = fx * tangentlos3[0] + cx;
+            tanpoint3[1] = fy * tangentlos3[1] + cy;
+
+            T proj_x = ( tanpoint0[0] + tanpoint1[0] + tanpoint2[0] + tanpoint3[0] ) / 4.0;
+            T proj_y = ( tanpoint0[1] + tanpoint1[1] + tanpoint2[1] + tanpoint3[1] ) / 4.0;
+            T proj_radius = ( ceres::abs(tanpoint1[0] - tanpoint0[0]) + ceres::abs(tanpoint3[1] - tanpoint2[1]) ) / 4.0;
+
+            observation[0] = proj_x;
+            observation[1] = proj_y;
+            observation[2] = proj_radius;
+
+            ok = true;
+        }
+
+        return ok;
     }
 
     Sophus::SE3d myCameraToWorld;

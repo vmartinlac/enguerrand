@@ -10,7 +10,6 @@ CameraCalibrationData::CameraCalibrationData()
 
 CalibrationData::CalibrationData()
 {
-    landmark_radius = 0.5;
 }
 
 bool CalibrationData::loadCamerasFromFile(const std::string& path)
@@ -102,8 +101,6 @@ bool CalibrationData::loadCamerasFromFile(const std::string& path)
 void CalibrationData::dump() const
 {
     std::cout << "== Calibration data ==" << std::endl;
-
-    std::cout << "landmark_radius = " << landmark_radius << std::endl;
 
     int cam_id = 0;
     for(const CameraCalibrationData& cam : cameras)

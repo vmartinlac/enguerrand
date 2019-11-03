@@ -1,6 +1,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/calib3d.hpp>
 #include "OdometryHelpers.h"
+#include "CoreConstants.h"
 
 bool OdometryHelpers::triangulateLandmark(
     const cv::Vec3f& undistorted_circle,
@@ -37,7 +38,7 @@ bool OdometryHelpers::triangulateLandmark(
 
     if( M_PI*0.3/180.0 < beta && beta < M_PI*150.0/180.0 )
     {
-        const double distance = calibration->landmark_radius / std::sin(beta);
+        const double distance = CORE_LANDMARK_RADIUS / std::sin(beta);
 
         Eigen::Vector3d dir;
         dir.x() = los_dirx;

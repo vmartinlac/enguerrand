@@ -29,7 +29,6 @@ public:
 
     void dump() const;
 
-    double landmark_radius;
     std::vector<CameraCalibrationData> cameras;
 };
 

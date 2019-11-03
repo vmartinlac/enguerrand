@@ -6,6 +6,7 @@
 #include "AlignmentOdometry.h"
 #include "SE3Parameterization.h"
 #include "OdometryHelpers.h"
+#include "CoreConstants.h"
 
 struct AlignmentOdometry::Alignment
 {

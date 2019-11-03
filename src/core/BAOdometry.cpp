@@ -6,6 +6,7 @@
 #include "BAOdometry.h"
 #include "SE3Parameterization.h"
 #include "OdometryHelpers.h"
+#include "CoreConstants.h"
 
 template<typename FramePtrContainer>
 size_t BAOdometry::buildLocalMap(FramePtrContainer& frames, std::vector<LandmarkPtr>& local_map)
@@ -75,7 +76,7 @@ struct BAOdometry::BundleAdjustment
         const T cx(myParent->myCalibration->cameras[0].calibration_matrix(0,2));
         const T cy(myParent->myCalibration->cameras[0].calibration_matrix(1,2));
 
-        if( landmark_in_camera.z() < myParent->myCalibration->landmark_radius*0.1 )
+        if( landmark_in_camera.z() < CORE_LANDMARK_RADIUS*0.1 )
         {
             ok = false;
         }
@@ -83,7 +84,7 @@ struct BAOdometry::BundleAdjustment
         {
             const T distance = landmark_in_camera.norm();
 
-            const T alpha = ceres::asin( T(myParent->myCalibration->landmark_radius) / distance );
+            const T alpha = ceres::asin( T(CORE_LANDMARK_RADIUS) / distance );
 
             T center_los[2];
             center_los[0] = landmark_in_camera[0] / landmark_in_camera[2];
@@ -190,7 +191,7 @@ BAOdometry::BAOdometry(CalibrationDataPtr calibration)
 
     myMaxKeyFrames = 10;
 
-    myKeyFrameSelectionTranslationThreshold = calibration->landmark_radius * 5.0;
+    myKeyFrameSelectionTranslationThreshold = CORE_LANDMARK_RADIUS * 5.0;
     myKeyFrameSelectionRotationThreshold = 0.2*M_PI;
 }
 

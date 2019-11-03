@@ -7,6 +7,7 @@
 #include <ceres/rotation.h>
 #include "EKFOdometry.h"
 #include "OdometryHelpers.h"
+#include "CoreConstants.h"
 
 struct EKFOdometry::TriangulationFunction
 {
@@ -48,7 +49,7 @@ struct EKFOdometry::TriangulationFunction
 
         if( M_PI*0.3/180.0 < beta && beta < M_PI*150.0/180.0)
         {
-            T distance = mParent->myCalibration->landmark_radius / ceres::sin(beta);
+            T distance = CORE_LANDMARK_RADIUS / ceres::sin(beta);
 
             T dir[3];
             dir[0] = los_dirx;
@@ -147,7 +148,7 @@ struct EKFOdometry::ObservationFunction
             const T cx(mParent->myCalibration->cameras[0].calibration_matrix(0,2));
             const T cy(mParent->myCalibration->cameras[0].calibration_matrix(1,2));
 
-            if( landmark_in_camera.z() < mParent->myCalibration->landmark_radius*0.1 )
+            if( landmark_in_camera.z() < CORE_LANDMARK_RADIUS*0.1 )
             {
                 ok = false;
             }
@@ -155,7 +156,7 @@ struct EKFOdometry::ObservationFunction
             {
                 const T distance = landmark_in_camera.norm();
 
-                const T alpha = ceres::asin( T(mParent->myCalibration->landmark_radius) / distance );
+                const T alpha = ceres::asin( T(CORE_LANDMARK_RADIUS) / distance );
 
                 T center_los[2];
                 center_los[0] = landmark_in_camera.x() / landmark_in_camera.z();
@@ -240,7 +241,7 @@ struct EKFOdometry::AugmentationFunction
 
 EKFOdometry::EKFOdometry(CalibrationDataPtr calibration)
 {
-    myLandmarkMinDistanceToCamera = calibration->landmark_radius;
+    myLandmarkMinDistanceToCamera = CORE_LANDMARK_RADIUS;
     myMaxLandmarks = 100; //330; // (1000-13)/3;
     myCalibration = calibration;
     myPredictionLinearMomentumSigmaRate = 1.0;

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>609</width>
-    <height>522</height>
+    <width>615</width>
+    <height>543</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -29,6 +29,9 @@
       <string>Video input</string>
      </property>
      <layout class="QGridLayout" name="gridLayout">
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="video_file_calibration"/>
+      </item>
       <item row="2" column="2">
        <widget class="QPushButton" name="video_file_select_calibration">
         <property name="text">
@@ -50,40 +53,6 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="0" colspan="3">
-       <widget class="QRadioButton" name="video_file">
-        <property name="text">
-         <string>File</string>
-        </property>
-        <property name="checked">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="calibrationLabel">
-        <property name="text">
-         <string>Calibration</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QPushButton" name="video_file_select_video">
-        <property name="text">
-         <string>Select...</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLineEdit" name="video_file_path"/>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="pathLabel">
-        <property name="text">
-         <string>Video</string>
-        </property>
-       </widget>
-      </item>
       <item row="5" column="1" colspan="2">
        <widget class="QComboBox" name="video_realsense_camera">
         <property name="sizePolicy">
@@ -94,8 +63,39 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
-       <widget class="QLineEdit" name="video_file_calibration"/>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="video_file_path"/>
+      </item>
+      <item row="1" column="2">
+       <widget class="QPushButton" name="video_file_select_video">
+        <property name="text">
+         <string>Select...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="pathLabel">
+        <property name="text">
+         <string>Video</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="calibrationLabel">
+        <property name="text">
+         <string>Calibration</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0" colspan="3">
+       <widget class="QRadioButton" name="video_file">
+        <property name="text">
+         <string>File</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>
@@ -106,20 +106,17 @@
       <string>Engine</string>
      </property>
      <layout class="QGridLayout" name="gridLayout_2">
-      <item row="2" column="1">
-       <widget class="QLineEdit" name="observation_validator_data"/>
-      </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="visualOdometryLabel">
-        <property name="text">
-         <string>Visual odometry code</string>
-        </property>
-       </widget>
-      </item>
       <item row="2" column="2">
        <widget class="QPushButton" name="histogram_select">
         <property name="text">
          <string>Select...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Observation validator data</string>
         </property>
        </widget>
       </item>
@@ -133,13 +130,6 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label">
-        <property name="text">
-         <string>Observation validator data</string>
-        </property>
-       </widget>
-      </item>
       <item row="1" column="0">
        <widget class="QLabel" name="label_2">
         <property name="text">
@@ -147,13 +137,23 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="1" colspan="2">
-       <widget class="QComboBox" name="observation_validator"/>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="use_gpu_label">
+      <item row="4" column="0">
+       <widget class="QLabel" name="visualOdometryLabel">
         <property name="text">
-         <string>Use GPU</string>
+         <string>Visual odometry code</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="observation_validator_data"/>
+      </item>
+      <item row="1" column="1" colspan="2">
+       <widget class="QComboBox" name="observation_validator">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
         </property>
        </widget>
       </item>
@@ -161,6 +161,13 @@
        <widget class="QCheckBox" name="use_gpu">
         <property name="text">
          <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="use_gpu_label">
+        <property name="text">
+         <string>Use GPU</string>
         </property>
        </widget>
       </item>

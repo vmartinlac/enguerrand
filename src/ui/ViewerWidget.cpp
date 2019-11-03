@@ -3,6 +3,7 @@
 #include <osg/Shape>
 #include <osg/Geode>
 #include "ViewerWidget.h"
+#include "CoreConstants.h"
 
 osg::Vec3d ViewerWidget::vectorEigen2osg(const Eigen::Vector3d& x)
 {
@@ -19,14 +20,12 @@ ViewerWidget::ViewerWidget(QWidget* parent) : ViewerWidgetBase(parent)
 {
     myLandmarksGroup = new osg::Group();
 
-    myLandmarkRadius = 1.0;
-
     setMinimumSize(320, 200);
 
     // create node for landmark.
 
     {
-        osg::ref_ptr<osg::Sphere> shape = new osg::Sphere(osg::Vec3d(0.0, 0.0, 0.0), myLandmarkRadius);
+        osg::ref_ptr<osg::Sphere> shape = new osg::Sphere(osg::Vec3d(0.0, 0.0, 0.0), CORE_LANDMARK_RADIUS);
 
         osg::ref_ptr<osg::ShapeDrawable> shape_drawable = new osg::ShapeDrawable(shape);
         shape_drawable->setColor(osg::Vec4d(0.0, 1.0, 0.0, 1.0)); // TODO: let the user configure this?
@@ -47,7 +46,7 @@ ViewerWidget::ViewerWidget(QWidget* parent) : ViewerWidgetBase(parent)
         const double fy = 1.80745383e+03;
         const double imw = 1920.0;
         const double imh = 1080.0;
-        const double zz = myLandmarkRadius*5;
+        const double zz = CORE_LANDMARK_RADIUS*5;
 
         // TODO: load node from resources?
 
@@ -85,7 +84,7 @@ ViewerWidget::ViewerWidget(QWidget* parent) : ViewerWidgetBase(parent)
         geometry->setColorArray(colors, osg::Array::BIND_OVERALL);
         geometry->addPrimitiveSet(primitive_set);
 
-        //osg::ref_ptr<osg::Sphere> sphere = new osg::Sphere(osg::Vec3(0.0, 0.0, 0.0), myLandmarkRadius);
+        //osg::ref_ptr<osg::Sphere> sphere = new osg::Sphere(osg::Vec3(0.0, 0.0, 0.0), CORE_LANDMARK_RADIUS);
         //osg::ref_ptr<osg::ShapeDrawable> sphere_drawable = new osg::ShapeDrawable(sphere);
 
         osg::ref_ptr<osg::Geode> geode = new osg::Geode();
