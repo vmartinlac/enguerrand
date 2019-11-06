@@ -167,7 +167,7 @@ struct PFOdometry::LandmarkObservationFunction
 PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
-    myNumParticles = 1000;
+    myNumParticles = 5000;
 }
 
 bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles, OdometryFrame& output)
@@ -208,7 +208,33 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
     myCurrentState->frame_id = 0;
     myCurrentState->timestamp = timestamp;
-    // TODO
+    for(Particle& p : myCurrentState->particles)
+    {
+        p.camera_to_world = Sophus::SE3d(); // identity
+        p.landmarks.clear();
+    }
+
+    std::vector<Landmark> landmarks;
+
+    for(size_t i=0; i<circles.size(); i++)
+    {
+        Eigen::Vector3d landmark_position;
+        Eigen::Matrix3d landmark_covariance;
+
+        if( triangulateLandmark(circles[i].circle, Sophus::SE3d(), landmark_position, landmark_covariance) )
+        {
+            landmarks.emplace_back();
+            landmarks.back().last_frame_id = myCurrentState->frame_id;
+            landmarks.back().circle_index_in_last_frame = i;
+            landmarks.back().position = landmark_position;
+            landmarks.back().covariance = landmark_covariance;
+        }
+    }
+
+    for(Particle& p : myCurrentState->particles)
+    {
+        p.landmarks = landmarks;
+    }
 }
 
 bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>& circles)
@@ -217,13 +243,30 @@ bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>&
 
     if(ret)
     {
+        std::vector<bool> circle_consummed(circles.size());
+
+        // tracking:prediction
+
+        myWorkingState->frame_id = myCurrentState->frame_id+1;
+        myWorkingState->timestamp = timestamp;
+        myWorkingState->particles.swap(myCurrentState.particles);
+
+        for(Particle& p : myWorkingState->particles)
+        {
+            // TODO: add noise on camera to world.
+        }
+
+        // tracking:update
+
+        // mapping
+
         ret = false; //TODO
     }
 
     return ret;
 }
 
-bool PFOdometry::triangulateLandmarkInWorldFrame(
+bool PFOdometry::triangulateLandmark(
     const cv::Vec3f& circle, 
     const Sophus::SE3d& camera_to_world,
     Eigen::Vector3d& position,
@@ -261,5 +304,24 @@ bool PFOdometry::triangulateLandmarkInWorldFrame(
     }
 
     return ok;
+}
+
+PFOdometry::State::State()
+{
+    frame_id = 0;
+    timestamp = 0.0;
+}
+
+PFOdometry::Particle::Particle()
+{
+    weight = 1.0;
+}
+
+PFOdometry::Landmark::Landmark()
+{
+    last_frame_id = 0;
+    circle_index_in_last_frame = 0;
+    position.setZero();
+    covariance.setIdentity();
 }
 

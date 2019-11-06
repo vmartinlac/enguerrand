@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <random>
 #include <ceres/ceres.h>
 #include "OdometryCode.h"
 #include "CalibrationData.h"
@@ -20,21 +21,31 @@ public:
 
 protected:
 
+    using RandomEngine = std::default_random_engine;
+
     struct Landmark
     {
-        size_t tracked_index;
+        Landmark();
+
+        size_t last_frame_id;
+        size_t circle_index_in_last_frame;
         Eigen::Vector3d position;
         Eigen::Matrix3d covariance;
     };
 
     struct Particle
     {
+        Particle();
+
+        double weight;
         Sophus::SE3d camera_to_world;
         std::vector<Landmark> landmarks;
     };
 
     struct State
     {
+        State();
+
         size_t frame_id;
         double timestamp;
         std::vector<Particle> particles;
@@ -54,7 +65,7 @@ protected:
         double timestamp,
         const std::vector<TrackedCircle>& circles);
 
-    bool triangulateLandmarkInWorldFrame(
+    bool triangulateLandmark(
         const cv::Vec3f& circle, 
         const Sophus::SE3d& camera_to_world,
         Eigen::Vector3d& position,
@@ -68,5 +79,6 @@ protected:
     size_t myNumParticles;
     std::unique_ptr<State> myCurrentState;
     std::unique_ptr<State> myWorkingState;
+    RandomEngine myRandomEngine;
 };
 
