@@ -71,6 +71,11 @@ protected:
         Eigen::Vector3d& position,
         Eigen::Matrix3d& covariance);
 
+    bool updateLandmark(
+        const Sophus::SE3d& camera_to_world,
+        const cv::Vec3f& observation,
+        Landmark& landmark);
+
     bool trackAndMap(double timestamp, const std::vector<TrackedCircle>& circles);
 
 protected:
@@ -82,5 +87,7 @@ protected:
     RandomEngine myRandomEngine;
     double myPredictionPositionNoise;
     double myPredictionAttitudeNoise;
+    double myCirclePositionNoise;
+    double myCircleRadiusNoise;
 };
 
