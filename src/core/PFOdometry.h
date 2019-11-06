@@ -80,5 +80,7 @@ protected:
     std::unique_ptr<State> myCurrentState;
     std::unique_ptr<State> myWorkingState;
     RandomEngine myRandomEngine;
+    double myPredictionPositionNoise;
+    double myPredictionAttitudeNoise;
 };
 

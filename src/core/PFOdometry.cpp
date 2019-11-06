@@ -168,6 +168,8 @@ PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
     myNumParticles = 5000;
+    myPredictionPositionNoise = CORE_LANDMARK_RADIUS*0.6;
+    myPredictionAttitudeNoise = M_PI*0.1;
 }
 
 bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles, OdometryFrame& output)
@@ -188,8 +190,8 @@ void PFOdometry::State::save(OdometryFrame& output, bool aligned_wrt_previous)
 {
     output.timestamp = timestamp;
     output.aligned_wrt_previous = aligned_wrt_previous;
-    output.camera_to_world = Sophus::SE3d(); // TODO set average pose.
-    output.landmarks.clear(); // TODO set average landmark positions.
+    output.camera_to_world = Sophus::SE3d(); // TODO set average pose or take most likely one?
+    output.landmarks.clear(); // TODO set average landmark positions or take most likely one?
 }
 
 void PFOdometry::reset()
@@ -247,20 +249,40 @@ bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>&
 
         // tracking:prediction
 
-        myWorkingState->frame_id = myCurrentState->frame_id+1;
-        myWorkingState->timestamp = timestamp;
-        myWorkingState->particles.swap(myCurrentState.particles);
-
-        for(Particle& p : myWorkingState->particles)
         {
-            // TODO: add noise on camera to world.
+            myWorkingState->frame_id = myCurrentState->frame_id+1;
+            myWorkingState->timestamp = timestamp;
+            myWorkingState->particles.swap(myCurrentState->particles);
+
+            std::normal_distribution<double> distribution; // N(0,1) distribution.
+
+            for(Particle& p : myWorkingState->particles)
+            {
+                Sophus::SE3d::Tangent epsilon;
+                epsilon <<
+                    myPredictionPositionNoise*distribution(myRandomEngine),
+                    myPredictionPositionNoise*distribution(myRandomEngine),
+                    myPredictionPositionNoise*distribution(myRandomEngine),
+                    myPredictionAttitudeNoise*distribution(myRandomEngine),
+                    myPredictionAttitudeNoise*distribution(myRandomEngine),
+                    myPredictionAttitudeNoise*distribution(myRandomEngine);
+
+                p.camera_to_world = p.camera_to_world * Sophus::SE3d::exp(epsilon);
+            }
         }
 
         // tracking:update
 
+        {
+            ;
+            // TODO
+        }
+
         // mapping
 
-        ret = false; //TODO
+        {
+            // TODO
+        }
     }
 
     return ret;
