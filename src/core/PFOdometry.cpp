@@ -14,42 +14,42 @@ struct PFOdometry::TriangulationFunction
     template<typename T>
     bool operator()(const T* const circle, T* landmark) const
     {
-        T cx = circle[0];
-        T cy = circle[1];
-        T r = circle[2];
+        const T cx = circle[0];
+        const T cy = circle[1];
+        const T r = circle[2];
 
         const double IK00 = myCalibration->cameras[0].inverse_calibration_matrix(0,0);
         const double IK02 = myCalibration->cameras[0].inverse_calibration_matrix(0,2);
         const double IK11 = myCalibration->cameras[0].inverse_calibration_matrix(1,1);
         const double IK12 = myCalibration->cameras[0].inverse_calibration_matrix(1,2);
 
-        T los_cx = IK00*cx + IK02;
-        T los_cy = IK11*cy + IK12;
-        T los_cxminus = IK00*(cx-r) + IK02;
-        T los_cxplus = IK00*(cx+r) + IK02;
-        T los_cyminus = IK11*(cy-r) + IK12;
-        T los_cyplus = IK11*(cy+r) + IK12;
+        const T los_cx = IK00*cx + IK02;
+        const T los_cy = IK11*cy + IK12;
+        const T los_cxminus = IK00*(cx-r) + IK02;
+        const T los_cxplus = IK00*(cx+r) + IK02;
+        const T los_cyminus = IK11*(cy-r) + IK12;
+        const T los_cyplus = IK11*(cy+r) + IK12;
 
-        T alpha_xminus = ceres::atan(los_cxminus);
-        T alpha_xplus = ceres::atan(los_cxplus);
-        T alpha_yminus = ceres::atan(los_cyminus);
-        T alpha_yplus = ceres::atan(los_cyplus);
+        const T alpha_xminus = ceres::atan(los_cxminus);
+        const T alpha_xplus = ceres::atan(los_cxplus);
+        const T alpha_yminus = ceres::atan(los_cyminus);
+        const T alpha_yplus = ceres::atan(los_cyplus);
 
-        T los_dirx = ceres::tan( (alpha_xminus + alpha_xplus) / 2.0 );
-        T los_diry = ceres::tan( (alpha_yminus + alpha_yplus) / 2.0 );
+        const T los_dirx = ceres::tan( (alpha_xminus + alpha_xplus) / 2.0 );
+        const T los_diry = ceres::tan( (alpha_yminus + alpha_yplus) / 2.0 );
 
-        T beta = ( (alpha_xplus - alpha_xminus)/2.0 + (alpha_yplus - alpha_yminus)/2.0 ) / 2.0;
+        const T beta = ( (alpha_xplus - alpha_xminus)/2.0 + (alpha_yplus - alpha_yminus)/2.0 ) / 2.0;
 
         if( M_PI*0.3/180.0 < beta && beta < M_PI*150.0/180.0)
         {
-            T distance = CORE_LANDMARK_RADIUS / ceres::sin(beta);
+            const T distance = CORE_LANDMARK_RADIUS / ceres::sin(beta);
 
             T dir[3];
             dir[0] = los_dirx;
             dir[1] = los_diry;
             dir[2] = T(1.0);
 
-            T norm = ceres::sqrt( dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2] );
+            const T norm = ceres::sqrt( dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2] );
 
             Eigen::Matrix<T, 3, 1> landmark_in_camera;
             landmark_in_camera.x() = distance*dir[0]/norm;
@@ -146,9 +146,9 @@ struct PFOdometry::LandmarkObservationFunction
             tanpoint3[0] = fx * tangentlos3[0] + cx;
             tanpoint3[1] = fy * tangentlos3[1] + cy;
 
-            T proj_x = ( tanpoint0[0] + tanpoint1[0] + tanpoint2[0] + tanpoint3[0] ) / 4.0;
-            T proj_y = ( tanpoint0[1] + tanpoint1[1] + tanpoint2[1] + tanpoint3[1] ) / 4.0;
-            T proj_radius = ( ceres::abs(tanpoint1[0] - tanpoint0[0]) + ceres::abs(tanpoint3[1] - tanpoint2[1]) ) / 4.0;
+            const T proj_x = ( tanpoint0[0] + tanpoint1[0] + tanpoint2[0] + tanpoint3[0] ) / 4.0;
+            const T proj_y = ( tanpoint0[1] + tanpoint1[1] + tanpoint2[1] + tanpoint3[1] ) / 4.0;
+            const T proj_radius = ( ceres::abs(tanpoint1[0] - tanpoint0[0]) + ceres::abs(tanpoint3[1] - tanpoint2[1]) ) / 4.0;
 
             observation[0] = proj_x;
             observation[1] = proj_y;
