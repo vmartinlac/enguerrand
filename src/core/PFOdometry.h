@@ -23,14 +23,21 @@ protected:
 
     using RandomEngine = std::default_random_engine;
 
+    struct LandmarkEstimation
+    {
+        LandmarkEstimation();
+
+        bool available;
+        Eigen::Vector3d position;
+        Eigen::Matrix3d covariance;
+    };
+
     struct Landmark
     {
         Landmark();
 
         size_t last_frame_id;
         size_t circle_index_in_last_frame;
-        Eigen::Vector3d position;
-        Eigen::Matrix3d covariance;
     };
 
     struct Particle
@@ -49,7 +56,10 @@ protected:
         size_t frame_id;
         double timestamp;
         std::vector<Particle> particles;
+        std::vector<Landmark> landmarks;
+        std::vector<LandmarkEstimation> landmark_estimations;
 
+        LandmarkEstimation& refLandmarkEstimation(size_t particle, size_t landmark);
         void save(OdometryFrame& output, bool aligned_wrt_previous);
     };
 
@@ -71,10 +81,10 @@ protected:
         Eigen::Vector3d& position,
         Eigen::Matrix3d& covariance);
 
-    bool updateLandmark(
+    void updateLandmark(
         const Sophus::SE3d& camera_to_world,
         const cv::Vec3f& observation,
-        Landmark& landmark);
+        LandmarkEstimation& landmark);
 
     bool trackAndMap(double timestamp, const std::vector<TrackedCircle>& circles);
 

@@ -219,25 +219,37 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
     }
 
     std::vector<Landmark> landmarks;
+    std::vector<LandmarkEstimation> landmark_estimations;
 
     for(size_t i=0; i<circles.size(); i++)
     {
-        Eigen::Vector3d landmark_position;
-        Eigen::Matrix3d landmark_covariance;
+        LandmarkEstimation est;
 
-        if( triangulateLandmark(circles[i].circle, Sophus::SE3d(), landmark_position, landmark_covariance) )
+        est.available = triangulateLandmark(
+            circles[i].circle,
+            Sophus::SE3d(),
+            est.position,
+            est.covariance);
+
+        if(est.available)
         {
             landmarks.emplace_back();
             landmarks.back().last_frame_id = myCurrentState->frame_id;
             landmarks.back().circle_index_in_last_frame = i;
-            landmarks.back().position = landmark_position;
-            landmarks.back().covariance = landmark_covariance;
+
+            landmark_estimations.emplace_back();
+            landmark_estimations.back() = est;
         }
     }
 
-    for(Particle& p : myCurrentState->particles)
+    myCurrentState->landmarks.swap(landmarks);
+
+    for(size_t i=0; i<myNumParticles; i++)
     {
-        p.landmarks = landmarks;
+        for(size_t j=0; j<myCurrentState->landmarks.size(); j++)
+        {
+            myCurrentState->refLandmarkEstimation(i,j) = landmark_estimations[j];
+        }
     }
 }
 
@@ -345,60 +357,69 @@ PFOdometry::Landmark::Landmark()
 {
     last_frame_id = 0;
     circle_index_in_last_frame = 0;
+}
+
+PFOdometry::LandmarkEstimation::LandmarkEstimation()
+{
+    available = false;
     position.setZero();
     covariance.setIdentity();
 }
 
-bool PFOdometry::updateLandmark(const Sophus::SE3d& camera_to_world, const cv::Vec3f& observation, Landmark& landmark)
+PFOdometry::LandmarkEstimation& PFOdometry::State::refLandmarkEstimation(size_t particle, size_t landmark)
 {
-    bool ret = true;
+    return landmark_estimations[particle*landmarks.size() + landmark];
+}
 
-    Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian;
-
-    Eigen::Vector3d predicted_observation;
-
-    Eigen::Vector3d sensed_observation;
-    sensed_observation(0) = observation(0);
-    sensed_observation(1) = observation(1);
-    sensed_observation(2) = observation(2);
-
-    Eigen::Matrix3d sensed_observation_covariance;
-    sensed_observation_covariance.setZero();
-    sensed_observation_covariance(0,0) = myCirclePositionNoise*myCirclePositionNoise;
-    sensed_observation_covariance(1,1) = myCirclePositionNoise*myCirclePositionNoise;
-    sensed_observation_covariance(2,2) = myCircleRadiusNoise*myCircleRadiusNoise;
-
-    const Eigen::Vector3d old_state = landmark.position;
-
-    const Eigen::Matrix3d old_state_covariance = landmark.covariance;
-
-    std::unique_ptr<CeresLandmarkObservationFunction> function;
-    function.reset(new CeresLandmarkObservationFunction(new LandmarkObservationFunction(myCalibration, camera_to_world)));
-
+void PFOdometry::updateLandmark(const Sophus::SE3d& camera_to_world, const cv::Vec3f& observation, LandmarkEstimation& landmark)
+{
+    if(landmark.available)
     {
-        const double* ceres_old_state = old_state.data();
-        double* ceres_jacobian = jacobian.data();
-        ret = function->Evaluate(&ceres_old_state, predicted_observation.data(), &ceres_jacobian);
+        Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian;
+
+        Eigen::Vector3d predicted_observation;
+
+        Eigen::Vector3d sensed_observation;
+        sensed_observation(0) = observation(0);
+        sensed_observation(1) = observation(1);
+        sensed_observation(2) = observation(2);
+
+        Eigen::Matrix3d sensed_observation_covariance;
+        sensed_observation_covariance.setZero();
+        sensed_observation_covariance(0,0) = myCirclePositionNoise*myCirclePositionNoise;
+        sensed_observation_covariance(1,1) = myCirclePositionNoise*myCirclePositionNoise;
+        sensed_observation_covariance(2,2) = myCircleRadiusNoise*myCircleRadiusNoise;
+
+        const Eigen::Vector3d old_state = landmark.position;
+
+        const Eigen::Matrix3d old_state_covariance = landmark.covariance;
+
+        std::unique_ptr<CeresLandmarkObservationFunction> function;
+        function.reset(new CeresLandmarkObservationFunction(new LandmarkObservationFunction(myCalibration, camera_to_world)));
+
+        {
+            const double* ceres_old_state = old_state.data();
+            double* ceres_jacobian = jacobian.data();
+            landmark.available = function->Evaluate(&ceres_old_state, predicted_observation.data(), &ceres_jacobian);
+        }
+
+        if(landmark.available)
+        {
+            const Eigen::VectorXd residual = sensed_observation - predicted_observation;
+
+            const Eigen::MatrixXd residual_covariance = jacobian * old_state_covariance * jacobian.transpose() + sensed_observation_covariance;
+
+            Eigen::LDLT<Eigen::Matrix3d> solver;
+            solver.compute(residual_covariance);
+            // TODO: check invertibility.
+
+            const Eigen::Vector3d new_state = old_state + old_state_covariance * jacobian.transpose() * solver.solve(residual);
+
+            const Eigen::Matrix3d new_state_covariance = old_state_covariance - old_state_covariance * jacobian.transpose() * solver.solve(jacobian * old_state_covariance);
+
+            landmark.position = new_state;
+            landmark.covariance = new_state_covariance;
+        }
     }
-
-    if(ret)
-    {
-        const Eigen::VectorXd residual = sensed_observation - predicted_observation;
-
-        const Eigen::MatrixXd residual_covariance = jacobian * old_state_covariance * jacobian.transpose() + sensed_observation_covariance;
-
-        Eigen::LDLT<Eigen::Matrix3d> solver;
-        solver.compute(residual_covariance);
-        // TODO: check invertibility.
-
-        const Eigen::Vector3d new_state = old_state + old_state_covariance * jacobian.transpose() * solver.solve(residual);
-
-        const Eigen::Matrix3d new_state_covariance = old_state_covariance - old_state_covariance * jacobian.transpose() * solver.solve(jacobian * old_state_covariance);
-
-        landmark.position = new_state;
-        landmark.covariance = new_state_covariance;
-    }
-
-    return ret;
 }
 
