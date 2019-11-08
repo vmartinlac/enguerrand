@@ -46,7 +46,6 @@ protected:
 
         double weight;
         Sophus::SE3d camera_to_world;
-        std::vector<Landmark> landmarks;
     };
 
     struct State

@@ -215,7 +215,6 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
     for(Particle& p : myCurrentState->particles)
     {
         p.camera_to_world = Sophus::SE3d(); // identity
-        p.landmarks.clear();
     }
 
     std::vector<Landmark> landmarks;
@@ -242,7 +241,7 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
         }
     }
 
-    myCurrentState->landmarks.swap(landmarks);
+    myCurrentState->landmarks = std::move(landmarks);
 
     for(size_t i=0; i<myNumParticles; i++)
     {
@@ -259,14 +258,14 @@ bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>&
 
     if(ret)
     {
-        std::vector<bool> circle_consummed(circles.size());
-
-        // tracking:prediction
+        // sample predicted pose. This reduces to add noise to current pose.
 
         {
             myWorkingState->frame_id = myCurrentState->frame_id+1;
             myWorkingState->timestamp = timestamp;
             myWorkingState->particles.swap(myCurrentState->particles);
+            myWorkingState->landmarks.swap(myCurrentState->landmarks);
+            myWorkingState->landmark_estimations.swap(myCurrentState->landmark_estimations);
 
             std::normal_distribution<double> distribution; // N(0,1) distribution.
 
@@ -283,16 +282,46 @@ bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>&
 
                 p.camera_to_world = p.camera_to_world * Sophus::SE3d::exp(epsilon);
             }
+
+            std::swap(myWorkingState, myCurrentState);
         }
 
-        // tracking:update
+        // update landmarks.
 
         {
-            ;
-            // TODO
+            std::swap(myWorkingState, myCurrentState);
+            /*
+            myWorkingState->frame_id = myCurrentState->frame_id;
+            myWorkingState->timestamp = myCurrentState->timestamp;
+            myWorkingState->particles.swap(myCurrentState->particles);
+            myWorkingState->landmarks.swap(myCurrentState->landmarks);
+            myWorkingState->landmark_estimations.swap(myCurrentState->landmark_estimations);
+            */
+
+            /*
+            for(size_t i=0; i<myWorkingState->landmarks.size(); i++)
+            {
+                if( myWorkingState->landmarks[i].last_frame_id == myWorkingState->frame_id-1 )
+                {
+                    // TODO
+                    for(size_t j=0; j<myWorkingState->particles.size(); j++)
+                    {
+                        updateLandmark(
+                            myWorkingState->particles[i].camera_to_world,
+                    }
+                }
+            }
+            */
+
+            std::swap(myWorkingState, myCurrentState);
         }
 
-        // mapping
+        // resample.
+
+        {
+        }
+
+        // add new landmarks.
 
         {
             // TODO
