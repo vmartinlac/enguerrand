@@ -1,52 +1,19 @@
 
+file(GLOB HEADER_FILES LIST_DIRECTORIES FALSE "*.h")
+file(GLOB SOURCE_FILES LIST_DIRECTORIES FALSE "*.cpp")
+
 add_library(
     enguerrand_core
     SHARED
-    OdometryHelpers.h
-    OdometryHelpers.cpp
-    CalibrationData.h
-    CalibrationData.cpp
-    ObservationValidator.h
-    ObservationValidator.cpp
-    ObservationValidator.h
-    ObservationValidator.cpp
-    ObservationValidatorSVM.h
-    ObservationValidatorSVM.cpp
-    ObservationValidatorSimple.h
-    ObservationValidatorSimple.cpp
-    SE3Parameterization.h
-    SE3Parameterization.cpp
-    AlignmentOdometry.cpp
-    AlignmentOdometry.h
-    NullOdometry.cpp
-    NullOdometry.h
-    BAOdometry.cpp
-    BAOdometry.h
-    PFOdometry.cpp
-    PFOdometry.h
-    CircleFitter.cpp
-    CircleFitter.h
-    CircleDetector.cpp
-    CircleDetector.h
-    CircleTracker.cpp
-    CircleTracker.h
-    EdgeDetection.h
-    EdgeDetection.cpp
-    EdgeDetectionCPU.cpp
-    EdgeDetectionCPU.h
-    EKFOdometry.cpp
-    EKFOdometry.h
-    LineFitter.cpp
-    LineFitter.h
-    OdometryCode.cpp
-    OdometryCode.h
-    TrackedCircle.cpp
-    TrackedCircle.h
-)
+    ${HEADER_FILES}
+    ${SOURCE_FILES})
+
+set_target_properties(enguerrand_core PROPERTIES PUBLIC_HEADER "${HEADER_FILES}")
 
 target_link_libraries(
     enguerrand_core
     PUBLIC
+    Boost::boost
     opencv_core
     opencv_imgproc
     opencv_ml
@@ -55,17 +22,22 @@ target_link_libraries(
     Qt5::Core
     Threads::Threads
     Sophus::Sophus
-)
-
-target_link_libraries(
-    enguerrand_core
     PRIVATE
-    ceres
-)
+    ceres)
 
-target_include_directories(enguerrand_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(
+    enguerrand_core
+    INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/enguerrand/core>)
 
-install(TARGETS enguerrand_core RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(
+    TARGETS enguerrand_core
+    EXPORT enguerrand-targets COMPONENT dev
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/enguerrand/core COMPONENT dev
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT bin
+    LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT bin
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT dev)
 
 if(${WITH_CUDA})
 

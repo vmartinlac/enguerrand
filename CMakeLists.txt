@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.1)
 project(enguerrand)
 
 include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 set(ENGUERRAND_VERSION_MAJOR 1)
 set(ENGUERRAND_VERSION_MINOR 0)
@@ -38,6 +39,7 @@ include("${CMAKE_SOURCE_DIR}/thirdparty/tbb/cmake/TBBBuild.cmake")
 tbb_build(TBB_ROOT "${CMAKE_SOURCE_DIR}/thirdparty/tbb" CONFIG_DIR TBB_DIR)
 find_package(TBB REQUIRED)
 
+find_package(Boost REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Ceres REQUIRED)
@@ -60,6 +62,11 @@ add_subdirectory(src)
 if(${BUILD_TEST})
     add_subdirectory(tst)
 endif()
+
+configure_package_config_file("cmake/enguerrand-config.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/enguerrand-config.cmake" INSTALL_DESTINATION "${CMAKE_INSTALL_DATADIR}/enguerrand/cmake")
+
+install(EXPORT enguerrand-targets DESTINATION "${CMAKE_INSTALL_DATADIR}/enguerrand/cmake")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/enguerrand-config.cmake" DESTINATION "${CMAKE_INSTALL_DATADIR}/enguerrand/cmake")
 
 set(CPACK_PACKAGE_VERSION_MAJOR ${ENGUERRAND_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${ENGUERRAND_VERSION_MINOR})

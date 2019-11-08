@@ -244,17 +244,16 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
         myCurrentState->frame_id = 0;
         myCurrentState->timestamp = timestamp;
-        myCurrentState->num_landmarks = prototype_landmark_estimations.size();
 
         myCurrentState->observations.swap(observations);
         myCurrentState->particles.assign(myNumParticles, prototype_particle);
-        myCurrentState->landmark_estimations.resize(prototype_landmark_estimations.size() * myNumParticles);
+        myCurrentState->landmark_estimations.resize( boost::array<size_t,2>({myNumParticles, prototype_landmark_estimations.size()}) );
 
         for(size_t i=0; i<myNumParticles; i++)
         {
             for(size_t j=0; j<prototype_landmark_estimations.size(); j++)
             {
-                myCurrentState->refLandmarkEstimation(i,j) = prototype_landmark_estimations[j];
+                myCurrentState->landmark_estimations[i][j] = prototype_landmark_estimations[j];
             }
         }
     }
@@ -268,13 +267,47 @@ bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>&
     {
         // sample predicted pose. This reduces to add noise to current pose.
 
-        /*
         {
             myWorkingState->frame_id = myCurrentState->frame_id+1;
             myWorkingState->timestamp = timestamp;
+            myWorkingState->observations.resize(circles.size());
+            size_t num_landmarks = 0;
+            for(size_t i=0; i<circles.size(); i++)
+            {
+                myWorkingState->observations[i].circle = circles[i].circle;
+                myWorkingState->observations[i].has_landmark = (circles[i].has_previous && myCurrentState->observations[circles[i].previous].has_landmark);
+
+                if( myWorkingState->observations[i].has_landmark )
+                {
+                    myWorkingState->observations[i].landmark = num_landmarks;
+                    num_landmarks++;
+                }
+            }
+
+            myWorkingState->landmark_estimations.resize( boost::array<size_t,2>({myNumParticles, num_landmarks}) );
+
+            for(size_t i=0; i<circles.size(); i++)
+            {
+                if( myWorkingState->observations[i].has_landmark )
+                {
+                    if( circles[i].has_previous == false || myCurrentState->observations[circles[i].previous].has_landmark == false )
+                    {
+                        throw std::runtime_error("internal error!");
+                    }
+
+                    const size_t old_landmark_index = myCurrentState->observations[circles[i].previous].landmark;
+
+                    const size_t new_landmark_index = myWorkingState->observations[i].landmark;
+
+                    for(size_t j=0; j<myNumParticles; j++)
+                    {
+                        myWorkingState->landmark_estimations(boost::array<size_t,2>({j, new_landmark_index})) =
+                            myCurrentState->landmark_estimations(boost::array<size_t,2>({j, old_landmark_index}));
+                    }
+                }
+            }
+
             myWorkingState->particles.swap(myCurrentState->particles);
-            myWorkingState->landmarks.swap(myCurrentState->landmarks);
-            myWorkingState->landmark_estimations.swap(myCurrentState->landmark_estimations);
 
             std::normal_distribution<double> distribution; // N(0,1) distribution.
 
@@ -294,7 +327,6 @@ bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>&
 
             std::swap(myWorkingState, myCurrentState);
         }
-        */
 
         // update landmarks.
 
@@ -385,18 +417,11 @@ PFOdometry::State::State()
 {
     frame_id = 0;
     timestamp = 0.0;
-    num_landmarks = 0;
 }
 
 PFOdometry::Particle::Particle()
 {
     weight = 1.0;
-}
-
-PFOdometry::Landmark::Landmark()
-{
-    last_frame_id = 0;
-    circle_index_in_last_frame = 0;
 }
 
 PFOdometry::LandmarkEstimation::LandmarkEstimation()
@@ -411,60 +436,56 @@ PFOdometry::Observation::Observation()
     landmark = 0;
 }
 
-PFOdometry::LandmarkEstimation& PFOdometry::State::refLandmarkEstimation(size_t particle, size_t landmark)
+bool PFOdometry::updateLandmark(const Sophus::SE3d& camera_to_world, const cv::Vec3f& observation, LandmarkEstimation& landmark)
 {
-    return landmark_estimations[particle*landmarks.size() + landmark];
-}
+    bool ret = false;
 
-void PFOdometry::updateLandmark(const Sophus::SE3d& camera_to_world, const cv::Vec3f& observation, LandmarkEstimation& landmark)
-{
-    if(landmark.available)
+    Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian;
+
+    Eigen::Vector3d predicted_observation;
+
+    Eigen::Vector3d sensed_observation;
+    sensed_observation(0) = observation(0);
+    sensed_observation(1) = observation(1);
+    sensed_observation(2) = observation(2);
+
+    Eigen::Matrix3d sensed_observation_covariance;
+    sensed_observation_covariance.setZero();
+    sensed_observation_covariance(0,0) = myCirclePositionNoise*myCirclePositionNoise;
+    sensed_observation_covariance(1,1) = myCirclePositionNoise*myCirclePositionNoise;
+    sensed_observation_covariance(2,2) = myCircleRadiusNoise*myCircleRadiusNoise;
+
+    const Eigen::Vector3d old_state = landmark.position;
+
+    const Eigen::Matrix3d old_state_covariance = landmark.covariance;
+
+    std::unique_ptr<CeresLandmarkObservationFunction> function;
+    function.reset(new CeresLandmarkObservationFunction(new LandmarkObservationFunction(myCalibration, camera_to_world)));
+
     {
-        Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian;
-
-        Eigen::Vector3d predicted_observation;
-
-        Eigen::Vector3d sensed_observation;
-        sensed_observation(0) = observation(0);
-        sensed_observation(1) = observation(1);
-        sensed_observation(2) = observation(2);
-
-        Eigen::Matrix3d sensed_observation_covariance;
-        sensed_observation_covariance.setZero();
-        sensed_observation_covariance(0,0) = myCirclePositionNoise*myCirclePositionNoise;
-        sensed_observation_covariance(1,1) = myCirclePositionNoise*myCirclePositionNoise;
-        sensed_observation_covariance(2,2) = myCircleRadiusNoise*myCircleRadiusNoise;
-
-        const Eigen::Vector3d old_state = landmark.position;
-
-        const Eigen::Matrix3d old_state_covariance = landmark.covariance;
-
-        std::unique_ptr<CeresLandmarkObservationFunction> function;
-        function.reset(new CeresLandmarkObservationFunction(new LandmarkObservationFunction(myCalibration, camera_to_world)));
-
-        {
-            const double* ceres_old_state = old_state.data();
-            double* ceres_jacobian = jacobian.data();
-            landmark.available = function->Evaluate(&ceres_old_state, predicted_observation.data(), &ceres_jacobian);
-        }
-
-        if(landmark.available)
-        {
-            const Eigen::VectorXd residual = sensed_observation - predicted_observation;
-
-            const Eigen::MatrixXd residual_covariance = jacobian * old_state_covariance * jacobian.transpose() + sensed_observation_covariance;
-
-            Eigen::LDLT<Eigen::Matrix3d> solver;
-            solver.compute(residual_covariance);
-            // TODO: check invertibility.
-
-            const Eigen::Vector3d new_state = old_state + old_state_covariance * jacobian.transpose() * solver.solve(residual);
-
-            const Eigen::Matrix3d new_state_covariance = old_state_covariance - old_state_covariance * jacobian.transpose() * solver.solve(jacobian * old_state_covariance);
-
-            landmark.position = new_state;
-            landmark.covariance = new_state_covariance;
-        }
+        const double* ceres_old_state = old_state.data();
+        double* ceres_jacobian = jacobian.data();
+        ret = function->Evaluate(&ceres_old_state, predicted_observation.data(), &ceres_jacobian);
     }
+
+    if(ret)
+    {
+        const Eigen::VectorXd residual = sensed_observation - predicted_observation;
+
+        const Eigen::MatrixXd residual_covariance = jacobian * old_state_covariance * jacobian.transpose() + sensed_observation_covariance;
+
+        Eigen::LDLT<Eigen::Matrix3d> solver;
+        solver.compute(residual_covariance);
+        // TODO: check invertibility.
+
+        const Eigen::Vector3d new_state = old_state + old_state_covariance * jacobian.transpose() * solver.solve(residual);
+
+        const Eigen::Matrix3d new_state_covariance = old_state_covariance - old_state_covariance * jacobian.transpose() * solver.solve(jacobian * old_state_covariance);
+
+        landmark.position = new_state;
+        landmark.covariance = new_state_covariance;
+    }
+
+    return ret;
 }
 

@@ -6,6 +6,7 @@ Dependencies
 ------------
 
 * Ceres
+* Boost
 * Eigen3
 * OpenCV
 * openscenegraph

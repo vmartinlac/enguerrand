@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <boost/multi_array.hpp>
 #include <random>
 #include <ceres/ceres.h>
 #include "OdometryCode.h"
@@ -48,16 +49,17 @@ protected:
         size_t landmark;
     };
 
+    using LandmarkEstimationArray = boost::multi_array<LandmarkEstimation,2>;
+
     struct State
     {
         State();
 
         size_t frame_id;
         double timestamp;
-        size_t num_landmarks;
         std::vector<Particle> particles;
-        std::vector<LandmarkEstimation> landmark_estimations;
         std::vector<Observation> observations;
+        LandmarkEstimationArray landmark_estimations;
 
         LandmarkEstimation& refLandmarkEstimation(size_t particle, size_t landmark);
         void save(OdometryFrame& output, bool aligned_wrt_previous);
@@ -81,7 +83,7 @@ protected:
         Eigen::Vector3d& position,
         Eigen::Matrix3d& covariance);
 
-    void updateLandmark(
+    bool updateLandmark(
         const Sophus::SE3d& camera_to_world,
         const cv::Vec3f& observation,
         LandmarkEstimation& landmark);
