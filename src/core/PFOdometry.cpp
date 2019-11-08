@@ -204,50 +204,58 @@ void PFOdometry::reset()
 
 void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& circles)
 {
-    myCurrentState.reset(new State());
-    myWorkingState.reset(new State());
+    std::vector<Observation> observations;
+    std::vector<LandmarkEstimation> prototype_landmark_estimations;
+    Particle prototype_particle;
 
-    myCurrentState->particles.resize(myNumParticles);
-    myWorkingState->particles.resize(myNumParticles);
+    // initialize prototypes.
 
-    myCurrentState->frame_id = 0;
-    myCurrentState->timestamp = timestamp;
-    for(Particle& p : myCurrentState->particles)
     {
-        p.camera_to_world = Sophus::SE3d(); // identity
-    }
+        prototype_particle.weight = 1.0;
+        prototype_particle.camera_to_world = Sophus::SE3d(); //identity.
 
-    std::vector<Landmark> landmarks;
-    std::vector<LandmarkEstimation> landmark_estimations;
+        observations.resize(circles.size());
 
-    for(size_t i=0; i<circles.size(); i++)
-    {
-        LandmarkEstimation est;
-
-        est.available = triangulateLandmark(
-            circles[i].circle,
-            Sophus::SE3d(),
-            est.position,
-            est.covariance);
-
-        if(est.available)
+        for(size_t i=0; i<circles.size(); i++)
         {
-            landmarks.emplace_back();
-            landmarks.back().last_frame_id = myCurrentState->frame_id;
-            landmarks.back().circle_index_in_last_frame = i;
+            observations[i].circle = circles[i].circle;
 
-            landmark_estimations.emplace_back();
-            landmark_estimations.back() = est;
+            LandmarkEstimation est;
+
+            observations[i].has_landmark = triangulateLandmark(
+                circles[i].circle,
+                prototype_particle.camera_to_world,
+                est.position,
+                est.covariance);
+
+            if(observations[i].has_landmark)
+            {
+                observations[i].landmark = prototype_landmark_estimations.size();
+                prototype_landmark_estimations.push_back(std::move(est));
+            }
         }
     }
 
-    myCurrentState->landmarks = std::move(landmarks);
+    // create new state.
 
-    for(size_t i=0; i<myNumParticles; i++)
     {
-        for(size_t j=0; j<myCurrentState->landmarks.size(); j++)
+        myCurrentState.reset(new State());
+        myWorkingState.reset(new State());
+
+        myCurrentState->frame_id = 0;
+        myCurrentState->timestamp = timestamp;
+        myCurrentState->num_landmarks = prototype_landmark_estimations.size();
+
+        myCurrentState->observations.swap(observations);
+        myCurrentState->particles.assign(myNumParticles, prototype_particle);
+        myCurrentState->landmark_estimations.resize(prototype_landmark_estimations.size() * myNumParticles);
+
+        for(size_t i=0; i<myNumParticles; i++)
         {
-            myCurrentState->refLandmarkEstimation(i,j) = landmark_estimations[j];
+            for(size_t j=0; j<prototype_landmark_estimations.size(); j++)
+            {
+                myCurrentState->refLandmarkEstimation(i,j) = prototype_landmark_estimations[j];
+            }
         }
     }
 }
@@ -260,6 +268,7 @@ bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>&
     {
         // sample predicted pose. This reduces to add noise to current pose.
 
+        /*
         {
             myWorkingState->frame_id = myCurrentState->frame_id+1;
             myWorkingState->timestamp = timestamp;
@@ -285,6 +294,7 @@ bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>&
 
             std::swap(myWorkingState, myCurrentState);
         }
+        */
 
         // update landmarks.
 
@@ -375,6 +385,7 @@ PFOdometry::State::State()
 {
     frame_id = 0;
     timestamp = 0.0;
+    num_landmarks = 0;
 }
 
 PFOdometry::Particle::Particle()
@@ -390,9 +401,14 @@ PFOdometry::Landmark::Landmark()
 
 PFOdometry::LandmarkEstimation::LandmarkEstimation()
 {
-    available = false;
     position.setZero();
     covariance.setIdentity();
+}
+
+PFOdometry::Observation::Observation()
+{
+    has_landmark = false;
+    landmark = 0;
 }
 
 PFOdometry::LandmarkEstimation& PFOdometry::State::refLandmarkEstimation(size_t particle, size_t landmark)

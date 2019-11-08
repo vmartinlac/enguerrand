@@ -27,17 +27,8 @@ protected:
     {
         LandmarkEstimation();
 
-        bool available;
         Eigen::Vector3d position;
         Eigen::Matrix3d covariance;
-    };
-
-    struct Landmark
-    {
-        Landmark();
-
-        size_t last_frame_id;
-        size_t circle_index_in_last_frame;
     };
 
     struct Particle
@@ -48,15 +39,25 @@ protected:
         Sophus::SE3d camera_to_world;
     };
 
+    struct Observation
+    {
+        Observation();
+
+        cv::Vec3f circle;
+        bool has_landmark;
+        size_t landmark;
+    };
+
     struct State
     {
         State();
 
         size_t frame_id;
         double timestamp;
+        size_t num_landmarks;
         std::vector<Particle> particles;
-        std::vector<Landmark> landmarks;
         std::vector<LandmarkEstimation> landmark_estimations;
+        std::vector<Observation> observations;
 
         LandmarkEstimation& refLandmarkEstimation(size_t particle, size_t landmark);
         void save(OdometryFrame& output, bool aligned_wrt_previous);
