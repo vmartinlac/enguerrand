@@ -13,7 +13,6 @@ set_target_properties(enguerrand_core PROPERTIES PUBLIC_HEADER "${HEADER_FILES}"
 target_link_libraries(
     enguerrand_core
     PUBLIC
-    Boost::boost
     opencv_core
     opencv_imgproc
     opencv_ml

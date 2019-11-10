@@ -176,7 +176,13 @@ PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 
 bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles, OdometryFrame& output)
 {
-    const bool successful_tracking = trackAndMap(timestamp, circles);
+    const bool successful_tracking =
+        bool(myCurrentState) &&
+        bool(myWorkingState) &&
+        predictionStep(timestamp, circles) &&
+        landmarkUpdateStep() &&
+        resamplingStep() &&
+        mappingStep();
 
     if(successful_tracking == false)
     {
@@ -247,130 +253,122 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
         myCurrentState->observations.swap(observations);
         myCurrentState->particles.assign(myNumParticles, prototype_particle);
-        myCurrentState->landmark_estimations.resize( boost::array<size_t,2>({myNumParticles, prototype_landmark_estimations.size()}) );
+        myCurrentState->landmark_estimations.resize( myNumParticles*prototype_landmark_estimations.size() );
 
         for(size_t i=0; i<myNumParticles; i++)
         {
             for(size_t j=0; j<prototype_landmark_estimations.size(); j++)
             {
-                myCurrentState->landmark_estimations[i][j] = prototype_landmark_estimations[j];
+                myCurrentState->refLandmarkEstimation(i,j) = prototype_landmark_estimations[j];
             }
         }
     }
 }
 
-bool PFOdometry::trackAndMap(double timestamp, const std::vector<TrackedCircle>& circles)
+bool PFOdometry::predictionStep(double timestamp, const std::vector<TrackedCircle>& circles)
 {
-    bool ret = bool(myCurrentState) && bool(myWorkingState);
+    // sample predicted pose. This reduces to add noise to current pose.
 
-    if(ret)
+    myWorkingState->frame_id = myCurrentState->frame_id+1;
+    myWorkingState->timestamp = timestamp;
+    myWorkingState->observations.resize(circles.size());
+    size_t num_landmarks = 0;
+    for(size_t i=0; i<circles.size(); i++)
     {
-        // sample predicted pose. This reduces to add noise to current pose.
+        myWorkingState->observations[i].circle = circles[i].circle;
 
+        myWorkingState->observations[i].has_landmark =
+            (circles[i].has_previous && myCurrentState->observations[circles[i].previous].has_landmark);
+
+        if( myWorkingState->observations[i].has_landmark )
         {
-            myWorkingState->frame_id = myCurrentState->frame_id+1;
-            myWorkingState->timestamp = timestamp;
-            myWorkingState->observations.resize(circles.size());
-            size_t num_landmarks = 0;
-            for(size_t i=0; i<circles.size(); i++)
-            {
-                myWorkingState->observations[i].circle = circles[i].circle;
-                myWorkingState->observations[i].has_landmark = (circles[i].has_previous && myCurrentState->observations[circles[i].previous].has_landmark);
-
-                if( myWorkingState->observations[i].has_landmark )
-                {
-                    myWorkingState->observations[i].landmark = num_landmarks;
-                    num_landmarks++;
-                }
-            }
-
-            myWorkingState->landmark_estimations.resize( boost::array<size_t,2>({myNumParticles, num_landmarks}) );
-
-            for(size_t i=0; i<circles.size(); i++)
-            {
-                if( myWorkingState->observations[i].has_landmark )
-                {
-                    if( circles[i].has_previous == false || myCurrentState->observations[circles[i].previous].has_landmark == false )
-                    {
-                        throw std::runtime_error("internal error!");
-                    }
-
-                    const size_t old_landmark_index = myCurrentState->observations[circles[i].previous].landmark;
-
-                    const size_t new_landmark_index = myWorkingState->observations[i].landmark;
-
-                    for(size_t j=0; j<myNumParticles; j++)
-                    {
-                        myWorkingState->landmark_estimations(boost::array<size_t,2>({j, new_landmark_index})) =
-                            myCurrentState->landmark_estimations(boost::array<size_t,2>({j, old_landmark_index}));
-                    }
-                }
-            }
-
-            myWorkingState->particles.swap(myCurrentState->particles);
-
-            std::normal_distribution<double> distribution; // N(0,1) distribution.
-
-            for(Particle& p : myWorkingState->particles)
-            {
-                Sophus::SE3d::Tangent epsilon;
-                epsilon <<
-                    myPredictionPositionNoise*distribution(myRandomEngine),
-                    myPredictionPositionNoise*distribution(myRandomEngine),
-                    myPredictionPositionNoise*distribution(myRandomEngine),
-                    myPredictionAttitudeNoise*distribution(myRandomEngine),
-                    myPredictionAttitudeNoise*distribution(myRandomEngine),
-                    myPredictionAttitudeNoise*distribution(myRandomEngine);
-
-                p.camera_to_world = p.camera_to_world * Sophus::SE3d::exp(epsilon);
-            }
-
-            std::swap(myWorkingState, myCurrentState);
-        }
-
-        // update landmarks.
-
-        {
-            std::swap(myWorkingState, myCurrentState);
-            /*
-            myWorkingState->frame_id = myCurrentState->frame_id;
-            myWorkingState->timestamp = myCurrentState->timestamp;
-            myWorkingState->particles.swap(myCurrentState->particles);
-            myWorkingState->landmarks.swap(myCurrentState->landmarks);
-            myWorkingState->landmark_estimations.swap(myCurrentState->landmark_estimations);
-            */
-
-            /*
-            for(size_t i=0; i<myWorkingState->landmarks.size(); i++)
-            {
-                if( myWorkingState->landmarks[i].last_frame_id == myWorkingState->frame_id-1 )
-                {
-                    // TODO
-                    for(size_t j=0; j<myWorkingState->particles.size(); j++)
-                    {
-                        updateLandmark(
-                            myWorkingState->particles[i].camera_to_world,
-                    }
-                }
-            }
-            */
-
-            std::swap(myWorkingState, myCurrentState);
-        }
-
-        // resample.
-
-        {
-        }
-
-        // add new landmarks.
-
-        {
-            // TODO
+            myWorkingState->observations[i].landmark = num_landmarks;
+            num_landmarks++;
         }
     }
 
-    return ret;
+    myWorkingState->landmark_estimations.resize( myNumParticles*num_landmarks );
+
+    for(size_t i=0; i<circles.size(); i++)
+    {
+        if( myWorkingState->observations[i].has_landmark )
+        {
+            if( circles[i].has_previous == false || myCurrentState->observations[circles[i].previous].has_landmark == false )
+            {
+                throw std::runtime_error("internal error!");
+            }
+
+            const size_t old_landmark_index = myCurrentState->observations[circles[i].previous].landmark;
+
+            const size_t new_landmark_index = myWorkingState->observations[i].landmark;
+
+            for(size_t j=0; j<myNumParticles; j++)
+            {
+                myWorkingState->refLandmarkEstimation(j, new_landmark_index) =
+                    myCurrentState->refLandmarkEstimation(j, old_landmark_index);
+            }
+        }
+    }
+
+    myWorkingState->particles.swap(myCurrentState->particles);
+
+    std::normal_distribution<double> distribution; // N(0,1) distribution.
+
+    for(Particle& p : myWorkingState->particles)
+    {
+        Sophus::SE3d::Tangent epsilon;
+        epsilon <<
+            myPredictionPositionNoise*distribution(myRandomEngine),
+            myPredictionPositionNoise*distribution(myRandomEngine),
+            myPredictionPositionNoise*distribution(myRandomEngine),
+            myPredictionAttitudeNoise*distribution(myRandomEngine),
+            myPredictionAttitudeNoise*distribution(myRandomEngine),
+            myPredictionAttitudeNoise*distribution(myRandomEngine);
+
+        p.camera_to_world = p.camera_to_world * Sophus::SE3d::exp(epsilon);
+    }
+
+    std::swap(myWorkingState, myCurrentState);
+
+    return true;
+}
+
+bool PFOdometry::landmarkUpdateStep()
+{
+    // update landmarks.
+
+    for(size_t i=0; i<myCurrentState->observations.size(); i++)
+    {
+        if( myCurrentState->observations[i].has_landmark )
+        {
+            const size_t k = myCurrentState->observations[i].landmark;
+
+            for(size_t j=0; j<myCurrentState->particles.size(); j++)
+            {
+                updateLandmark(
+                    myCurrentState->particles[j].camera_to_world,
+                    myCurrentState->observations[i].circle,
+                    myCurrentState->refLandmarkEstimation(j,k));
+            }
+        }
+    }
+
+    return true;
+}
+
+bool PFOdometry::resamplingStep()
+{
+    // TODO: compute weights.
+    // TODO: resample.
+    return false;
+}
+
+bool PFOdometry::mappingStep()
+{
+    //std::swap(myWorkingState, myCurrentState);
+    // TODO: remove unseen landmarks and triangulate new ones.
+
+    return false;
 }
 
 bool PFOdometry::triangulateLandmark(
@@ -428,6 +426,11 @@ PFOdometry::LandmarkEstimation::LandmarkEstimation()
 {
     position.setZero();
     covariance.setIdentity();
+}
+
+PFOdometry::LandmarkEstimation& PFOdometry::State::refLandmarkEstimation(size_t particle, size_t landmark)
+{
+    return landmark_estimations[particles.size()*landmark + particle];
 }
 
 PFOdometry::Observation::Observation()
