@@ -189,14 +189,14 @@ bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
         initialize(timestamp, circles);
     }
 
-    myCurrentState->save(output, successful_tracking);
+    myCurrentState->save(*myCurrentState, output, successful_tracking);
 
     return true;
 }
 
-void PFOdometry::State::save(OdometryFrame& output, bool aligned_wrt_previous)
+void PFOdometry::exportState(const State& s, OdometryFrame& output, bool aligned_wrt_previous)
 {
-    output.timestamp = timestamp;
+    output.timestamp = s.timestamp;
     output.aligned_wrt_previous = aligned_wrt_previous;
     output.camera_to_world = Sophus::SE3d(); // TODO set average pose or take most likely one?
     output.landmarks.clear(); // TODO set average landmark positions or take most likely one?
@@ -419,9 +419,10 @@ bool PFOdometry::mappingStep()
                 /*
                 TODO: correct bugs and check that there are no similar bugs in the rest of the program.
                 */
+
                 if( landmarks[j].stock == LANDMARKSTOCK_OLD )
                 {
-                    myWorkingState->refLandmarkEstimation(i, j) = myCurrentState->refLandmarkEstimation(i, landmarks[j].index); // FIXME: potential bug.
+                    //myWorkingState->landmark_estimations[(i, j) = myCurrentState->refLandmarkEstimation(i, landmarks[j].index); // FIXME: potential bug.
                 }
                 else if( landmarks[j].stock == LANDMARKSTOCK_NEW )
                 {
@@ -517,11 +518,6 @@ PFOdometry::LandmarkEstimation::LandmarkEstimation()
 {
     position.setZero();
     covariance.setIdentity();
-}
-
-PFOdometry::LandmarkEstimation& PFOdometry::State::refLandmarkEstimation(size_t particle, size_t landmark)
-{
-    return landmark_estimations[particles.size()*landmark + particle];
 }
 
 PFOdometry::Observation::Observation()

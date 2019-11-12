@@ -57,9 +57,6 @@ protected:
         std::vector<Particle> particles;
         std::vector<Observation> observations;
         std::vector<LandmarkEstimation> landmark_estimations;
-
-        LandmarkEstimation& refLandmarkEstimation(size_t particle, size_t landmark);
-        void save(OdometryFrame& output, bool aligned_wrt_previous);
     };
 
     struct TriangulationFunction;
@@ -84,6 +81,8 @@ protected:
         const Sophus::SE3d& camera_to_world,
         const cv::Vec3f& observation,
         LandmarkEstimation& landmark);
+
+    void exportState(const State& s, OdometryFrame& output, bool aligned_wrt_previous);
 
     bool predictionStep(double timestamp, const std::vector<TrackedCircle>& circles);
     bool landmarkUpdateStep();
