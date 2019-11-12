@@ -365,10 +365,101 @@ bool PFOdometry::resamplingStep()
 
 bool PFOdometry::mappingStep()
 {
-    //std::swap(myWorkingState, myCurrentState);
-    // TODO: remove unseen landmarks and triangulate new ones.
+    // Remove unseen landmarks and triangulate new ones.
 
-    return false;
+    enum LandmarkStock
+    {
+        LANDMARKSTOCK_OLD,
+        LANDMARKSTOCK_NEW
+    };
+
+    struct LandmarkLookup
+    {
+        LandmarkStock stock;
+        size_t index; // references a landmark in myCurrentState or an observation in myCurrentState.
+    };
+
+    std::vector<LandmarkLookup> landmarks;
+    bool need_update = false;
+    bool ret = true;
+
+    for(size_t i=0; i<myCurrentState->observations.size(); i++)
+    {
+        Eigen::Vector3d unused0;
+        Eigen::Matrix3d unused1;
+
+        if( myCurrentState->observations[i].has_landmark)
+        {
+            landmarks.emplace_back();
+            landmarks.back().stock = LANDMARKSTOCK_OLD;
+            landmarks.back().index = myCurrentState->observations[i].landmark;
+        }
+        else if(triangulateLandmark(myCurrentState->observations[i].circle, Sophus::SE3d(), unused0, unused1)
+        {
+            landmarks.emplace_back();
+            landmarks.back().stock = LANDMARKSTOCK_NEW;
+            landmarks.back().index = i;
+
+            need_update = true;
+        }
+    }
+
+    if(need_update)
+    {
+        myWorkingState->frame_id = myCurrentState->frame_id;
+        myWorkingState->timestamp = myCurrentState->timestamp;
+        myWorkingState->landmark_estimations.resize(landmakrs.size()*myNumParticles);
+
+        bool all_landmarks_successfully_triangulated = true;
+
+        for(size_t i=0; all_landmarks_successfully_triangulated && i<myNumParticles; i++)
+        {
+            for(size_t j=0; all_landmarks_successfully_triangulated && j<landmarks.size(); j++)
+            {
+                /*
+                TODO: correct bugs and check that there are no similar bugs in the rest of the program.
+                */
+                if( landmarks[j].stock == LANDMARKSTOCK_OLD )
+                {
+                    myWorkingState->refLandmarkEstimation(i, j) = myCurrentState->refLandmarkEstimation(i, landmarks[j].index); // FIXME: potential bug.
+                }
+                else if( landmarks[j].stock == LANDMARKSTOCK_NEW )
+                {
+                    LandmarkEstimation& est = myWorkingState->refLandmarkEstimation(i, j);
+
+                    all_landmarks_successfully_triangulated =
+                        all_landmarks_successfully_triangulated &&
+                        triangulateLandmark(
+                            myCurrentState->observations[landmarks[j].index].circle,
+                            myWorkingState->particles[i].camera_to_world,
+                            est.position,
+                            est.covariance);
+                }
+                else
+                {
+                    std::cerr << "Internal error!" << std::endl;
+                    exit(1);
+                }
+            }
+        }
+
+        if(all_landmarks_successfully_triangulated)
+        {
+            // This should not have happen because we have already successfully triangulared them using identity camera pose.
+            // There should be no reason why triangulating them using another camera pose would fail.
+            std::cerr << "Unexpected stuff in particle filter!" << std::endl;
+            //ret = false;
+        }
+        else
+        {
+            myWorkingState->particles.swap(myCurrentState->particles);
+            myWorkingState->observations.swap(myCurrentState->observations);
+
+            std::swap(myWorkingState, myCurrentState);
+        }
+    }
+
+    return ret;
 }
 
 bool PFOdometry::triangulateLandmark(
