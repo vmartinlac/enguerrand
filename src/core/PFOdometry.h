@@ -5,6 +5,7 @@
 #include <ceres/ceres.h>
 #include "OdometryCode.h"
 #include "CalibrationData.h"
+#include "Tensor.h"
 
 class PFOdometry : public OdometryCode
 {
@@ -35,7 +36,6 @@ protected:
     {
         Particle();
 
-        double weight;
         Sophus::SE3d camera_to_world;
     };
 
@@ -56,7 +56,7 @@ protected:
         double timestamp;
         std::vector<Particle> particles;
         std::vector<Observation> observations;
-        std::vector<LandmarkEstimation> landmark_estimations;
+        Tensor<LandmarkEstimation,2> landmark_estimations;
     };
 
     struct TriangulationFunction;
@@ -82,11 +82,14 @@ protected:
         const cv::Vec3f& observation,
         LandmarkEstimation& landmark);
 
-    void exportState(const State& s, OdometryFrame& output, bool aligned_wrt_previous);
+    void exportCurrentState(OdometryFrame& output, bool aligned_wrt_previous);
 
     bool predictionStep(double timestamp, const std::vector<TrackedCircle>& circles);
+
     bool landmarkUpdateStep();
+
     bool resamplingStep();
+
     bool mappingStep();
 
 protected:

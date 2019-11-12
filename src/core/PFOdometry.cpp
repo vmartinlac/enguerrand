@@ -1,3 +1,4 @@
+#include <sophus/average.hpp>
 #include "OdometryHelpers.h"
 #include "PFOdometry.h"
 #include "CoreConstants.h"
@@ -189,17 +190,43 @@ bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
         initialize(timestamp, circles);
     }
 
-    myCurrentState->save(*myCurrentState, output, successful_tracking);
+    exportCurrentState(output, successful_tracking);
 
     return true;
 }
 
-void PFOdometry::exportState(const State& s, OdometryFrame& output, bool aligned_wrt_previous)
+void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_previous)
 {
+    State& s = *myCurrentState;
+
     output.timestamp = s.timestamp;
+
     output.aligned_wrt_previous = aligned_wrt_previous;
-    output.camera_to_world = Sophus::SE3d(); // TODO set average pose or take most likely one?
-    output.landmarks.clear(); // TODO set average landmark positions or take most likely one?
+
+    {
+        std::vector<Sophus::SE3d> camera_to_world(myNumParticles);
+
+        for(size_t i=0; i<myNumParticles; i++)
+        {
+            camera_to_world[i] = s.particles[i].camera_to_world;
+        }
+
+        //std::optional<Sophus::SE3d> tmp = Sophus::average(camera_to_world);
+        //output.camera_to_world = Sophus::average(camera_to_world);
+
+        // TODO
+    }
+
+    {
+        Eigen::Vector3d sum;
+
+        for(size_t i=0; i<s.landmark_estimations.size(1); i++)
+        {
+            sum.setZero();
+
+        }
+    }
+    //output.landmarks.resize(s.landmark_estimations.size(1));
 }
 
 void PFOdometry::reset()
@@ -217,7 +244,6 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
     // initialize prototypes.
 
     {
-        prototype_particle.weight = 1.0;
         prototype_particle.camera_to_world = Sophus::SE3d(); //identity.
 
         observations.resize(circles.size());
@@ -253,13 +279,13 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
         myCurrentState->observations.swap(observations);
         myCurrentState->particles.assign(myNumParticles, prototype_particle);
-        myCurrentState->landmark_estimations.resize( myNumParticles*prototype_landmark_estimations.size() );
+        myCurrentState->landmark_estimations.resize({myNumParticles, prototype_landmark_estimations.size()});
 
         for(size_t i=0; i<myNumParticles; i++)
         {
             for(size_t j=0; j<prototype_landmark_estimations.size(); j++)
             {
-                myCurrentState->refLandmarkEstimation(i,j) = prototype_landmark_estimations[j];
+                myCurrentState->landmark_estimations({i,j}) = prototype_landmark_estimations[j];
             }
         }
     }
@@ -272,13 +298,13 @@ bool PFOdometry::predictionStep(double timestamp, const std::vector<TrackedCircl
     myWorkingState->frame_id = myCurrentState->frame_id+1;
     myWorkingState->timestamp = timestamp;
     myWorkingState->observations.resize(circles.size());
+
     size_t num_landmarks = 0;
     for(size_t i=0; i<circles.size(); i++)
     {
         myWorkingState->observations[i].circle = circles[i].circle;
 
-        myWorkingState->observations[i].has_landmark =
-            (circles[i].has_previous && myCurrentState->observations[circles[i].previous].has_landmark);
+        myWorkingState->observations[i].has_landmark = (circles[i].has_previous && myCurrentState->observations[circles[i].previous].has_landmark);
 
         if( myWorkingState->observations[i].has_landmark )
         {
@@ -287,7 +313,7 @@ bool PFOdometry::predictionStep(double timestamp, const std::vector<TrackedCircl
         }
     }
 
-    myWorkingState->landmark_estimations.resize( myNumParticles*num_landmarks );
+    myWorkingState->landmark_estimations.resize({myNumParticles, num_landmarks});
 
     for(size_t i=0; i<circles.size(); i++)
     {
@@ -304,8 +330,7 @@ bool PFOdometry::predictionStep(double timestamp, const std::vector<TrackedCircl
 
             for(size_t j=0; j<myNumParticles; j++)
             {
-                myWorkingState->refLandmarkEstimation(j, new_landmark_index) =
-                    myCurrentState->refLandmarkEstimation(j, old_landmark_index);
+                myWorkingState->landmark_estimations({j, new_landmark_index}) = myCurrentState->landmark_estimations({j, old_landmark_index});
             }
         }
     }
@@ -348,7 +373,7 @@ bool PFOdometry::landmarkUpdateStep()
                 updateLandmark(
                     myCurrentState->particles[j].camera_to_world,
                     myCurrentState->observations[i].circle,
-                    myCurrentState->refLandmarkEstimation(j,k));
+                    myCurrentState->landmark_estimations({j,k}));
             }
         }
     }
@@ -358,9 +383,36 @@ bool PFOdometry::landmarkUpdateStep()
 
 bool PFOdometry::resamplingStep()
 {
-    // TODO: compute weights.
-    // TODO: resample.
-    return false;
+    std::vector<double> weights(myNumParticles);
+
+    for(size_t i=0; i<myNumParticles; i++)
+    {
+        weights[i] = 1.0;
+
+        for(size_t j=0; j<myCurrentState->landmark_estimations.size(1); j++)
+        {
+            weights[i] *= 1.0; // TODO
+        }
+    }
+
+    // resample.
+
+    {
+        std::discrete_distribution<size_t> distrib(weights.begin(), weights.end());
+
+        myWorkingState->particles.resize(myNumParticles);
+
+        for(size_t i=0; i<myNumParticles; i++)
+        {
+            const size_t j = distrib(myRandomEngine);
+
+            myWorkingState->particles[i] = myCurrentState->particles[j];
+        }
+
+        myCurrentState->particles.swap(myWorkingState->particles);
+    }
+
+    return true;
 }
 
 bool PFOdometry::mappingStep()
@@ -383,19 +435,33 @@ bool PFOdometry::mappingStep()
     bool need_update = false;
     bool ret = true;
 
+    myWorkingState->frame_id = myCurrentState->frame_id;
+    myWorkingState->timestamp = myCurrentState->timestamp;
+    myWorkingState->observations.resize(myCurrentState->observations.size());
+
     for(size_t i=0; i<myCurrentState->observations.size(); i++)
     {
         Eigen::Vector3d unused0;
         Eigen::Matrix3d unused1;
 
+        myWorkingState->observations[i].circle = myCurrentState->observations[i].circle;
+        myWorkingState->observations[i].has_landmark = false;
+        myWorkingState->observations[i].landmark = 0;
+
         if( myCurrentState->observations[i].has_landmark)
         {
+            myWorkingState->observations[i].has_landmark = true;
+            myWorkingState->observations[i].landmark = landmarks.size();
+
             landmarks.emplace_back();
             landmarks.back().stock = LANDMARKSTOCK_OLD;
             landmarks.back().index = myCurrentState->observations[i].landmark;
         }
-        else if(triangulateLandmark(myCurrentState->observations[i].circle, Sophus::SE3d(), unused0, unused1)
+        else if(triangulateLandmark(myCurrentState->observations[i].circle, Sophus::SE3d(), unused0, unused1))
         {
+            myWorkingState->observations[i].has_landmark = true;
+            myWorkingState->observations[i].landmark = landmarks.size();
+
             landmarks.emplace_back();
             landmarks.back().stock = LANDMARKSTOCK_NEW;
             landmarks.back().index = i;
@@ -406,9 +472,7 @@ bool PFOdometry::mappingStep()
 
     if(need_update)
     {
-        myWorkingState->frame_id = myCurrentState->frame_id;
-        myWorkingState->timestamp = myCurrentState->timestamp;
-        myWorkingState->landmark_estimations.resize(landmakrs.size()*myNumParticles);
+        myWorkingState->landmark_estimations.resize({myNumParticles, landmarks.size()});
 
         bool all_landmarks_successfully_triangulated = true;
 
@@ -416,23 +480,19 @@ bool PFOdometry::mappingStep()
         {
             for(size_t j=0; all_landmarks_successfully_triangulated && j<landmarks.size(); j++)
             {
-                /*
-                TODO: correct bugs and check that there are no similar bugs in the rest of the program.
-                */
-
                 if( landmarks[j].stock == LANDMARKSTOCK_OLD )
                 {
-                    //myWorkingState->landmark_estimations[(i, j) = myCurrentState->refLandmarkEstimation(i, landmarks[j].index); // FIXME: potential bug.
+                    myWorkingState->landmark_estimations({i, j}) = myCurrentState->landmark_estimations({i, landmarks[j].index});
                 }
                 else if( landmarks[j].stock == LANDMARKSTOCK_NEW )
                 {
-                    LandmarkEstimation& est = myWorkingState->refLandmarkEstimation(i, j);
+                    LandmarkEstimation& est = myWorkingState->landmark_estimations({i, j});
 
                     all_landmarks_successfully_triangulated =
                         all_landmarks_successfully_triangulated &&
                         triangulateLandmark(
                             myCurrentState->observations[landmarks[j].index].circle,
-                            myWorkingState->particles[i].camera_to_world,
+                            myCurrentState->particles[i].camera_to_world,
                             est.position,
                             est.covariance);
                 }
@@ -454,7 +514,6 @@ bool PFOdometry::mappingStep()
         else
         {
             myWorkingState->particles.swap(myCurrentState->particles);
-            myWorkingState->observations.swap(myCurrentState->observations);
 
             std::swap(myWorkingState, myCurrentState);
         }
@@ -511,7 +570,6 @@ PFOdometry::State::State()
 
 PFOdometry::Particle::Particle()
 {
-    weight = 1.0;
 }
 
 PFOdometry::LandmarkEstimation::LandmarkEstimation()
