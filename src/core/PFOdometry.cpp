@@ -1,3 +1,5 @@
+#include <Eigen/Eigen>
+#include <opencv2/core/eigen.hpp>
 #include <sophus/average.hpp>
 #include "OdometryHelpers.h"
 #include "PFOdometry.h"
@@ -77,9 +79,14 @@ struct PFOdometry::TriangulationFunction
 
 struct PFOdometry::LandmarkObservationFunction
 {
-    LandmarkObservationFunction(CalibrationDataPtr calibration, const Sophus::SE3d& camera_to_world)
+    LandmarkObservationFunction(CalibrationDataPtr calibration, const Sophus::SE3d& camera_to_world = Sophus::SE3d())
     {
         myCalibration = calibration;
+        myCameraToWorld = camera_to_world;
+    }
+
+    void setCameraToWorld(const Sophus::SE3d& camera_to_world)
+    {
         myCameraToWorld = camera_to_world;
     }
 
@@ -383,15 +390,68 @@ bool PFOdometry::landmarkUpdateStep()
 
 bool PFOdometry::resamplingStep()
 {
+    Eigen::Matrix3d observation_covariance;
+    observation_covariance <<
+        myCirclePositionNoise, 0.0, 0.0,
+        0.0, myCirclePositionNoise, 0.0,
+        0.0, 0.0, myCircleRadiusNoise;
+
+    std::unique_ptr<CeresLandmarkObservationFunction> function;
+    function.reset(new CeresLandmarkObservationFunction(new LandmarkObservationFunction(myCalibration)));
+
     std::vector<double> weights(myNumParticles);
 
-    for(size_t i=0; i<myNumParticles; i++)
-    {
-        weights[i] = 1.0;
+    std::fill(weights.begin(), weights.end(), 1.0);
 
-        for(size_t j=0; j<myCurrentState->landmark_estimations.size(1); j++)
+    for(size_t observation_index=0; observation_index<myCurrentState->observations.size(); observation_index++)
+    {
+        if(myCurrentState->observations[observation_index].has_landmark)
         {
-            weights[i] *= 1.0; // TODO
+            const size_t landmark_index = myCurrentState->observations[observation_index].landmark;
+
+            for(size_t particle_index=0; particle_index<myNumParticles; particle_index++)
+            {
+                LandmarkEstimation& landmark_estimation = myCurrentState->landmark_estimations({particle_index, landmark_index});
+
+                Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian;
+
+                Eigen::Vector3d predicted_observation;
+
+                const double* ceres_landmark = landmark_estimation.position.data();
+                double* ceres_jacobian = jacobian.data();
+                const bool ok = function->Evaluate(&ceres_landmark, predicted_observation.data(), &ceres_jacobian);
+
+                if(ok)
+                {
+                    const Eigen::Matrix3d covariance = observation_covariance + jacobian * landmark_estimation.covariance * jacobian.transpose();
+
+                    const double det_covariance = covariance.determinant();
+
+                    if( det_covariance > 1.0e-5 )
+                    {
+                        Eigen::Vector3d sensed_observation;
+                        sensed_observation.x() = myCurrentState->observations[observation_index].circle[0];
+                        sensed_observation.y() = myCurrentState->observations[observation_index].circle[1];
+                        sensed_observation.z() = myCurrentState->observations[observation_index].circle[2];
+
+                        const Eigen::Vector3d error = predicted_observation - sensed_observation;
+
+                        constexpr const double cte = 1.0 / std::pow(2.0*M_PI, 3.0/2.0);
+
+                        const double landmark_weight = cte * std::exp(-0.5 * error.transpose() * covariance * error) / std::sqrt(det_covariance);
+
+                        weights[particle_index] *= landmark_weight;
+                    }
+                    else
+                    {
+                        weights[particle_index] *= 0.0;
+                    }
+                }
+                else
+                {
+                    weights[particle_index] *= 0.0;
+                }
+            }
         }
     }
 
