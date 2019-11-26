@@ -5,10 +5,9 @@
 #include <QMouseEvent>
 #include "ViewerWidgetBase.h"
 
-ViewerWidgetBase::ViewerWidgetBase(QWidget* parent) :
-    QOpenGLWidget(parent)
+ViewerWidgetBase::ViewerWidgetBase(QWidget* parent) : QOpenGLWidget(parent)
 {
-    osgGA::TrackballManipulator* manipulator = new osgGA::TrackballManipulator;
+    osgGA::TrackballManipulator* manipulator = new osgGA::TrackballManipulator();
 
     mViewer = new osgViewer::Viewer;
     mViewer->setCameraManipulator(manipulator);

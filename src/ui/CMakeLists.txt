@@ -1,6 +1,25 @@
 
-file(GLOB HEADER_FILES LIST_DIRECTORIES FALSE "*.h")
-file(GLOB SOURCE_FILES LIST_DIRECTORIES FALSE "*.cpp")
+set(
+    SOURCE_FILES
+    AboutDialog.cpp
+    AboutDialog.ui
+    ConfigDialog2.ui
+    ConfigDialog.cpp
+    ConfigDialog.ui
+    MainWindow.cpp
+    VideoWidget.cpp
+    ViewerWidgetBase.cpp
+    ViewerWidget.cpp
+    resources/resources_ui.qrc)
+
+set(
+    HEADER_FILES
+    AboutDialog.h
+    ConfigDialog.h
+    MainWindow.h
+    VideoWidget.h
+    ViewerWidgetBase.h
+    ViewerWidget.h)
 
 add_library(
     enguerrand_ui
@@ -23,8 +42,11 @@ configure_file(BuildInfo.h.in "${CMAKE_CURRENT_BINARY_DIR}/include/BuildInfo.h" 
 
 target_include_directories(
     enguerrand_ui
-    INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/enguerrand/ui/>
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
+    INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/enguerrand/ui/>
+    PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
 
 install(
     TARGETS enguerrand_ui
