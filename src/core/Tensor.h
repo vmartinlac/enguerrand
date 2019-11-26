@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <iostream>
 #include <array>
 #include <vector>
 
@@ -51,6 +52,7 @@ public:
             myStrides[k] = count;
             count *= d;
             myDimensions[k] = d;
+            k++;
         }
 
         myData.resize(count);
@@ -67,9 +69,6 @@ public:
     {
         return myDimensions[i];
     }
-
-protected:
-
 
 protected:
 
