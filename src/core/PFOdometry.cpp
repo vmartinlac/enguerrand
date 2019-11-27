@@ -176,11 +176,12 @@ struct PFOdometry::LandmarkObservationFunction
 PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
-    myNumParticles = 5000;
+    myNumParticles = 100;
     myPredictionPositionNoise = CORE_LANDMARK_RADIUS*0.6;
     myPredictionAttitudeNoise = M_PI*0.1;
     myCirclePositionNoise = 1.0;
     myCircleRadiusNoise = 1.5;
+    myDebug = true;
 }
 
 bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles, OdometryFrame& output)
@@ -375,6 +376,12 @@ bool PFOdometry::predictionStep(double timestamp, const std::vector<TrackedCircl
 
     std::swap(myWorkingState, myCurrentState);
 
+    if(myDebug)
+    {
+        std::cout << "predictionStep finished" << std::endl;
+        myCurrentState->dump();
+    }
+
     return true;
 }
 
@@ -396,6 +403,12 @@ bool PFOdometry::landmarkUpdateStep()
                     myCurrentState->landmark_estimations({j,k}));
             }
         }
+    }
+
+    if(myDebug)
+    {
+        std::cout << "landmarkUpdateStep finished" << std::endl;
+        myCurrentState->dump();
     }
 
     return true;
@@ -483,6 +496,12 @@ bool PFOdometry::resamplingStep()
         }
 
         myCurrentState->particles.swap(myWorkingState->particles);
+    }
+
+    if(myDebug)
+    {
+        std::cout << "resamplingStep finished" << std::endl;
+        myCurrentState->dump();
     }
 
     return true;
@@ -590,6 +609,12 @@ bool PFOdometry::mappingStep()
             std::cerr << "Unexpected stuff in particle filter!" << std::endl;
             //ret = false;
         }
+    }
+
+    if(myDebug)
+    {
+        std::cout << "mappingStep finished" << std::endl;
+        myCurrentState->dump();
     }
 
     return ret;
@@ -708,5 +733,30 @@ bool PFOdometry::updateLandmark(const Sophus::SE3d& camera_to_world, const cv::V
     }
 
     return ret;
+}
+
+void PFOdometry::State::dump()
+{
+    std::cout << "frame_id: " << frame_id << std::endl;
+    std::cout << "timestamp: " << timestamp << std::endl;
+    std::cout << "num_particles: " << particles.size() << std::endl;
+    std::cout << "num_landmarks: " << landmark_estimations.size(1) << std::endl;
+    std::cout << "num_observations: " << observations.size() << std::endl;
+    for(size_t i=0; i<particles.size(); i++)
+    {
+        std::cout << "particle[" << i << "].camera_to_world_t: " << particles[i].camera_to_world.translation().transpose() << std::endl;
+        std::cout << "particle[" << i << "].camera_to_world_q: " << particles[i].camera_to_world.unit_quaternion().coeffs().transpose() << std::endl;
+
+        for(size_t j=0; j<landmark_estimations.size(1); j++)
+        {
+            std::cout << "landmark_estimations(" << i << ", " << j << ").position: " << landmark_estimations({i,j}).position.transpose() << std::endl;
+        }
+    }
+    for(size_t i=0; i<observations.size(); i++)
+    {
+        std::cout << "observations[i].circle: " << observations[i].circle[0] << " " observations[i].circle[1] << " " observations[i].circle[2] << std::endl;
+        std::cout << "observations[i].has_landmark: " << observations[i].has_landmark << std::endl;
+        std::cout << "observations[i].landmark: " << observations[i].landmark << std::endl;
+    }
 }
 

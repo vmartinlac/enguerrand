@@ -51,6 +51,7 @@ protected:
     struct State
     {
         State();
+        void dump();
 
         size_t frame_id;
         double timestamp;
@@ -103,5 +104,6 @@ protected:
     double myPredictionAttitudeNoise;
     double myCirclePositionNoise;
     double myCircleRadiusNoise;
+    bool myDebug;
 };
 
