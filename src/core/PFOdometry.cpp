@@ -754,7 +754,7 @@ void PFOdometry::State::dump()
     }
     for(size_t i=0; i<observations.size(); i++)
     {
-        std::cout << "observations[i].circle: " << observations[i].circle[0] << " " observations[i].circle[1] << " " observations[i].circle[2] << std::endl;
+        std::cout << "observations[i].circle: " << observations[i].circle[0] << " " << observations[i].circle[1] << " " << observations[i].circle[2] << std::endl;
         std::cout << "observations[i].has_landmark: " << observations[i].has_landmark << std::endl;
         std::cout << "observations[i].landmark: " << observations[i].landmark << std::endl;
     }
