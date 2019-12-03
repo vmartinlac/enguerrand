@@ -51,7 +51,8 @@ protected:
     struct State
     {
         State();
-        void dump();
+
+        void dump(const char* stage);
 
         size_t frame_id;
         double timestamp;
@@ -100,10 +101,9 @@ protected:
     std::unique_ptr<State> myCurrentState;
     std::unique_ptr<State> myWorkingState;
     RandomEngine myRandomEngine;
-    double myPredictionPositionNoise;
-    double myPredictionAttitudeNoise;
+    double myPredictionLinearVelocitySigma;
+    double myPredictionAngularVelocitySigma;
     double myCirclePositionNoise;
     double myCircleRadiusNoise;
-    bool myDebug;
 };
 

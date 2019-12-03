@@ -1,10 +1,16 @@
-#include <Eigen/Eigen>
+#include <sstream>
+#include <iomanip>
+#include <fstream>
+#include <iostream>
 #include <optional>
+#include <Eigen/Eigen>
 #include <opencv2/core/eigen.hpp>
 #include <sophus/average.hpp>
 #include "OdometryHelpers.h"
 #include "PFOdometry.h"
 #include "CoreConstants.h"
+
+#define PFODOMETRY_DEBUG
 
 struct PFOdometry::TriangulationFunction
 {
@@ -177,11 +183,10 @@ PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
     myNumParticles = 100;
-    myPredictionPositionNoise = CORE_LANDMARK_RADIUS*0.6;
-    myPredictionAttitudeNoise = M_PI*0.1;
+    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*1.2;
+    myPredictionAngularVelocitySigma = M_PI*0.4;
     myCirclePositionNoise = 1.0;
     myCircleRadiusNoise = 1.5;
-    myDebug = true;
 }
 
 bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles, OdometryFrame& output)
@@ -310,6 +315,10 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
             }
         }
     }
+
+#ifdef PFODOMETRY_DEBUG
+    myCurrentState->dump("initialization");
+#endif
 }
 
 bool PFOdometry::predictionStep(double timestamp, const std::vector<TrackedCircle>& circles)
@@ -356,6 +365,8 @@ bool PFOdometry::predictionStep(double timestamp, const std::vector<TrackedCircl
         }
     }
 
+    const double elapsed = timestamp - myCurrentState->timestamp;
+
     myWorkingState->particles.swap(myCurrentState->particles);
 
     std::normal_distribution<double> distribution; // N(0,1) distribution.
@@ -364,23 +375,21 @@ bool PFOdometry::predictionStep(double timestamp, const std::vector<TrackedCircl
     {
         Sophus::SE3d::Tangent epsilon;
         epsilon <<
-            myPredictionPositionNoise*distribution(myRandomEngine),
-            myPredictionPositionNoise*distribution(myRandomEngine),
-            myPredictionPositionNoise*distribution(myRandomEngine),
-            myPredictionAttitudeNoise*distribution(myRandomEngine),
-            myPredictionAttitudeNoise*distribution(myRandomEngine),
-            myPredictionAttitudeNoise*distribution(myRandomEngine);
+            elapsed*myPredictionLinearVelocitySigma*distribution(myRandomEngine),
+            elapsed*myPredictionLinearVelocitySigma*distribution(myRandomEngine),
+            elapsed*myPredictionLinearVelocitySigma*distribution(myRandomEngine),
+            elapsed*myPredictionAngularVelocitySigma*distribution(myRandomEngine),
+            elapsed*myPredictionAngularVelocitySigma*distribution(myRandomEngine),
+            elapsed*myPredictionAngularVelocitySigma*distribution(myRandomEngine);
 
         p.camera_to_world = p.camera_to_world * Sophus::SE3d::exp(epsilon);
     }
 
     std::swap(myWorkingState, myCurrentState);
 
-    if(myDebug)
-    {
-        std::cout << "predictionStep finished" << std::endl;
-        myCurrentState->dump();
-    }
+#ifdef PFODOMETRY_DEBUG
+    myCurrentState->dump("prediction");
+#endif
 
     return true;
 }
@@ -405,11 +414,9 @@ bool PFOdometry::landmarkUpdateStep()
         }
     }
 
-    if(myDebug)
-    {
-        std::cout << "landmarkUpdateStep finished" << std::endl;
-        myCurrentState->dump();
-    }
+#ifdef PFODOMETRY_DEBUG
+    myCurrentState->dump("update_landmarks");
+#endif
 
     return true;
 }
@@ -498,11 +505,9 @@ bool PFOdometry::resamplingStep()
         myCurrentState->particles.swap(myWorkingState->particles);
     }
 
-    if(myDebug)
-    {
-        std::cout << "resamplingStep finished" << std::endl;
-        myCurrentState->dump();
-    }
+#ifdef PFODOMETRY_DEBUG
+    myCurrentState->dump("resampling");
+#endif
 
     return true;
 }
@@ -611,11 +616,9 @@ bool PFOdometry::mappingStep()
         }
     }
 
-    if(myDebug)
-    {
-        std::cout << "mappingStep finished" << std::endl;
-        myCurrentState->dump();
-    }
+#ifdef PFODOMETRY_DEBUG
+    myCurrentState->dump("mapping");
+#endif
 
     return ret;
 }
@@ -735,28 +738,35 @@ bool PFOdometry::updateLandmark(const Sophus::SE3d& camera_to_world, const cv::V
     return ret;
 }
 
-void PFOdometry::State::dump()
+void PFOdometry::State::dump(const char* stage)
 {
-    std::cout << "frame_id: " << frame_id << std::endl;
-    std::cout << "timestamp: " << timestamp << std::endl;
-    std::cout << "num_particles: " << particles.size() << std::endl;
-    std::cout << "num_landmarks: " << landmark_estimations.size(1) << std::endl;
-    std::cout << "num_observations: " << observations.size() << std::endl;
+    static int dump_count = 0;
+
+    std::stringstream fname;
+    fname << std::setw(5) << std::setfill('0') << dump_count++ << "_" << stage << ".txt";
+
+    std::ofstream file(fname.str());
+
+    file << "frame_id: " << frame_id << std::endl;
+    file << "timestamp: " << timestamp << std::endl;
+    file << "num_particles: " << particles.size() << std::endl;
+    file << "num_landmarks: " << landmark_estimations.size(1) << std::endl;
+    file << "num_observations: " << observations.size() << std::endl;
     for(size_t i=0; i<particles.size(); i++)
     {
-        std::cout << "particle[" << i << "].camera_to_world_t: " << particles[i].camera_to_world.translation().transpose() << std::endl;
-        std::cout << "particle[" << i << "].camera_to_world_q: " << particles[i].camera_to_world.unit_quaternion().coeffs().transpose() << std::endl;
+        file << "particle[" << i << "].camera_to_world_t: " << particles[i].camera_to_world.translation().transpose() << std::endl;
+        file << "particle[" << i << "].camera_to_world_q: " << particles[i].camera_to_world.unit_quaternion().coeffs().transpose() << std::endl;
 
         for(size_t j=0; j<landmark_estimations.size(1); j++)
         {
-            std::cout << "landmark_estimations(" << i << ", " << j << ").position: " << landmark_estimations({i,j}).position.transpose() << std::endl;
+            file << "landmark_estimations(" << i << ", " << j << ").position: " << landmark_estimations({i,j}).position.transpose() << std::endl;
         }
     }
     for(size_t i=0; i<observations.size(); i++)
     {
-        std::cout << "observations[i].circle: " << observations[i].circle[0] << " " << observations[i].circle[1] << " " << observations[i].circle[2] << std::endl;
-        std::cout << "observations[i].has_landmark: " << observations[i].has_landmark << std::endl;
-        std::cout << "observations[i].landmark: " << observations[i].landmark << std::endl;
+        file << "observations[" << i << "].circle: " << observations[i].circle << std::endl;
+        file << "observations[" << i << "].has_landmark: " << observations[i].has_landmark << std::endl;
+        file << "observations[" << i << "].landmark: " << observations[i].landmark << std::endl;
     }
 }
 

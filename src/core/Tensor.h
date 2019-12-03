@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <exception>
 #include <iostream>
 #include <array>
 #include <vector>
@@ -29,6 +30,11 @@ public:
 
         for(size_t i : multi_index)
         {
+            if( i < 0 || myDimensions[k] >= i )
+            {
+                throw std::runtime_error("Incorrect multidimensional index!");
+            }
+
             index += i*myStrides[k];
             k++;
         }
