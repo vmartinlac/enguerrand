@@ -30,7 +30,7 @@ public:
 
         for(size_t i : multi_index)
         {
-            if( i < 0 || myDimensions[k] >= i )
+            if( i < 0 || myDimensions[k] <= i )
             {
                 throw std::runtime_error("Incorrect multidimensional index!");
             }

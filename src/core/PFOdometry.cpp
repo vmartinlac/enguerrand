@@ -10,7 +10,7 @@
 #include "PFOdometry.h"
 #include "CoreConstants.h"
 
-#define PFODOMETRY_DEBUG
+//#define PFODOMETRY_DEBUG
 
 struct PFOdometry::TriangulationFunction
 {
@@ -182,9 +182,9 @@ struct PFOdometry::LandmarkObservationFunction
 PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
-    myNumParticles = 100;
-    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*1.2;
-    myPredictionAngularVelocitySigma = M_PI*0.4;
+    myNumParticles = 250;
+    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*0.5;
+    myPredictionAngularVelocitySigma = 0.1*M_PI;
     myCirclePositionNoise = 1.0;
     myCircleRadiusNoise = 1.5;
 }
@@ -577,21 +577,22 @@ bool PFOdometry::mappingStep()
         {
             for(size_t j=0; all_landmarks_successfully_triangulated && j<landmarks.size(); j++)
             {
+                LandmarkEstimation& this_estimation = myWorkingState->landmark_estimations({i, j});
+
                 if( landmarks[j].stock == LANDMARKSTOCK_OLD )
                 {
-                    myWorkingState->landmark_estimations({i, j}) = myCurrentState->landmark_estimations({i, landmarks[j].index});
+                    this_estimation = myCurrentState->landmark_estimations({i, landmarks[j].index});
                 }
                 else if( landmarks[j].stock == LANDMARKSTOCK_NEW )
                 {
-                    LandmarkEstimation& est = myWorkingState->landmark_estimations({i, j});
 
                     all_landmarks_successfully_triangulated =
                         all_landmarks_successfully_triangulated &&
                         triangulateLandmark(
                             myCurrentState->observations[landmarks[j].index].circle,
                             myCurrentState->particles[i].camera_to_world,
-                            est.position,
-                            est.covariance);
+                            this_estimation.position,
+                            this_estimation.covariance);
                 }
                 else
                 {
