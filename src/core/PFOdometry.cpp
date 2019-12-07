@@ -192,11 +192,12 @@ PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles, OdometryFrame& output)
 {
     const bool successful_tracking =
+        (circles.size() >= 3) &&
         bool(myCurrentState) &&
         bool(myWorkingState) &&
         predictionStep(timestamp, circles) &&
-        landmarkUpdateStep() &&
         resamplingStep() &&
+        landmarkUpdateStep() &&
         mappingStep();
 
     if(successful_tracking == false)
@@ -225,12 +226,17 @@ void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_prev
             camera_to_world[i] = s.particles[i].camera_to_world;
         }
 
-        Sophus::optional<Sophus::SE3d> tmp = Sophus::average(camera_to_world);
-        if(bool(tmp) == false)
+        Sophus::optional<Sophus::SE3d> myaverage = Sophus::average(camera_to_world);
+
+        if(myaverage)
         {
-            std::cerr << "Warning particle filter!" << std::endl;
+            output.camera_to_world = *myaverage;
         }
-        output.camera_to_world = *tmp; // TODO: check that it is OK
+        else
+        {
+            std::cerr << "PFOdometry: averaging poses failed!" << std::endl;
+            output.camera_to_world = s.particles.front().camera_to_world;
+        }
     }
 
     {
