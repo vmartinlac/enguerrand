@@ -1,4 +1,5 @@
 #include <sstream>
+#include <numeric>
 #include <iomanip>
 #include <fstream>
 #include <iostream>
@@ -429,6 +430,8 @@ bool PFOdometry::landmarkUpdateStep()
 
 bool PFOdometry::resamplingStep()
 {
+    bool ret = true;
+
     Eigen::Matrix3d observation_covariance;
     observation_covariance <<
         myCirclePositionNoise, 0.0, 0.0,
@@ -438,6 +441,7 @@ bool PFOdometry::resamplingStep()
     std::unique_ptr<CeresLandmarkObservationFunction> function;
     function.reset(new CeresLandmarkObservationFunction(new LandmarkObservationFunction(myCalibration)));
 
+    std::vector<bool> failed(myNumParticles, false);
     std::vector<double> weights(myNumParticles);
 
     std::fill(weights.begin(), weights.end(), 1.0);
@@ -484,11 +488,13 @@ bool PFOdometry::resamplingStep()
                     else
                     {
                         weights[particle_index] *= 0.0;
+                        failed[particle_index] = true;
                     }
                 }
                 else
                 {
                     weights[particle_index] *= 0.0;
+                    failed[particle_index] = true;
                 }
             }
         }
@@ -497,25 +503,43 @@ bool PFOdometry::resamplingStep()
     // resample.
 
     {
-        std::discrete_distribution<size_t> distrib(weights.begin(), weights.end());
-
-        myWorkingState->particles.resize(myNumParticles);
+        bool all_failed = true;
+        bool sum_weights = 0.0;
 
         for(size_t i=0; i<myNumParticles; i++)
         {
-            const size_t j = distrib(myRandomEngine);
-
-            myWorkingState->particles[i] = myCurrentState->particles[j];
+            all_failed = all_failed && failed[i];
+            sum_weights += weights[i];
         }
 
-        myCurrentState->particles.swap(myWorkingState->particles);
+        ret = (!all_failed) && (sum_weights > 1.0e-4);
+
+        if(ret)
+        {
+            std::discrete_distribution<size_t> distrib(weights.begin(), weights.end());
+
+            myWorkingState->particles.resize(myNumParticles);
+
+            for(size_t i=0; i<myNumParticles; i++)
+            {
+                const size_t j = distrib(myRandomEngine);
+
+                myWorkingState->particles[i] = myCurrentState->particles[j];
+            }
+
+            myCurrentState->particles.swap(myWorkingState->particles);
+        }
+        else
+        {
+            std::cout << "PFOdometry: no predicted particle compatible with observations." << std::endl;
+        }
     }
 
 #ifdef PFODOMETRY_DEBUG
     myCurrentState->dump("resampling");
 #endif
 
-    return true;
+    return ret;
 }
 
 bool PFOdometry::mappingStep()
