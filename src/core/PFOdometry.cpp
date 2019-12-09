@@ -219,6 +219,8 @@ void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_prev
 
     output.aligned_wrt_previous = aligned_wrt_previous;
 
+    // compute average pose.
+
     {
         std::vector<Sophus::SE3d> camera_to_world(myNumParticles);
 
@@ -240,6 +242,9 @@ void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_prev
         }
     }
 
+    // compute average landmarks.
+    // (we use kalman filter with f = g = id.
+
     {
         const size_t num_particles = s.landmark_estimations.size(0);
         const size_t num_landmarks = s.landmark_estimations.size(1);
@@ -248,16 +253,23 @@ void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_prev
 
         for(size_t i=0; i<num_landmarks; i++)
         {
-            output.landmarks[i].position.setZero();
+            Eigen::Vector3d mu = s.landmark_estimations({0,i}).position;
+            Eigen::Matrix3d sigma = s.landmark_estimations({0,i}).covariance;
 
-            // TODO: weight according to covariance.
-
-            for(size_t j=0; j<num_particles; j++)
+            for(size_t j=1; j<num_particles; j++)
             {
-                output.landmarks[i].position += s.landmark_estimations({j,i}).position;
+                const Eigen::Vector3d observation_residual = s.landmark_estimations({j,i}).position - mu;
+                const Eigen::Matrix3d observation_covariance = sigma;
+                const Eigen::Matrix3d gain = sigma * observation_covariance.inverse();
+
+                const Eigen::Vector3d new_mu = mu + gain * observation_residual;
+                const Eigen::Matrix3d new_sigma = sigma - gain*sigma;
+
+                mu = new_mu;
+                sigma = new_sigma;
             }
 
-            output.landmarks[i].position /= double(num_particles);
+            output.landmarks[i].position = mu;
         }
     }
 }
