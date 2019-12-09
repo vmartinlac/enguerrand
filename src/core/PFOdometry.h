@@ -84,7 +84,7 @@ protected:
         const cv::Vec3f& observation,
         LandmarkEstimation& landmark);
 
-    void exportCurrentState(OdometryFrame& output, bool aligned_wrt_previous);
+    bool exportCurrentState(OdometryFrame& output, bool aligned_wrt_previous);
 
     bool predictionStep(double timestamp, const std::vector<TrackedCircle>& circles);
 

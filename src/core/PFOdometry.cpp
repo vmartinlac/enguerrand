@@ -206,13 +206,13 @@ bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circl
         initialize(timestamp, circles);
     }
 
-    exportCurrentState(output, successful_tracking);
-
-    return true;
+    return exportCurrentState(output, successful_tracking);
 }
 
-void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_previous)
+bool PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_previous)
 {
+    bool ret = true;
+
     State& s = *myCurrentState;
 
     output.timestamp = s.timestamp;
@@ -221,6 +221,7 @@ void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_prev
 
     // compute average pose.
 
+    if(ret)
     {
         std::vector<Sophus::SE3d> camera_to_world(myNumParticles);
 
@@ -237,14 +238,15 @@ void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_prev
         }
         else
         {
+            ret = false;
             std::cerr << "PFOdometry: averaging poses failed!" << std::endl;
-            output.camera_to_world = s.particles.front().camera_to_world;
         }
     }
 
     // compute average landmarks.
     // (we use kalman filter with f = g = id.
 
+    if(ret)
     {
         const size_t num_particles = s.landmark_estimations.size(0);
         const size_t num_landmarks = s.landmark_estimations.size(1);
@@ -259,7 +261,7 @@ void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_prev
             for(size_t j=1; j<num_particles; j++)
             {
                 const Eigen::Vector3d observation_residual = s.landmark_estimations({j,i}).position - mu;
-                const Eigen::Matrix3d observation_covariance = sigma;
+                const Eigen::Matrix3d observation_covariance = sigma + s.landmark_estimations({j,i}).covariance;
                 const Eigen::Matrix3d gain = sigma * observation_covariance.inverse();
 
                 const Eigen::Vector3d new_mu = mu + gain * observation_residual;
@@ -272,6 +274,25 @@ void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_prev
             output.landmarks[i].position = mu;
         }
     }
+
+    if(ret == false)
+    {
+        output.timestamp = 0.0;
+        output.aligned_wrt_previous = false;
+        output.camera_to_world = Sophus::SE3d();
+        output.landmarks.clear();
+    }
+
+    /*
+    std::cout << "output_camera_to_world_t: " << output.camera_to_world.translation().transpose() << std::endl;
+    std::cout << "output_camera_to_world_q: " << output.camera_to_world.unit_quaternion().coeffs().transpose() << std::endl;
+    for(size_t i=0; i<output.landmarks.size(); i++)
+    {
+        std::cout << "output_landmark[" << i << "]: " << output.landmarks[i].position.transpose() << std::endl;
+    }
+    */
+
+    return ret;
 }
 
 void PFOdometry::reset()
