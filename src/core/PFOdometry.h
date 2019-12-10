@@ -43,7 +43,7 @@ protected:
     {
         Observation();
 
-        cv::Vec3f circle;
+        cv::Vec3d undistorted_circle;
         bool has_landmark;
         size_t landmark;
     };
@@ -53,6 +53,7 @@ protected:
         State();
 
         void dump(const char* stage);
+        void check();
 
         size_t frame_id;
         double timestamp;
@@ -74,7 +75,7 @@ protected:
         const std::vector<TrackedCircle>& circles);
 
     bool triangulateLandmark(
-        const cv::Vec3f& circle, 
+        const cv::Vec3d& circle, 
         const Sophus::SE3d& camera_to_world,
         Eigen::Vector3d& position,
         Eigen::Matrix3d& covariance);

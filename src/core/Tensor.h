@@ -11,6 +11,20 @@ class Tensor
 {
 public:
 
+    using iterator = typename std::vector<T>::iterator;
+
+public:
+
+    iterator begin()
+    {
+        return myData.begin();
+    }
+
+    iterator end()
+    {
+        return myData.end();
+    }
+
     Tensor()
     {
         std::fill(myStrides.begin(), myStrides.end(), 0);

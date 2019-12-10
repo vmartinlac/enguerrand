@@ -11,7 +11,7 @@
 #include "PFOdometry.h"
 #include "CoreConstants.h"
 
-//#define PFODOMETRY_DEBUG
+#define PFODOMETRY_DEBUG
 
 struct PFOdometry::TriangulationFunction
 {
@@ -184,10 +184,12 @@ PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
     myNumParticles = 250;
-    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*0.5;
+
+    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*2.0;
     myPredictionAngularVelocitySigma = 0.1*M_PI;
-    myCirclePositionNoise = 1.0;
-    myCircleRadiusNoise = 1.5;
+
+    myCirclePositionNoise = 3.0;
+    myCircleRadiusNoise = 3.0;
 }
 
 bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles, OdometryFrame& output)
@@ -316,7 +318,7 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
         for(size_t i=0; i<circles.size(); i++)
         {
-            observations[i].circle = circles[i].circle;
+            observations[i].undistorted_circle = OdometryHelpers::undistortCircle(circles[i].circle, myCalibration);
 
             LandmarkEstimation est;
 
@@ -372,7 +374,7 @@ bool PFOdometry::predictionStep(double timestamp, const std::vector<TrackedCircl
     size_t num_landmarks = 0;
     for(size_t i=0; i<circles.size(); i++)
     {
-        myWorkingState->observations[i].circle = circles[i].circle;
+        myWorkingState->observations[i].undistorted_circle = OdometryHelpers::undistortCircle(circles[i].circle, myCalibration);
 
         myWorkingState->observations[i].has_landmark = (circles[i].has_previous && myCurrentState->observations[circles[i].previous].has_landmark);
 
@@ -448,7 +450,7 @@ bool PFOdometry::landmarkUpdateStep()
             {
                 updateLandmark(
                     myCurrentState->particles[j].camera_to_world,
-                    myCurrentState->observations[i].circle,
+                    myCurrentState->observations[i].undistorted_circle,
                     myCurrentState->landmark_estimations({j,k}));
             }
         }
@@ -467,9 +469,9 @@ bool PFOdometry::resamplingStep()
 
     Eigen::Matrix3d observation_covariance;
     observation_covariance <<
-        myCirclePositionNoise, 0.0, 0.0,
-        0.0, myCirclePositionNoise, 0.0,
-        0.0, 0.0, myCircleRadiusNoise;
+        myCirclePositionNoise*myCirclePositionNoise, 0.0, 0.0,
+        0.0, myCirclePositionNoise*myCirclePositionNoise, 0.0,
+        0.0, 0.0, myCircleRadiusNoise*myCircleRadiusNoise;
 
     std::unique_ptr<CeresLandmarkObservationFunction> function;
     function.reset(new CeresLandmarkObservationFunction(new LandmarkObservationFunction(myCalibration)));
@@ -505,16 +507,20 @@ bool PFOdometry::resamplingStep()
 
                     if( det_covariance > 1.0e-5 )
                     {
+                        const Eigen::Matrix3d inv_covariance = covariance.inverse();
+
                         Eigen::Vector3d sensed_observation;
-                        sensed_observation.x() = myCurrentState->observations[observation_index].circle[0];
-                        sensed_observation.y() = myCurrentState->observations[observation_index].circle[1];
-                        sensed_observation.z() = myCurrentState->observations[observation_index].circle[2];
+                        sensed_observation.x() = myCurrentState->observations[observation_index].undistorted_circle[0];
+                        sensed_observation.y() = myCurrentState->observations[observation_index].undistorted_circle[1];
+                        sensed_observation.z() = myCurrentState->observations[observation_index].undistorted_circle[2];
 
                         const Eigen::Vector3d error = predicted_observation - sensed_observation;
 
-                        const double cte = 1.0 / std::pow(2.0*M_PI, 3.0/2.0);
+                        std::cout << error.transpose() << std::endl;
 
-                        const double landmark_weight = cte * std::exp(-0.5 * error.transpose() * covariance * error) / std::sqrt(det_covariance);
+                        constexpr const double cte = 1.0 / std::pow(2.0*M_PI, 3.0/2.0);
+
+                        const double landmark_weight = cte * std::exp(-0.5 * error.transpose() * inv_covariance * error) / std::sqrt(det_covariance);
 
                         weights[particle_index] *= landmark_weight;
                     }
@@ -543,6 +549,7 @@ bool PFOdometry::resamplingStep()
         {
             all_failed = all_failed && failed[i];
             sum_weights += weights[i];
+            std::cout << weights[i] << std::endl;
         }
 
         ret = (!all_failed) && (sum_weights > 1.0e-4);
@@ -604,7 +611,7 @@ bool PFOdometry::mappingStep()
         Eigen::Vector3d unused0;
         Eigen::Matrix3d unused1;
 
-        myWorkingState->observations[i].circle = myCurrentState->observations[i].circle;
+        myWorkingState->observations[i].undistorted_circle = myCurrentState->observations[i].undistorted_circle;
         myWorkingState->observations[i].has_landmark = false;
         myWorkingState->observations[i].landmark = 0;
 
@@ -617,7 +624,7 @@ bool PFOdometry::mappingStep()
             landmarks.back().stock = LANDMARKSTOCK_OLD;
             landmarks.back().index = myCurrentState->observations[i].landmark;
         }
-        else if(triangulateLandmark(myCurrentState->observations[i].circle, Sophus::SE3d(), unused0, unused1))
+        else if(triangulateLandmark(myCurrentState->observations[i].undistorted_circle, Sophus::SE3d(), unused0, unused1))
         {
             myWorkingState->observations[i].has_landmark = true;
             myWorkingState->observations[i].landmark = landmarks.size();
@@ -652,7 +659,7 @@ bool PFOdometry::mappingStep()
                     all_landmarks_successfully_triangulated =
                         all_landmarks_successfully_triangulated &&
                         triangulateLandmark(
-                            myCurrentState->observations[landmarks[j].index].circle,
+                            myCurrentState->observations[landmarks[j].index].undistorted_circle,
                             myCurrentState->particles[i].camera_to_world,
                             this_estimation.position,
                             this_estimation.covariance);
@@ -688,13 +695,11 @@ bool PFOdometry::mappingStep()
 }
 
 bool PFOdometry::triangulateLandmark(
-    const cv::Vec3f& circle, 
+    const cv::Vec3d& undistorted_circle, 
     const Sophus::SE3d& camera_to_world,
     Eigen::Vector3d& position,
     Eigen::Matrix3d& covariance)
 {
-    const cv::Vec3d undistorted_circle = OdometryHelpers::undistortCircle(circle, myCalibration);
-
     Eigen::Matrix<double,3,3,Eigen::RowMajor> jacobian;
 
     const double* ceres_variable_ptr = undistorted_circle.val;
@@ -802,8 +807,52 @@ bool PFOdometry::updateLandmark(const Sophus::SE3d& camera_to_world, const cv::V
     return ret;
 }
 
+/*
+void PFOdometry::State::check()
+{
+    bool ok = true;
+
+    for(const Particle& p : particles)
+    {
+        const Eigen::Vector3d translation = p.camera_to_world.translation();
+        const Eigen::Quaterniond rotation = p.camera_to_world.unit_quaternion();
+
+        ok = ok && !std::isnan(translation.x());
+        ok = ok && !std::isnan(translation.y());
+        ok = ok && !std::isnan(translation.z());
+        ok = ok && !std::isnan(rotation.x());
+        ok = ok && !std::isnan(rotation.y());
+        ok = ok && !std::isnan(rotation.z());
+        ok = ok && !std::isnan(rotation.w());
+    }
+
+    for(LandmarkEstimation& es : landmark_estimations)
+    {
+        const Eigen::Vector3d translation = es.position;
+        const Eigen::Matrix3d covariance = es.covariance;
+
+        ok = ok && !std::isnan(translation.x());
+        ok = ok && !std::isnan(translation.y());
+        ok = ok && !std::isnan(translation.z());
+        ok = ok && !std::isnan(covariance(0,0));
+        ok = ok && !std::isnan(covariance(0,1));
+        ok = ok && !std::isnan(covariance(0,2));
+        ok = ok && !std::isnan(covariance(1,0));
+        ok = ok && !std::isnan(covariance(1,1));
+        ok = ok && !std::isnan(covariance(1,2));
+        ok = ok && !std::isnan(covariance(2,0));
+        ok = ok && !std::isnan(covariance(2,1));
+        ok = ok && !std::isnan(covariance(2,2));
+    }
+
+    std::cout << ok << std::endl;
+}
+*/
+
 void PFOdometry::State::dump(const char* stage)
 {
+    //check();
+
     static int dump_count = 0;
 
     std::stringstream fname;
@@ -828,7 +877,7 @@ void PFOdometry::State::dump(const char* stage)
     }
     for(size_t i=0; i<observations.size(); i++)
     {
-        file << "observations[" << i << "].circle: " << observations[i].circle << std::endl;
+        file << "observations[" << i << "].undistorted_circle: " << observations[i].undistorted_circle << std::endl;
         file << "observations[" << i << "].has_landmark: " << observations[i].has_landmark << std::endl;
         file << "observations[" << i << "].landmark: " << observations[i].landmark << std::endl;
     }
