@@ -11,208 +11,317 @@
 #include "PFOdometry.h"
 #include "CoreConstants.h"
 
-#define PFODOMETRY_DEBUG
-
-struct PFOdometry::TriangulationFunction
+PFOdometry::TriangulationFunction::TriangulationFunction(CalibrationDataPtr calibration)
 {
+    myCalibration = calibration;
+}
 
-    TriangulationFunction(CalibrationDataPtr calibration, const Sophus::SE3d& camera_to_world)
-    {
-        myCalibration = calibration;
-        myCameraToWorld = camera_to_world;
-    }
-
-    template<typename T>
-    bool operator()(const T* const circle, T* landmark) const
-    {
-        const T cx = circle[0];
-        const T cy = circle[1];
-        const T r = circle[2];
-
-        const double IK00 = myCalibration->cameras[0].inverse_calibration_matrix(0,0);
-        const double IK02 = myCalibration->cameras[0].inverse_calibration_matrix(0,2);
-        const double IK11 = myCalibration->cameras[0].inverse_calibration_matrix(1,1);
-        const double IK12 = myCalibration->cameras[0].inverse_calibration_matrix(1,2);
-
-        const T los_cx = IK00*cx + IK02;
-        const T los_cy = IK11*cy + IK12;
-        const T los_cxminus = IK00*(cx-r) + IK02;
-        const T los_cxplus = IK00*(cx+r) + IK02;
-        const T los_cyminus = IK11*(cy-r) + IK12;
-        const T los_cyplus = IK11*(cy+r) + IK12;
-
-        const T alpha_xminus = ceres::atan(los_cxminus);
-        const T alpha_xplus = ceres::atan(los_cxplus);
-        const T alpha_yminus = ceres::atan(los_cyminus);
-        const T alpha_yplus = ceres::atan(los_cyplus);
-
-        const T los_dirx = ceres::tan( (alpha_xminus + alpha_xplus) / 2.0 );
-        const T los_diry = ceres::tan( (alpha_yminus + alpha_yplus) / 2.0 );
-
-        const T beta = ( (alpha_xplus - alpha_xminus)/2.0 + (alpha_yplus - alpha_yminus)/2.0 ) / 2.0;
-
-        if( M_PI*0.3/180.0 < beta && beta < M_PI*150.0/180.0)
-        {
-            const T distance = CORE_LANDMARK_RADIUS / ceres::sin(beta);
-
-            T dir[3];
-            dir[0] = los_dirx;
-            dir[1] = los_diry;
-            dir[2] = T(1.0);
-
-            const T norm = ceres::sqrt( dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2] );
-
-            Eigen::Matrix<T, 3, 1> landmark_in_camera;
-            landmark_in_camera.x() = distance*dir[0]/norm;
-            landmark_in_camera.y() = distance*dir[1]/norm;
-            landmark_in_camera.z() = distance*dir[2]/norm;
-
-            const Eigen::Matrix<T, 3, 1> landmark_in_world = myCameraToWorld.cast<T>() * landmark_in_camera;
-
-            landmark[0] = landmark_in_world.x();
-            landmark[1] = landmark_in_world.y();
-            landmark[2] = landmark_in_world.z();
-
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    }
-
-    Sophus::SE3d myCameraToWorld;
-    CalibrationDataPtr myCalibration;
-};
-
-struct PFOdometry::LandmarkObservationFunction
+template<typename T>
+bool PFOdometry::TriangulationFunction::operator()(const T* const circle, T* landmark) const
 {
-    LandmarkObservationFunction(CalibrationDataPtr calibration, const Sophus::SE3d& camera_to_world = Sophus::SE3d())
+    const T cx = circle[0];
+    const T cy = circle[1];
+    const T r = circle[2];
+
+    const double IK00 = myCalibration->cameras[0].inverse_calibration_matrix(0,0);
+    const double IK02 = myCalibration->cameras[0].inverse_calibration_matrix(0,2);
+    const double IK11 = myCalibration->cameras[0].inverse_calibration_matrix(1,1);
+    const double IK12 = myCalibration->cameras[0].inverse_calibration_matrix(1,2);
+
+    const T los_cx = IK00*cx + IK02;
+    const T los_cy = IK11*cy + IK12;
+    const T los_cxminus = IK00*(cx-r) + IK02;
+    const T los_cxplus = IK00*(cx+r) + IK02;
+    const T los_cyminus = IK11*(cy-r) + IK12;
+    const T los_cyplus = IK11*(cy+r) + IK12;
+
+    const T alpha_xminus = ceres::atan(los_cxminus);
+    const T alpha_xplus = ceres::atan(los_cxplus);
+    const T alpha_yminus = ceres::atan(los_cyminus);
+    const T alpha_yplus = ceres::atan(los_cyplus);
+
+    const T los_dirx = ceres::tan( (alpha_xminus + alpha_xplus) / 2.0 );
+    const T los_diry = ceres::tan( (alpha_yminus + alpha_yplus) / 2.0 );
+
+    const T beta = ( (alpha_xplus - alpha_xminus)/2.0 + (alpha_yplus - alpha_yminus)/2.0 ) / 2.0;
+
+    if( M_PI*0.3/180.0 < beta && beta < M_PI*150.0/180.0)
     {
-        myCalibration = calibration;
-        myCameraToWorld = camera_to_world;
+        const T distance = CORE_LANDMARK_RADIUS / ceres::sin(beta);
+
+        T dir[3];
+        dir[0] = los_dirx;
+        dir[1] = los_diry;
+        dir[2] = T(1.0);
+
+        const T norm = ceres::sqrt( dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2] );
+
+        Eigen::Matrix<T, 3, 1> landmark_in_camera;
+        landmark_in_camera.x() = distance*dir[0]/norm;
+        landmark_in_camera.y() = distance*dir[1]/norm;
+        landmark_in_camera.z() = distance*dir[2]/norm;
+
+        //const Eigen::Matrix<T, 3, 1> landmark_in_world = myCameraToWorld.cast<T>() * landmark_in_camera;
+        const Eigen::Matrix<T, 3, 1> landmark_in_world = landmark_in_camera;
+
+        landmark[0] = landmark_in_world.x();
+        landmark[1] = landmark_in_world.y();
+        landmark[2] = landmark_in_world.z();
+
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+PFOdometry::ProjectionFunction::ProjectionFunction(CalibrationDataPtr calibration)
+{
+    myCalibration = calibration;
+}
+
+template<typename T>
+bool PFOdometry::ProjectionFunction::operator()(const T* const landmark, T* observation) const
+{
+    bool ok = true;
+
+    const Eigen::Map< const Eigen::Matrix<T,3,1> > landmark_in_world(landmark);
+
+    //const Eigen::Matrix<T,3,1> landmark_in_camera = myCameraToWorld.cast<T>() * landmark_in_world;
+    const Eigen::Matrix<T,3,1> landmark_in_camera = landmark_in_world;
+
+    if( landmark_in_camera.z() < CORE_LANDMARK_RADIUS*0.1 )
+    {
+        ok = false;
+    }
+    else
+    {
+        const T fx(myCalibration->cameras[0].calibration_matrix(0,0));
+        const T fy(myCalibration->cameras[0].calibration_matrix(1,1));
+        const T cx(myCalibration->cameras[0].calibration_matrix(0,2));
+        const T cy(myCalibration->cameras[0].calibration_matrix(1,2));
+
+        const T distance = landmark_in_camera.norm();
+
+        const T alpha = ceres::asin( T(CORE_LANDMARK_RADIUS) / distance );
+
+        T center_los[2];
+        center_los[0] = landmark_in_camera.x() / landmark_in_camera.z();
+        center_los[1] = landmark_in_camera.y() / landmark_in_camera.z();
+
+        T beta[2];
+        beta[0] = ceres::atan( center_los[0] );
+        beta[1] = ceres::atan( center_los[1] );
+
+        T tangentlos0[2];
+        tangentlos0[0] = ceres::tan( beta[0] - alpha );
+        tangentlos0[1] = center_los[1];
+
+        T tangentlos1[2];
+        tangentlos1[0] = ceres::tan( beta[0] + alpha );
+        tangentlos1[1] = center_los[1];
+
+        T tangentlos2[2];
+        tangentlos2[0] = center_los[0];
+        tangentlos2[1] = ceres::tan( beta[1] - alpha );
+
+        T tangentlos3[2];
+        tangentlos3[0] = center_los[0];
+        tangentlos3[1] = ceres::tan( beta[1] + alpha );
+
+        T tanpoint0[2];
+        tanpoint0[0] = fx * tangentlos0[0] + cx;
+        tanpoint0[1] = fy * tangentlos0[1] + cy;
+
+        T tanpoint1[2];
+        tanpoint1[0] = fx * tangentlos1[0] + cx;
+        tanpoint1[1] = fy * tangentlos1[1] + cy;
+
+        T tanpoint2[2];
+        tanpoint2[0] = fx * tangentlos2[0] + cx;
+        tanpoint2[1] = fy * tangentlos2[1] + cy;
+
+        T tanpoint3[2];
+        tanpoint3[0] = fx * tangentlos3[0] + cx;
+        tanpoint3[1] = fy * tangentlos3[1] + cy;
+
+        const T proj_x = ( tanpoint0[0] + tanpoint1[0] + tanpoint2[0] + tanpoint3[0] ) / 4.0;
+        const T proj_y = ( tanpoint0[1] + tanpoint1[1] + tanpoint2[1] + tanpoint3[1] ) / 4.0;
+        const T proj_radius = ( ceres::abs(tanpoint1[0] - tanpoint0[0]) + ceres::abs(tanpoint3[1] - tanpoint2[1]) ) / 4.0;
+
+        observation[0] = proj_x;
+        observation[1] = proj_y;
+        observation[2] = proj_radius;
+
+        ok = true;
     }
 
-    void setCameraToWorld(const Sophus::SE3d& camera_to_world)
-    {
-        myCameraToWorld = camera_to_world;
-    }
-
-    template<typename T>
-    bool operator()(const T* const landmark, T* observation) const
-    {
-        bool ok = true;
-
-        const Eigen::Map< const Eigen::Matrix<T,3,1> > landmark_in_world(landmark);
-
-        const Eigen::Matrix<T,3,1> landmark_in_camera = myCameraToWorld.cast<T>() * landmark_in_world;
-
-        if( landmark_in_camera.z() < CORE_LANDMARK_RADIUS*0.1 )
-        {
-            ok = false;
-        }
-        else
-        {
-            const T fx(myCalibration->cameras[0].calibration_matrix(0,0));
-            const T fy(myCalibration->cameras[0].calibration_matrix(1,1));
-            const T cx(myCalibration->cameras[0].calibration_matrix(0,2));
-            const T cy(myCalibration->cameras[0].calibration_matrix(1,2));
-
-            const T distance = landmark_in_camera.norm();
-
-            const T alpha = ceres::asin( T(CORE_LANDMARK_RADIUS) / distance );
-
-            T center_los[2];
-            center_los[0] = landmark_in_camera.x() / landmark_in_camera.z();
-            center_los[1] = landmark_in_camera.y() / landmark_in_camera.z();
-
-            T beta[2];
-            beta[0] = ceres::atan( center_los[0] );
-            beta[1] = ceres::atan( center_los[1] );
-
-            T tangentlos0[2];
-            tangentlos0[0] = ceres::tan( beta[0] - alpha );
-            tangentlos0[1] = center_los[1];
-
-            T tangentlos1[2];
-            tangentlos1[0] = ceres::tan( beta[0] + alpha );
-            tangentlos1[1] = center_los[1];
-
-            T tangentlos2[2];
-            tangentlos2[0] = center_los[0];
-            tangentlos2[1] = ceres::tan( beta[1] - alpha );
-
-            T tangentlos3[2];
-            tangentlos3[0] = center_los[0];
-            tangentlos3[1] = ceres::tan( beta[1] + alpha );
-
-            T tanpoint0[2];
-            tanpoint0[0] = fx * tangentlos0[0] + cx;
-            tanpoint0[1] = fy * tangentlos0[1] + cy;
-
-            T tanpoint1[2];
-            tanpoint1[0] = fx * tangentlos1[0] + cx;
-            tanpoint1[1] = fy * tangentlos1[1] + cy;
-
-            T tanpoint2[2];
-            tanpoint2[0] = fx * tangentlos2[0] + cx;
-            tanpoint2[1] = fy * tangentlos2[1] + cy;
-
-            T tanpoint3[2];
-            tanpoint3[0] = fx * tangentlos3[0] + cx;
-            tanpoint3[1] = fy * tangentlos3[1] + cy;
-
-            const T proj_x = ( tanpoint0[0] + tanpoint1[0] + tanpoint2[0] + tanpoint3[0] ) / 4.0;
-            const T proj_y = ( tanpoint0[1] + tanpoint1[1] + tanpoint2[1] + tanpoint3[1] ) / 4.0;
-            const T proj_radius = ( ceres::abs(tanpoint1[0] - tanpoint0[0]) + ceres::abs(tanpoint3[1] - tanpoint2[1]) ) / 4.0;
-
-            observation[0] = proj_x;
-            observation[1] = proj_y;
-            observation[2] = proj_radius;
-
-            ok = true;
-        }
-
-        return ok;
-    }
-
-    Sophus::SE3d myCameraToWorld;
-    CalibrationDataPtr myCalibration;
-};
+    return ok;
+}
 
 PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
-    myNumParticles = 250;
 
-    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*2.0;
-    myPredictionAngularVelocitySigma = 0.1*M_PI;
+    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*10.0;
+    myPredictionAngularVelocitySigma = 0.6*M_PI;
 
-    myCirclePositionNoise = 3.0;
-    myCircleRadiusNoise = 3.0;
+    myCirclePositionNoise = 2.0;
+    myCircleRadiusNoise = 2.0;
+
+    myProjectionFunction.reset(new CeresProjectionFunction(new ProjectionFunction(myCalibration)));
+    myTriangulationFunction.reset(new CeresTriangulationFunction(new TriangulationFunction(myCalibration)));
 }
 
 bool PFOdometry::track(double timestamp, const std::vector<TrackedCircle>& circles, OdometryFrame& output)
 {
     const bool successful_tracking =
-        (circles.size() >= 3) &&
-        bool(myCurrentState) &&
-        bool(myWorkingState) &&
-        predictionStep(timestamp, circles) &&
-        resamplingStep() &&
-        landmarkUpdateStep() &&
-        mappingStep();
+
+        (circles.size() >= 3) && bool(myCurrentState) && bool(myWorkingState) &&
+
+        updateParticles(timestamp, circles) &&
+
+        resampleParticles();
 
     if(successful_tracking == false)
     {
         initialize(timestamp, circles);
     }
 
-    return exportCurrentState(output, successful_tracking);
+    exportCurrentState(output, successful_tracking);
+
+    return true;
 }
 
-bool PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_previous)
+bool PFOdometry::updateParticles(double timestamp, const std::vector<TrackedCircle>& circles)
 {
+    struct NewLandmark
+    {
+        bool is_new;
+        bool is_seen; // is_new implies is_seen.
+
+        size_t observation; // valid only if is_seen.
+
+        Eigen::Vector3d position_in_camera_frame; // valid only if is_new.
+        Eigen::Matrix3d covariance_in_camera_frame; // valid only if is_new.
+
+        size_t old_index; // valid only if !is_new
+    };
+
+    std::vector<NewLandmark> landmarks;
+
+    const auto& old_state = *myCurrentState;
+    auto& new_state = *myWorkingState;
+
+    const size_t num_particles = old_state.particles.size();
+
+    const double timestep = timestamp - old_state.timestamp;
+
+    std::normal_distribution<double> normal_distribution;
+
+    new_state.frame_id = old_state.frame_id+1;
+    new_state.timestamp = timestamp;
+
+    new_state.observations.resize(circles.size());
+    for(size_t i=0; i<circles.size(); i++)
+    {
+        new_state.observations[i].undistorted_circle = OdometryHelpers::undistortCircle(circles[i].circle, myCalibration);
+        new_state.observations[i].has_landmark = false;
+        new_state.observations[i].landmark = 0;
+
+        if( circles[i].has_previous && old_state.observations[circles[i].previous].has_landmark )
+        {
+            new_state.observations[i].has_landmark = true;
+            new_state.observations[i].landmark = landmarks.size();
+
+            landmarks.emplace_back();
+            landmarks.back().is_new = false;
+            landmarks.back().is_seen = true;
+            landmarks.back().observation = i;
+            landmarks.back().old_index = old_state.observations[circles[i].previous].landmark;
+        }
+        else
+        {
+            NewLandmark new_landmark;
+
+            new_landmark.is_new = true;
+            new_landmark.is_seen = true;
+            new_landmark.observation = i;
+
+            const bool ok = triangulateLandmark(
+                Sophus::SE3d(),
+                new_state.observations[i].undistorted_circle,
+                new_landmark.position_in_camera_frame,
+                new_landmark.covariance_in_camera_frame);
+
+            if(ok)
+            {
+                new_state.observations[i].has_landmark = true;
+                new_state.observations[i].landmark = landmarks.size();
+
+                landmarks.push_back(std::move(new_landmark));
+            }
+        }
+    }
+
+    new_state.particles.resize(num_particles);
+    new_state.landmarks.resize({num_particles, landmarks.size()});
+
+    for(size_t i=0; i<num_particles; i++)
+    {
+        {
+            Sophus::SE3d::Tangent epsilon;
+            epsilon <<
+                timestep * myPredictionLinearVelocitySigma * normal_distribution(myRandomEngine),
+                timestep * myPredictionLinearVelocitySigma * normal_distribution(myRandomEngine),
+                timestep * myPredictionLinearVelocitySigma * normal_distribution(myRandomEngine),
+                timestep * myPredictionAngularVelocitySigma * normal_distribution(myRandomEngine),
+                timestep * myPredictionAngularVelocitySigma * normal_distribution(myRandomEngine),
+                timestep * myPredictionAngularVelocitySigma * normal_distribution(myRandomEngine);
+
+            new_state.particles[i].camera_to_world = old_state.particles[i].camera_to_world * Sophus::SE3d::exp(epsilon);
+            new_state.particles[i].importance_factor = 1.0;
+        }
+
+        for(size_t j=0; j<landmarks.size(); j++)
+        {
+            if(landmarks[j].is_new)
+            {
+                transformCameraToWorldFrame(
+                    landmarks[j].position_in_camera_frame,
+                    landmarks[j].covariance_in_camera_frame,
+                    new_state.particles[i].camera_to_world,
+                    new_state.landmarks({i,j}).position,
+                    new_state.landmarks({i,j}).covariance);
+            }
+            else if(landmarks[j].is_seen)
+            {
+                const double likelihood = computeObservationLikelihood(
+                    new_state.particles[i].camera_to_world,
+                    new_state.observations[landmarks[j].observation].undistorted_circle,
+                    old_state.landmarks({i,landmarks[j].old_index}));
+
+                new_state.particles[i].importance_factor *= likelihood;
+
+                updateLandmark(
+                    new_state.particles[i].camera_to_world,
+                    new_state.observations[landmarks[j].observation].undistorted_circle,
+                    old_state.landmarks({i,landmarks[j].old_index}),
+                    new_state.landmarks({i,j}) );
+            }
+        }
+    }
+
+    std::swap(myCurrentState, myWorkingState);
+
+    return true;
+}
+
+void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_previous)
+{
+    throw "Not implemented!"; // TODO
+    /*
     bool ret = true;
 
     State& s = *myCurrentState;
@@ -285,16 +394,8 @@ bool PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_prev
         output.landmarks.clear();
     }
 
-    /*
-    std::cout << "output_camera_to_world_t: " << output.camera_to_world.translation().transpose() << std::endl;
-    std::cout << "output_camera_to_world_q: " << output.camera_to_world.unit_quaternion().coeffs().transpose() << std::endl;
-    for(size_t i=0; i<output.landmarks.size(); i++)
-    {
-        std::cout << "output_landmark[" << i << "]: " << output.landmarks[i].position.transpose() << std::endl;
-    }
-    */
-
     return ret;
+    */
 }
 
 void PFOdometry::reset()
@@ -303,166 +404,160 @@ void PFOdometry::reset()
     myWorkingState.reset();
 }
 
-void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& circles)
+double PFOdometry::computeObservationLikelihood(
+    const Sophus::SE3d& camera_to_world,
+    const cv::Vec3f& undistorted_circle,
+    const Landmark& landmark)
 {
-    std::vector<Observation> observations;
-    std::vector<LandmarkEstimation> prototype_landmark_estimations;
-    Particle prototype_particle;
+    double ret = 0.0;
 
-    // initialize prototypes.
+    bool ok = true;
 
+    Eigen::Vector3d predicted_observation;
+    Eigen::Matrix3d predicted_observation_jacobian;
+
+    Eigen::Matrix3d observation_covariance;
+    observation_covariance <<
+        myCirclePositionNoise*myCirclePositionNoise, 0.0, 0.0,
+        0.0, myCirclePositionNoise*myCirclePositionNoise, 0.0,
+        0.0, 0.0, myCircleRadiusNoise*myCircleRadiusNoise;
+
+    if(ok)
     {
-        prototype_particle.camera_to_world = Sophus::SE3d(); //identity.
+        Eigen::Vector3d tmp0 = camera_to_world.inverse() * landmark.position;
+        const double* tmp1 = tmp0.data();
+        Eigen::Matrix<double, 3, 3, Eigen::RowMajor> tmp2;
+        double* tmp3 = tmp2.data();
 
-        observations.resize(circles.size());
+        ok = myProjectionFunction->Evaluate(&tmp1, predicted_observation.data(), &tmp3);
 
-        for(size_t i=0; i<circles.size(); i++)
+        if(ok)
         {
-            observations[i].undistorted_circle = OdometryHelpers::undistortCircle(circles[i].circle, myCalibration);
-
-            LandmarkEstimation est;
-
-            observations[i].has_landmark = triangulateLandmark(
-                circles[i].circle,
-                prototype_particle.camera_to_world,
-                est.position,
-                est.covariance);
-
-            if(observations[i].has_landmark)
-            {
-                observations[i].landmark = prototype_landmark_estimations.size();
-                prototype_landmark_estimations.push_back(std::move(est));
-            }
+            //predicted_observation_jacobian
         }
     }
 
-    // create new state.
-
+    if(ok)
     {
-        myCurrentState.reset(new State());
-        myWorkingState.reset(new State());
+        const Eigen::Matrix3d covariance = observation_covariance + predicted_observation_jacobian * landmark.covariance * predicted_observation_jacobian.transpose();
 
-        myCurrentState->frame_id = 0;
-        myCurrentState->timestamp = timestamp;
+        const double det_covariance = covariance.determinant();
 
-        myCurrentState->observations.swap(observations);
-        myCurrentState->particles.assign(myNumParticles, prototype_particle);
-        myCurrentState->landmark_estimations.resize({myNumParticles, prototype_landmark_estimations.size()});
-
-        for(size_t i=0; i<myNumParticles; i++)
+        if( det_covariance > 1.0e-5 )
         {
-            for(size_t j=0; j<prototype_landmark_estimations.size(); j++)
-            {
-                myCurrentState->landmark_estimations({i,j}) = prototype_landmark_estimations[j];
-            }
+            const Eigen::Matrix3d inv_covariance = covariance.inverse();
+
+            Eigen::Vector3d sensed_observation;
+            sensed_observation.x() = undistorted_circle[0];
+            sensed_observation.y() = undistorted_circle[1];
+            sensed_observation.z() = undistorted_circle[2];
+
+            const Eigen::Vector3d error = predicted_observation - sensed_observation;
+
+            //std::cout << error.transpose() << std::endl;
+
+            constexpr const double cte = 1.0 / std::pow(2.0*M_PI, 3.0/2.0);
+
+            ret = cte * std::exp(-0.5 * error.transpose() * inv_covariance * error) / std::sqrt(det_covariance);
         }
     }
 
-#ifdef PFODOMETRY_DEBUG
-    myCurrentState->dump("initialization");
-#endif
+    return ret;
 }
 
-bool PFOdometry::predictionStep(double timestamp, const std::vector<TrackedCircle>& circles)
+bool PFOdometry::resampleParticles()
 {
-    // sample predicted pose. This reduces to add noise to current pose.
+    const auto& old_state = *myCurrentState;
+    auto& new_state = *myWorkingState;
 
-    myWorkingState->frame_id = myCurrentState->frame_id+1;
-    myWorkingState->timestamp = timestamp;
-    myWorkingState->observations.resize(circles.size());
+    const size_t num_particles = old_state.particles.size();
 
-    size_t num_landmarks = 0;
-    for(size_t i=0; i<circles.size(); i++)
+    std::vector<double> weights(num_particles);
+    std::vector<size_t> sample(num_particles);
+
+    double total_weight = 0.0;
+
+    for(size_t i=0; i<num_particles; i++)
     {
-        myWorkingState->observations[i].undistorted_circle = OdometryHelpers::undistortCircle(circles[i].circle, myCalibration);
-
-        myWorkingState->observations[i].has_landmark = (circles[i].has_previous && myCurrentState->observations[circles[i].previous].has_landmark);
-
-        if( myWorkingState->observations[i].has_landmark )
-        {
-            myWorkingState->observations[i].landmark = num_landmarks;
-            num_landmarks++;
-        }
+        //total_weight += old_state
+        weights[i] = total_weight;
     }
 
-    myWorkingState->landmark_estimations.resize({myNumParticles, num_landmarks});
+    new_state.frame_id = old_state.frame_id;
+    new_state.timestamp = old_state.timestamp;
 
-    for(size_t i=0; i<circles.size(); i++)
-    {
-        if( myWorkingState->observations[i].has_landmark )
-        {
-            if( circles[i].has_previous == false || myCurrentState->observations[circles[i].previous].has_landmark == false )
-            {
-                throw std::runtime_error("internal error!");
-            }
+    //new_state.observations = old_state.observations.size();
 
-            const size_t old_landmark_index = myCurrentState->observations[circles[i].previous].landmark;
-
-            const size_t new_landmark_index = myWorkingState->observations[i].landmark;
-
-            for(size_t j=0; j<myNumParticles; j++)
-            {
-                myWorkingState->landmark_estimations({j, new_landmark_index}) = myCurrentState->landmark_estimations({j, old_landmark_index});
-            }
-        }
-    }
-
-    const double elapsed = timestamp - myCurrentState->timestamp;
-
-    myWorkingState->particles.swap(myCurrentState->particles);
-
-    std::normal_distribution<double> distribution; // N(0,1) distribution.
-
-    for(Particle& p : myWorkingState->particles)
-    {
-        Sophus::SE3d::Tangent epsilon;
-        epsilon <<
-            elapsed*myPredictionLinearVelocitySigma*distribution(myRandomEngine),
-            elapsed*myPredictionLinearVelocitySigma*distribution(myRandomEngine),
-            elapsed*myPredictionLinearVelocitySigma*distribution(myRandomEngine),
-            elapsed*myPredictionAngularVelocitySigma*distribution(myRandomEngine),
-            elapsed*myPredictionAngularVelocitySigma*distribution(myRandomEngine),
-            elapsed*myPredictionAngularVelocitySigma*distribution(myRandomEngine);
-
-        p.camera_to_world = p.camera_to_world * Sophus::SE3d::exp(epsilon);
-    }
 
     std::swap(myWorkingState, myCurrentState);
 
-#ifdef PFODOMETRY_DEBUG
-    myCurrentState->dump("prediction");
-#endif
-
     return true;
 }
 
-bool PFOdometry::landmarkUpdateStep()
+void PFOdometry::transformCameraToWorldFrame(
+    const Eigen::Vector3d& position_in_camera,
+    const Eigen::Matrix3d& covariance_in_camera,
+    const Sophus::SE3d& camera_to_world,
+    Eigen::Vector3d& position_in_world,
+    Eigen::Matrix3d& covariance_in_world)
 {
-    // update landmarks.
+    // TODO
+    throw "not implemented!";
+}
 
-    for(size_t i=0; i<myCurrentState->observations.size(); i++)
+void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& circles)
+{
+    std::vector<Landmark> landmarks;
+
+    myCurrentState.reset(new State());
+    myWorkingState.reset(new State());
+
+    auto& state = *myCurrentState;
+
+    state.frame_id = 0;
+    state.timestamp = timestamp;
+
+    state.observations.resize(circles.size());
+    for(size_t i=0; i<circles.size(); i++)
     {
-        if( myCurrentState->observations[i].has_landmark )
-        {
-            const size_t k = myCurrentState->observations[i].landmark;
+        state.observations[i].undistorted_circle = OdometryHelpers::undistortCircle(circles[i].circle, myCalibration);
+        state.observations[i].has_landmark = false;
+        state.observations[i].landmark = 0;
 
-            for(size_t j=0; j<myCurrentState->particles.size(); j++)
-            {
-                updateLandmark(
-                    myCurrentState->particles[j].camera_to_world,
-                    myCurrentState->observations[i].undistorted_circle,
-                    myCurrentState->landmark_estimations({j,k}));
-            }
+        Landmark landmark;
+        const bool triangulated = triangulateLandmark(
+            Sophus::SE3d(),
+            state.observations[i].undistorted_circle,
+            landmark.position,
+            landmark.covariance);
+
+        if(triangulated)
+        {
+            state.observations[i].has_landmark = true;
+            state.observations[i].landmark = landmarks.size();
+
+            landmarks.push_back(landmark);
         }
     }
 
-#ifdef PFODOMETRY_DEBUG
-    myCurrentState->dump("update_landmarks");
-#endif
+    const size_t num_particles = 200;
 
-    return true;
+    state.particles.resize(num_particles);
+    state.landmarks.resize({num_particles, landmarks.size()});
+
+    for(size_t i=0; i<num_particles; i++)
+    {
+        state.particles[i].importance_factor = 1.0;
+        state.particles[i].camera_to_world = Sophus::SE3d();
+
+        for(size_t j=0; j<landmarks.size(); j++)
+        {
+            state.landmarks({i,j}) = landmarks[j];
+        }
+    }
 }
 
+/*
 bool PFOdometry::resamplingStep()
 {
     bool ret = true;
@@ -489,52 +584,6 @@ bool PFOdometry::resamplingStep()
 
             for(size_t particle_index=0; particle_index<myNumParticles; particle_index++)
             {
-                LandmarkEstimation& landmark_estimation = myCurrentState->landmark_estimations({particle_index, landmark_index});
-
-                Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian;
-
-                Eigen::Vector3d predicted_observation;
-
-                const double* ceres_landmark = landmark_estimation.position.data();
-                double* ceres_jacobian = jacobian.data();
-                const bool ok = function->Evaluate(&ceres_landmark, predicted_observation.data(), &ceres_jacobian);
-
-                if(ok)
-                {
-                    const Eigen::Matrix3d covariance = observation_covariance + jacobian * landmark_estimation.covariance * jacobian.transpose();
-
-                    const double det_covariance = covariance.determinant();
-
-                    if( det_covariance > 1.0e-5 )
-                    {
-                        const Eigen::Matrix3d inv_covariance = covariance.inverse();
-
-                        Eigen::Vector3d sensed_observation;
-                        sensed_observation.x() = myCurrentState->observations[observation_index].undistorted_circle[0];
-                        sensed_observation.y() = myCurrentState->observations[observation_index].undistorted_circle[1];
-                        sensed_observation.z() = myCurrentState->observations[observation_index].undistorted_circle[2];
-
-                        const Eigen::Vector3d error = predicted_observation - sensed_observation;
-
-                        std::cout << error.transpose() << std::endl;
-
-                        constexpr const double cte = 1.0 / std::pow(2.0*M_PI, 3.0/2.0);
-
-                        const double landmark_weight = cte * std::exp(-0.5 * error.transpose() * inv_covariance * error) / std::sqrt(det_covariance);
-
-                        weights[particle_index] *= landmark_weight;
-                    }
-                    else
-                    {
-                        weights[particle_index] *= 0.0;
-                        failed[particle_index] = true;
-                    }
-                }
-                else
-                {
-                    weights[particle_index] *= 0.0;
-                    failed[particle_index] = true;
-                }
             }
         }
     }
@@ -575,128 +624,13 @@ bool PFOdometry::resamplingStep()
         }
     }
 
-#ifdef PFODOMETRY_DEBUG
-    myCurrentState->dump("resampling");
-#endif
-
     return ret;
 }
-
-bool PFOdometry::mappingStep()
-{
-    // Remove unseen landmarks and triangulate new ones.
-
-    enum LandmarkStock
-    {
-        LANDMARKSTOCK_OLD,
-        LANDMARKSTOCK_NEW
-    };
-
-    struct LandmarkLookup
-    {
-        LandmarkStock stock;
-        size_t index; // references a landmark in myCurrentState or an observation in myCurrentState.
-    };
-
-    std::vector<LandmarkLookup> landmarks;
-    bool need_update = false;
-    bool ret = true;
-
-    myWorkingState->frame_id = myCurrentState->frame_id;
-    myWorkingState->timestamp = myCurrentState->timestamp;
-    myWorkingState->observations.resize(myCurrentState->observations.size());
-
-    for(size_t i=0; i<myCurrentState->observations.size(); i++)
-    {
-        Eigen::Vector3d unused0;
-        Eigen::Matrix3d unused1;
-
-        myWorkingState->observations[i].undistorted_circle = myCurrentState->observations[i].undistorted_circle;
-        myWorkingState->observations[i].has_landmark = false;
-        myWorkingState->observations[i].landmark = 0;
-
-        if( myCurrentState->observations[i].has_landmark)
-        {
-            myWorkingState->observations[i].has_landmark = true;
-            myWorkingState->observations[i].landmark = landmarks.size();
-
-            landmarks.emplace_back();
-            landmarks.back().stock = LANDMARKSTOCK_OLD;
-            landmarks.back().index = myCurrentState->observations[i].landmark;
-        }
-        else if(triangulateLandmark(myCurrentState->observations[i].undistorted_circle, Sophus::SE3d(), unused0, unused1))
-        {
-            myWorkingState->observations[i].has_landmark = true;
-            myWorkingState->observations[i].landmark = landmarks.size();
-
-            landmarks.emplace_back();
-            landmarks.back().stock = LANDMARKSTOCK_NEW;
-            landmarks.back().index = i;
-
-            need_update = true;
-        }
-    }
-
-    if(need_update)
-    {
-        myWorkingState->landmark_estimations.resize({myNumParticles, landmarks.size()});
-
-        bool all_landmarks_successfully_triangulated = true;
-
-        for(size_t i=0; all_landmarks_successfully_triangulated && i<myNumParticles; i++)
-        {
-            for(size_t j=0; all_landmarks_successfully_triangulated && j<landmarks.size(); j++)
-            {
-                LandmarkEstimation& this_estimation = myWorkingState->landmark_estimations({i, j});
-
-                if( landmarks[j].stock == LANDMARKSTOCK_OLD )
-                {
-                    this_estimation = myCurrentState->landmark_estimations({i, landmarks[j].index});
-                }
-                else if( landmarks[j].stock == LANDMARKSTOCK_NEW )
-                {
-
-                    all_landmarks_successfully_triangulated =
-                        all_landmarks_successfully_triangulated &&
-                        triangulateLandmark(
-                            myCurrentState->observations[landmarks[j].index].undistorted_circle,
-                            myCurrentState->particles[i].camera_to_world,
-                            this_estimation.position,
-                            this_estimation.covariance);
-                }
-                else
-                {
-                    std::cerr << "Internal error!" << std::endl;
-                    exit(1);
-                }
-            }
-        }
-
-        if(all_landmarks_successfully_triangulated)
-        {
-            myWorkingState->particles.swap(myCurrentState->particles);
-
-            std::swap(myWorkingState, myCurrentState);
-        }
-        else
-        {
-            // This should not have happen because we have already successfully triangulared them using identity camera pose.
-            // There should be no reason why triangulating them using another camera pose would fail.
-            std::cerr << "Unexpected stuff in particle filter!" << std::endl;
-            //ret = false;
-        }
-    }
-
-#ifdef PFODOMETRY_DEBUG
-    myCurrentState->dump("mapping");
-#endif
-
-    return ret;
-}
+*/
 
 bool PFOdometry::triangulateLandmark(
-    const cv::Vec3d& undistorted_circle, 
     const Sophus::SE3d& camera_to_world,
+    const cv::Vec3d& undistorted_circle, 
     Eigen::Vector3d& position,
     Eigen::Matrix3d& covariance)
 {
@@ -705,11 +639,7 @@ bool PFOdometry::triangulateLandmark(
     const double* ceres_variable_ptr = undistorted_circle.val;
     double* ceres_jacobian_ptr = jacobian.data();
 
-    TriangulationFunction* fn0 = new TriangulationFunction(myCalibration, camera_to_world);
-
-    std::unique_ptr<CeresTriangulationFunction> fn1(new CeresTriangulationFunction(fn0));
-
-    const bool ok = fn1->Evaluate( &ceres_variable_ptr, position.data(), &ceres_jacobian_ptr );
+    const bool ok = myTriangulationFunction->Evaluate( &ceres_variable_ptr, position.data(), &ceres_jacobian_ptr );
 
     if(ok)
     {
@@ -732,29 +662,11 @@ bool PFOdometry::triangulateLandmark(
     return ok;
 }
 
-PFOdometry::State::State()
-{
-    frame_id = 0;
-    timestamp = 0.0;
-}
-
-PFOdometry::Particle::Particle()
-{
-}
-
-PFOdometry::LandmarkEstimation::LandmarkEstimation()
-{
-    position.setZero();
-    covariance.setIdentity();
-}
-
-PFOdometry::Observation::Observation()
-{
-    has_landmark = false;
-    landmark = 0;
-}
-
-bool PFOdometry::updateLandmark(const Sophus::SE3d& camera_to_world, const cv::Vec3f& observation, LandmarkEstimation& landmark)
+void PFOdometry::updateLandmark(
+    const Sophus::SE3d& camera_to_world,
+    const cv::Vec3f& undistorted_circle,
+    const Landmark& old_landmark,
+    Landmark& new_landmark)
 {
     bool ret = false;
 
@@ -763,9 +675,9 @@ bool PFOdometry::updateLandmark(const Sophus::SE3d& camera_to_world, const cv::V
     Eigen::Vector3d predicted_observation;
 
     Eigen::Vector3d sensed_observation;
-    sensed_observation(0) = observation(0);
-    sensed_observation(1) = observation(1);
-    sensed_observation(2) = observation(2);
+    sensed_observation(0) = undistorted_circle[0];
+    sensed_observation(1) = undistorted_circle[1];
+    sensed_observation(2) = undistorted_circle[2];
 
     Eigen::Matrix3d sensed_observation_covariance;
     sensed_observation_covariance.setZero();
@@ -773,113 +685,29 @@ bool PFOdometry::updateLandmark(const Sophus::SE3d& camera_to_world, const cv::V
     sensed_observation_covariance(1,1) = myCirclePositionNoise*myCirclePositionNoise;
     sensed_observation_covariance(2,2) = myCircleRadiusNoise*myCircleRadiusNoise;
 
-    const Eigen::Vector3d old_state = landmark.position;
-
-    const Eigen::Matrix3d old_state_covariance = landmark.covariance;
-
-    std::unique_ptr<CeresLandmarkObservationFunction> function;
-    function.reset(new CeresLandmarkObservationFunction(new LandmarkObservationFunction(myCalibration, camera_to_world)));
+    // TODO: fix usage of myProjectionFunction
+    throw;
 
     {
-        const double* ceres_old_state = old_state.data();
+        const double* ceres_old_state = old_landmark.position.data();
         double* ceres_jacobian = jacobian.data();
-        ret = function->Evaluate(&ceres_old_state, predicted_observation.data(), &ceres_jacobian);
+        ret = myProjectionFunction->Evaluate(&ceres_old_state, predicted_observation.data(), &ceres_jacobian);
     }
 
     if(ret)
     {
         const Eigen::VectorXd residual = sensed_observation - predicted_observation;
 
-        const Eigen::MatrixXd residual_covariance = jacobian * old_state_covariance * jacobian.transpose() + sensed_observation_covariance;
+        const Eigen::MatrixXd residual_covariance = jacobian * old_landmark.covariance * jacobian.transpose() + sensed_observation_covariance;
 
-        Eigen::LDLT<Eigen::Matrix3d> solver;
+        Eigen::FullPivHouseholderQR<Eigen::Matrix3d> solver;
         solver.compute(residual_covariance);
-        // TODO: check invertibility.
 
-        const Eigen::Vector3d new_state = old_state + old_state_covariance * jacobian.transpose() * solver.solve(residual);
-
-        const Eigen::Matrix3d new_state_covariance = old_state_covariance - old_state_covariance * jacobian.transpose() * solver.solve(jacobian * old_state_covariance);
-
-        landmark.position = new_state;
-        landmark.covariance = new_state_covariance;
-    }
-
-    return ret;
-}
-
-/*
-void PFOdometry::State::check()
-{
-    bool ok = true;
-
-    for(const Particle& p : particles)
-    {
-        const Eigen::Vector3d translation = p.camera_to_world.translation();
-        const Eigen::Quaterniond rotation = p.camera_to_world.unit_quaternion();
-
-        ok = ok && !std::isnan(translation.x());
-        ok = ok && !std::isnan(translation.y());
-        ok = ok && !std::isnan(translation.z());
-        ok = ok && !std::isnan(rotation.x());
-        ok = ok && !std::isnan(rotation.y());
-        ok = ok && !std::isnan(rotation.z());
-        ok = ok && !std::isnan(rotation.w());
-    }
-
-    for(LandmarkEstimation& es : landmark_estimations)
-    {
-        const Eigen::Vector3d translation = es.position;
-        const Eigen::Matrix3d covariance = es.covariance;
-
-        ok = ok && !std::isnan(translation.x());
-        ok = ok && !std::isnan(translation.y());
-        ok = ok && !std::isnan(translation.z());
-        ok = ok && !std::isnan(covariance(0,0));
-        ok = ok && !std::isnan(covariance(0,1));
-        ok = ok && !std::isnan(covariance(0,2));
-        ok = ok && !std::isnan(covariance(1,0));
-        ok = ok && !std::isnan(covariance(1,1));
-        ok = ok && !std::isnan(covariance(1,2));
-        ok = ok && !std::isnan(covariance(2,0));
-        ok = ok && !std::isnan(covariance(2,1));
-        ok = ok && !std::isnan(covariance(2,2));
-    }
-
-    std::cout << ok << std::endl;
-}
-*/
-
-void PFOdometry::State::dump(const char* stage)
-{
-    //check();
-
-    static int dump_count = 0;
-
-    std::stringstream fname;
-    fname << std::setw(5) << std::setfill('0') << dump_count++ << "_" << stage << ".txt";
-
-    std::ofstream file(fname.str());
-
-    file << "frame_id: " << frame_id << std::endl;
-    file << "timestamp: " << timestamp << std::endl;
-    file << "num_particles: " << particles.size() << std::endl;
-    file << "num_landmarks: " << landmark_estimations.size(1) << std::endl;
-    file << "num_observations: " << observations.size() << std::endl;
-    for(size_t i=0; i<particles.size(); i++)
-    {
-        file << "particle[" << i << "].camera_to_world_t: " << particles[i].camera_to_world.translation().transpose() << std::endl;
-        file << "particle[" << i << "].camera_to_world_q: " << particles[i].camera_to_world.unit_quaternion().coeffs().transpose() << std::endl;
-
-        for(size_t j=0; j<landmark_estimations.size(1); j++)
+        if(solver.isInvertible())
         {
-            file << "landmark_estimations(" << i << ", " << j << ").position: " << landmark_estimations({i,j}).position.transpose() << std::endl;
+            new_landmark.position = old_landmark.position + old_landmark.covariance * jacobian.transpose() * solver.solve(residual);
+            new_landmark.covariance = old_landmark.covariance - old_landmark.covariance * jacobian.transpose() * solver.solve(jacobian * old_landmark.covariance);
         }
-    }
-    for(size_t i=0; i<observations.size(); i++)
-    {
-        file << "observations[" << i << "].undistorted_circle: " << observations[i].undistorted_circle << std::endl;
-        file << "observations[" << i << "].has_landmark: " << observations[i].has_landmark << std::endl;
-        file << "observations[" << i << "].landmark: " << observations[i].landmark << std::endl;
     }
 }
 

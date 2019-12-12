@@ -31,29 +31,14 @@ public:
         std::fill(myDimensions.begin(), myDimensions.end(), 0);
     }
 
+    const T& operator()(std::initializer_list<size_t> multi_index) const
+    {
+        return myData[computeIndex(multi_index)];
+    }
+
     T& operator()(std::initializer_list<size_t> multi_index)
     {
-        if(multi_index.size() != D)
-        {
-            std::cerr << "Internal error!" << std::endl;
-            exit(1);
-        }
-
-        size_t index = 0;
-        size_t k = 0;
-
-        for(size_t i : multi_index)
-        {
-            if( i < 0 || myDimensions[k] <= i )
-            {
-                throw std::runtime_error("Incorrect multidimensional index!");
-            }
-
-            index += i*myStrides[k];
-            k++;
-        }
-
-        return myData[index];
+        return myData[computeIndex(multi_index)];
     }
 
     void resize(std::initializer_list<size_t> dims)
@@ -92,9 +77,36 @@ public:
 
 protected:
 
+    size_t computeIndex(std::initializer_list<size_t> multi_index) const
+    {
+        if(multi_index.size() != D)
+        {
+            std::cerr << "Internal error!" << std::endl;
+            exit(1);
+        }
+
+        size_t index = 0;
+        size_t k = 0;
+
+        for(size_t i : multi_index)
+        {
+            if( i < 0 || myDimensions[k] <= i )
+            {
+                throw std::runtime_error("Incorrect multidimensional index!");
+            }
+
+            index += i*myStrides[k];
+            k++;
+        }
+
+        return index;
+    }
+
+
+protected:
+
     std::array<size_t,D> myDimensions;
     std::array<size_t,D> myStrides;
     std::vector<T> myData;
 };
-
 

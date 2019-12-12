@@ -51,7 +51,7 @@ void TestStaticOdometry::testPFOdometry()
 
 void TestStaticOdometry::testOdometry(OdometryCodePtr code)
 {
-    const size_t N = 10;
+    const size_t N = 50;
 
     for(size_t frame=0; frame<N; frame++)
     {
@@ -71,6 +71,9 @@ void TestStaticOdometry::testOdometry(OdometryCodePtr code)
 
         QVERIFY(ok);
         QVERIFY(frame == 0 || odoframe.aligned_wrt_previous);
+
+        std::cout << odoframe.camera_to_world.translation().transpose() << std::endl;
+        std::cout << odoframe.camera_to_world.unit_quaternion().coeffs().transpose() << std::endl;
     }
 }
 

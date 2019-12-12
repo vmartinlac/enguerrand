@@ -24,25 +24,20 @@ protected:
 
     using RandomEngine = std::default_random_engine;
 
-    struct LandmarkEstimation
+    struct Landmark
     {
-        LandmarkEstimation();
-
         Eigen::Vector3d position;
         Eigen::Matrix3d covariance;
     };
 
     struct Particle
     {
-        Particle();
-
+        double importance_factor;
         Sophus::SE3d camera_to_world;
     };
 
     struct Observation
     {
-        Observation();
-
         cv::Vec3d undistorted_circle;
         bool has_landmark;
         size_t landmark;
@@ -50,23 +45,53 @@ protected:
 
     struct State
     {
-        State();
+        size_t getNumParticles()
+        {
+            return landmarks.size(0);
+        }
 
-        void dump(const char* stage);
-        void check();
+        size_t getNumLandmarks()
+        {
+            return landmarks.size(1);
+        }
 
         size_t frame_id;
         double timestamp;
-        std::vector<Particle> particles;
         std::vector<Observation> observations;
-        Tensor<LandmarkEstimation,2> landmark_estimations;
+        std::vector<Particle> particles;
+        Tensor<Landmark,2> landmarks;
     };
 
-    struct TriangulationFunction;
-    struct LandmarkObservationFunction;
+    class TriangulationFunction
+    {
+    public:
+
+        TriangulationFunction(CalibrationDataPtr calibration);
+
+        template<typename T>
+        bool operator()(const T* const circle, T* landmark) const;
+
+    protected:
+
+        CalibrationDataPtr myCalibration;
+    };
+
+    class ProjectionFunction
+    {
+    public:
+
+        ProjectionFunction(CalibrationDataPtr calibration);
+
+        template<typename T>
+        bool operator()(const T* const landmark, T* observation) const;
+
+    protected:
+
+        CalibrationDataPtr myCalibration;
+    };
 
     using CeresTriangulationFunction = ceres::AutoDiffCostFunction<TriangulationFunction, 3, 3>;
-    using CeresLandmarkObservationFunction = ceres::AutoDiffCostFunction<LandmarkObservationFunction, 3, 3>;
+    using CeresProjectionFunction = ceres::AutoDiffCostFunction<ProjectionFunction, 3, 3>;
 
 protected:
 
@@ -74,37 +99,56 @@ protected:
         double timestamp,
         const std::vector<TrackedCircle>& circles);
 
+    bool updateParticles(
+        double timestamp,
+        const std::vector<TrackedCircle>& circles);
+
+    bool resampleParticles();
+
     bool triangulateLandmark(
-        const cv::Vec3d& circle, 
         const Sophus::SE3d& camera_to_world,
+        const cv::Vec3d& undistorted_circle, 
         Eigen::Vector3d& position,
         Eigen::Matrix3d& covariance);
 
-    bool updateLandmark(
+    double computeObservationLikelihood(
         const Sophus::SE3d& camera_to_world,
-        const cv::Vec3f& observation,
-        LandmarkEstimation& landmark);
+        const cv::Vec3f& undistorted_circle,
+        const Landmark& landmark);
 
-    bool exportCurrentState(OdometryFrame& output, bool aligned_wrt_previous);
+    void updateLandmark(
+        const Sophus::SE3d& camera_to_world,
+        const cv::Vec3f& undistorted_circle,
+        const Landmark& old_landmark,
+        Landmark& new_landmark);
 
-    bool predictionStep(double timestamp, const std::vector<TrackedCircle>& circles);
+    void exportCurrentState(
+        OdometryFrame& output,
+        bool aligned_wrt_previous);
 
-    bool landmarkUpdateStep();
-
-    bool resamplingStep();
-
-    bool mappingStep();
+    void transformCameraToWorldFrame(
+        const Eigen::Vector3d& position_in_camera,
+        const Eigen::Matrix3d& covariance_in_camera,
+        const Sophus::SE3d& camera_to_world,
+        Eigen::Vector3d& position_in_world,
+        Eigen::Matrix3d& covariance_in_world);
 
 protected:
 
     CalibrationDataPtr myCalibration;
-    size_t myNumParticles;
-    std::unique_ptr<State> myCurrentState;
-    std::unique_ptr<State> myWorkingState;
-    RandomEngine myRandomEngine;
+
     double myPredictionLinearVelocitySigma;
     double myPredictionAngularVelocitySigma;
+
     double myCirclePositionNoise;
     double myCircleRadiusNoise;
+
+    RandomEngine myRandomEngine;
+
+    std::unique_ptr<CeresProjectionFunction> myProjectionFunction;
+    std::unique_ptr<CeresTriangulationFunction> myTriangulationFunction;
+
+    std::unique_ptr<State> myCurrentState;
+    std::unique_ptr<State> myWorkingState;
 };
 
