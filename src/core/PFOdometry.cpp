@@ -451,7 +451,7 @@ double PFOdometry::computeObservationLikelihood(
 
             const Eigen::Vector3d error = sensed_observation - predicted_observation;
 
-            //std::cout << error.transpose() << std::endl;
+            std::cout << error.transpose() << std::endl;
 
             constexpr const double cte = 1.0 / std::pow(2.0*M_PI, 3.0/2.0);
 
@@ -470,7 +470,6 @@ bool PFOdometry::resampleParticles()
     const size_t num_particles = old_state.landmarks.size(0);
     const size_t num_landmarks = old_state.landmarks.size(1);
 
-    std::vector<double> weights(num_particles);
     std::vector<size_t> selection(num_particles);
 
     std::uniform_real_distribution<double> U(0.0, 1.0);
@@ -501,9 +500,9 @@ bool PFOdometry::resampleParticles()
             selection[i] = 0;
             double v = 0.0;
 
-            while( selection[i] < num_particles && v + weights[selection[i]] < u )
+            while( selection[i]+1 < num_particles && v + old_state.particles[selection[i]].importance_factor < u )
             {
-                v += weights[selection[i]];
+                v += old_state.particles[selection[i]].importance_factor;
                 selection[i]++;
             }
         }
@@ -649,9 +648,11 @@ void PFOdometry::updateLandmark(
 
     if(ok)
     {
+        const Eigen::Vector3d in_camera = camera_to_world.inverse() * old_landmark.position;
+
         Eigen::Matrix<double, 3, 3, Eigen::RowMajor> jacobian;
 
-        const double* ceres_input[] = { old_landmark.position.data() };
+        const double* ceres_input[] = { in_camera.data() };
         double* ceres_jacobian[] = { jacobian.data() };
 
         ok = myProjectionFunction->Evaluate(ceres_input, predicted_observation.data(), ceres_jacobian);
