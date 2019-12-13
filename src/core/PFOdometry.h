@@ -45,16 +45,6 @@ protected:
 
     struct State
     {
-        size_t getNumParticles()
-        {
-            return landmarks.size(0);
-        }
-
-        size_t getNumLandmarks()
-        {
-            return landmarks.size(1);
-        }
-
         size_t frame_id;
         double timestamp;
         std::vector<Observation> observations;
@@ -105,8 +95,7 @@ protected:
 
     bool resampleParticles();
 
-    bool triangulateLandmark(
-        const Sophus::SE3d& camera_to_world,
+    bool triangulateLandmarkInCameraFrame(
         const cv::Vec3d& undistorted_circle, 
         Eigen::Vector3d& position,
         Eigen::Matrix3d& covariance);
@@ -140,8 +129,7 @@ protected:
     double myPredictionLinearVelocitySigma;
     double myPredictionAngularVelocitySigma;
 
-    double myCirclePositionNoise;
-    double myCircleRadiusNoise;
+    Eigen::Matrix3d myObservationCovarianceMatrix;
 
     RandomEngine myRandomEngine;
 

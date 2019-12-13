@@ -70,7 +70,7 @@ public:
         myData.swap(other.myData);
     }
 
-    size_t size(size_t i)
+    size_t size(size_t i) const
     {
         return myDimensions[i];
     }
