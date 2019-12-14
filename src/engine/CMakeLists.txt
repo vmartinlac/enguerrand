@@ -18,7 +18,7 @@ target_link_libraries(
     opencv_core
     opencv_imgproc
     Qt5::Core
-    Qt5::Gui
+    #Qt5::Gui
     Threads::Threads
     enguerrand_video
     enguerrand_core)

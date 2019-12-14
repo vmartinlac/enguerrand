@@ -72,11 +72,12 @@ void TestStaticOdometry::testOdometry(OdometryCodePtr code)
         QVERIFY(ok);
         QVERIFY(frame == 0 || odoframe.aligned_wrt_previous);
 
-        std::cout << odoframe.camera_to_world.translation().transpose() << std::endl;
-        std::cout << odoframe.camera_to_world.unit_quaternion().coeffs().transpose() << std::endl;
+        std::cout << "camera_to_world_t: " << odoframe.camera_to_world.translation().transpose() << std::endl;
+        std::cout << "camera_to_world_q: " << odoframe.camera_to_world.unit_quaternion().coeffs().transpose() << std::endl;
+        std::cout << "num_landmarks: " << odoframe.landmarks.size() << std::endl;
     }
 }
 
-QTEST_MAIN(TestStaticOdometry)
+QTEST_GUILESS_MAIN(TestStaticOdometry)
 //#include "odometry.moc"
 
