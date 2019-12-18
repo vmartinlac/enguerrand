@@ -32,7 +32,8 @@ protected:
 
     struct Particle
     {
-        double importance_factor;
+        bool have_nonzero_likelihood;
+        double log_likelihood;
         Sophus::SE3d camera_to_world;
     };
 
@@ -100,10 +101,11 @@ protected:
         Eigen::Vector3d& position,
         Eigen::Matrix3d& covariance);
 
-    double computeObservationLikelihood(
+    bool computeObservationLogLikelihood(
         const Sophus::SE3d& camera_to_world,
         const cv::Vec3f& undistorted_circle,
-        const Landmark& landmark);
+        const Landmark& landmark,
+        double& log_likelihood);
 
     void updateLandmark(
         const Sophus::SE3d& camera_to_world,

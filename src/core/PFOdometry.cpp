@@ -164,8 +164,8 @@ PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
 
-    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*10.0;
-    myPredictionAngularVelocitySigma = 0.6*M_PI;
+    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*2.0;
+    myPredictionAngularVelocitySigma = 0.1*M_PI;
 
     {
         const double circle_position_sdev = 3.0;
@@ -276,6 +276,9 @@ bool PFOdometry::updateParticles(double timestamp, const std::vector<TrackedCirc
 
     for(size_t i=0; i<num_particles; i++)
     {
+        new_state.particles[i].have_nonzero_likelihood = true;
+        new_state.particles[i].log_likelihood = 0.0;
+
         {
             Sophus::SE3d::Tangent epsilon;
             epsilon <<
@@ -286,8 +289,9 @@ bool PFOdometry::updateParticles(double timestamp, const std::vector<TrackedCirc
                 timestep * myPredictionAngularVelocitySigma * normal_distribution(myRandomEngine),
                 timestep * myPredictionAngularVelocitySigma * normal_distribution(myRandomEngine);
 
+                //epsilon *= 0.0;
+
             new_state.particles[i].camera_to_world = old_state.particles[i].camera_to_world * Sophus::SE3d::exp(epsilon);
-            new_state.particles[i].importance_factor = 1.0;
         }
 
         for(size_t j=0; j<landmarks.size(); j++)
@@ -303,12 +307,19 @@ bool PFOdometry::updateParticles(double timestamp, const std::vector<TrackedCirc
             }
             else if(landmarks[j].is_seen)
             {
-                const double likelihood = computeObservationLikelihood(
-                    new_state.particles[i].camera_to_world,
-                    new_state.observations[landmarks[j].observation].undistorted_circle,
-                    old_state.landmarks({i,landmarks[j].old_index}));
+                double log_likelihood = 0.0;
 
-                new_state.particles[i].importance_factor *= likelihood;
+                new_state.particles[i].have_nonzero_likelihood =
+                    new_state.particles[i].have_nonzero_likelihood && computeObservationLogLikelihood(
+                        new_state.particles[i].camera_to_world,
+                        new_state.observations[landmarks[j].observation].undistorted_circle,
+                        old_state.landmarks({i,landmarks[j].old_index}),
+                        log_likelihood);
+
+                if(new_state.particles[i].have_nonzero_likelihood)
+                {
+                    new_state.particles[i].log_likelihood += log_likelihood;
+                }
 
                 updateLandmark(
                     new_state.particles[i].camera_to_world,
@@ -406,14 +417,16 @@ void PFOdometry::reset()
     myWorkingState.reset();
 }
 
-double PFOdometry::computeObservationLikelihood(
+bool PFOdometry::computeObservationLogLikelihood(
     const Sophus::SE3d& camera_to_world,
     const cv::Vec3f& undistorted_circle,
-    const Landmark& landmark)
+    const Landmark& landmark,
+    double& log_likelihood)
 {
-    double ret = 0.0;
-
     bool ok = true;
+    bool ret = false;
+
+    log_likelihood = 0.0;
 
     Eigen::Vector3d predicted_observation;
     Eigen::Matrix3d predicted_observation_jacobian;
@@ -451,61 +464,75 @@ double PFOdometry::computeObservationLikelihood(
 
             const Eigen::Vector3d error = sensed_observation - predicted_observation;
 
-            std::cout << error.transpose() << std::endl;
+            //std::cout << error.transpose() << std::endl;
 
-            constexpr const double cte = 1.0 / std::pow(2.0*M_PI, 3.0/2.0);
+            constexpr const double cte = -1.5 * std::log(2.0*M_PI);
 
-            ret = cte * std::exp(-0.5 * error.transpose() * inv_covariance * error) / std::sqrt(det_covariance);
+            log_likelihood = cte - 0.5 * error.transpose() * inv_covariance * error - 0.5 * std::log(det_covariance);
+            ret = true;
+            //std::cout << log_likelihood << std::endl;
         }
+        //std::cout << covariance << std::endl;
+        //std::cout << std::endl;
     }
+
+    //std::cout << ret << std::endl;
 
     return ret;
 }
 
 bool PFOdometry::resampleParticles()
 {
+    struct WeightedParticle
+    {
+        size_t particle;
+        double weight;
+    };
+
     const auto& old_state = *myCurrentState;
     auto& new_state = *myWorkingState;
 
     const size_t num_particles = old_state.landmarks.size(0);
     const size_t num_landmarks = old_state.landmarks.size(1);
 
-    std::vector<size_t> selection(num_particles);
+    std::vector<WeightedParticle> bag;
 
     std::uniform_real_distribution<double> U(0.0, 1.0);
-
-    double total_weight = 0.0;
 
     bool ret = true;
 
     // compute particle selection.
 
-    for(size_t i=0; i<num_particles; i++)
-    {
-        total_weight += old_state.particles[i].importance_factor;
-    }
-
-    if(total_weight < 1.0e-5)
-    {
-        std::cout << "PFOdometry: no likely particle!" << std::endl;
-        ret = false;
-    }
-
     if(ret)
     {
+        double total = 0.0;
+
         for(size_t i=0; i<num_particles; i++)
         {
-            const double u = U(myRandomEngine) * total_weight;
-
-            selection[i] = 0;
-            double v = 0.0;
-
-            while( selection[i]+1 < num_particles && v + old_state.particles[selection[i]].importance_factor < u )
+            //std::cout << std::exp(old_state.particles[i].log_likelihood) << std::endl;
+            if( old_state.particles[i].have_nonzero_likelihood )
             {
-                v += old_state.particles[selection[i]].importance_factor;
-                selection[i]++;
+                bag.emplace_back();
+                bag.back().particle = i;
+                bag.back().weight = std::exp(old_state.particles[i].log_likelihood / double(num_landmarks));
+                total += bag.back().weight;
             }
         }
+
+        ret = (bag.empty() == false && total > 1.0e-9);
+
+        if(ret)
+        {
+            for(WeightedParticle& p : bag)
+            {
+                p.weight /= total;
+            }
+        }
+    }
+
+    if(ret == false)
+    {
+        std::cout << "PFOdometry: no particle with non-zero likelihood!" << std::endl;
     }
 
     // compute new state.
@@ -523,11 +550,32 @@ bool PFOdometry::resampleParticles()
 
         for(size_t i=0; i<num_particles; i++)
         {
-            new_state.particles[i] = old_state.particles[selection[i]];
+            // sample a particle.
+
+            size_t old_particle = 0;
+
+            {
+                const double u = U(myRandomEngine);
+
+                size_t j = 0;
+                double v = 0.0;
+
+                while( j+1 < bag.size() && v + bag[j].weight < u )
+                {
+                    v += bag[j].weight;
+                    j++;
+                }
+
+                old_particle = bag[j].particle;
+            }
+
+            // copy particle.
+
+            new_state.particles[i] = old_state.particles[old_particle];
 
             for(size_t j=0; j<num_landmarks; j++)
             {
-                new_state.landmarks({i,j}) = old_state.landmarks({selection[i],j});
+                new_state.landmarks({i,j}) = old_state.landmarks({old_particle,j});
             }
         }
 
@@ -592,7 +640,8 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
 
     for(size_t i=0; i<num_particles; i++)
     {
-        state.particles[i].importance_factor = 1.0;
+        state.particles[i].have_nonzero_likelihood = true;
+        state.particles[i].log_likelihood = 0.0;
         state.particles[i].camera_to_world = Sophus::SE3d();
 
         for(size_t j=0; j<landmarks.size(); j++)
