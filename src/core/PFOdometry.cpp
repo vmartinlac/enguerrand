@@ -375,15 +375,21 @@ void PFOdometry::exportCurrentState(OdometryFrame& output, bool aligned_wrt_prev
         for(size_t i=0; i<num_landmarks; i++)
         {
             Eigen::Vector3d mu = s.landmarks({0,i}).position;
-            Eigen::Matrix3d sigma = s.landmarks({0,i}).covariance;
+            Eigen::Matrix3d sigma = s.landmarks({0,i}).covariance + Eigen::Matrix3d::Identity()*1.0e-2;
 
             for(size_t j=1; j<num_particles; j++)
             {
                 const Eigen::Vector3d observation_residual = s.landmarks({j,i}).position - mu;
-                const Eigen::Matrix3d observation_covariance = sigma + s.landmarks({j,i}).covariance;
+                const Eigen::Matrix3d observation_covariance = sigma + s.landmarks({j,i}).covariance + Eigen::Matrix3d::Identity()*1.0e-2;
 
-                if( std::fabs(observation_covariance.determinant()) < 1.0e-6 )
+                if( std::fabs(observation_covariance.determinant()) < 1.0e-7 )
                 {
+                    Eigen::JacobiSVD<Eigen::Matrix3d> svd(observation_covariance);
+
+                    std::cout << j << std::endl;
+                    std::cout << svd.singularValues().transpose() << std::endl;
+                    std::cout << observation_covariance << std::endl;
+
                     throw std::runtime_error("internal error!");
                 }
 
