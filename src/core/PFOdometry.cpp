@@ -164,8 +164,8 @@ PFOdometry::PFOdometry(CalibrationDataPtr calibration)
 {
     myCalibration = calibration;
 
-    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*2.0;
-    myPredictionAngularVelocitySigma = 0.1*M_PI;
+    myPredictionLinearVelocitySigma = CORE_LANDMARK_RADIUS*6.0;
+    myPredictionAngularVelocitySigma = 0.15*M_PI;
 
     {
         const double circle_position_sdev = 3.0;
@@ -639,7 +639,7 @@ void PFOdometry::initialize(double timestamp, const std::vector<TrackedCircle>& 
         }
     }
 
-    const size_t num_particles = 200;
+    const size_t num_particles = 1000;
 
     state.particles.resize(num_particles);
     state.landmarks.resize({num_particles, landmarks.size()});
