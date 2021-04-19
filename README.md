@@ -25,13 +25,3 @@ Added value
 * User interface to inspect pose and map provided by SLAM algorithms.
 
 Computer vision algorithms are multi-threaded according to task-based parallelism.
-
-TODO
-----
-
-* Write particle filter odometry.
-* Check histogram with one-class SVM instead of using distance to some reference histogram.
-* Write GPU implementation of edge detection.
-* (nice to have) Optimize performances of CPU implementation of landmark detection.
-* (nice to have) Multi-frame landmark tracking.
-
